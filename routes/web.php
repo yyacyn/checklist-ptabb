@@ -1,8 +1,11 @@
 <?php
 
 use Illuminate\Support\Facades\Route;
-use Inertia\Inertia;
 
-Route::get('/', fn () => Inertia::render('Welcome'));
+Route::inertia('/', 'welcome')->name('home');
 
-Route::get('/about', fn () => Inertia::render('About'));
+Route::middleware(['auth', 'verified'])->group(function () {
+    Route::inertia('dashboard', 'dashboard')->name('dashboard');
+});
+
+require __DIR__.'/settings.php';

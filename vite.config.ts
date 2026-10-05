@@ -1,8 +1,10 @@
-import { defineConfig } from 'vite';
-import laravel from 'laravel-vite-plugin';
-import react from '@vitejs/plugin-react';
-import { bunny } from 'laravel-vite-plugin/fonts';
+import inertia from '@inertiajs/vite';
+import { wayfinder } from '@laravel/vite-plugin-wayfinder';
 import tailwindcss from '@tailwindcss/vite';
+import react from '@vitejs/plugin-react';
+import laravel from 'laravel-vite-plugin';
+import { bunny } from 'laravel-vite-plugin/fonts';
+import { defineConfig } from 'vite';
 
 export default defineConfig({
     plugins: [
@@ -15,12 +17,16 @@ export default defineConfig({
                 }),
             ],
         }),
-        tailwindcss(),
+        inertia(),
         react(),
+        tailwindcss(),
+        wayfinder({
+            formVariants: true,
+        }),
     ],
     server: {
         watch: {
-            ignored: ['**/storage/framework/views/**'],
+            ignored: ['**/vendor/**'],
         },
     },
 });
