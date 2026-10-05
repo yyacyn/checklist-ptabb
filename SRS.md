@@ -1,7 +1,9 @@
 # Vessel Audit & Inspection App: SRS / PRD
 
-Version 0.4
+Version 0.5
 Source forms: B-008 Vessel Internal Audit Checklist (v00.00, 25-Aug-23), D-062 Vessel Inspection Report (v01.01, 01-Jul-23), PT. Amarin Ship Management
+
+**0.5: the PDF follows the D-062 layout, with the Report Summary moved to the back.** REP-1 to REP-1g.
 
 **0.4: the vessel master table is removed.** There is no `vessels` entity. Vessel particulars are typed by the user on each report, and a vessel user carries one vessel name on their account. Every rule that previously depended on a vessel record now matches on that name (sections 2, 2.1, FM-4, INS-1, AUD-1, PHO-2, PHO-4, PHO-8, FND-2, section 14).
 
@@ -308,7 +310,13 @@ Rules:
 
 ## 11. Reports and output
 
-- REP-1: PDF for inspections and audits. **v1 scope: the same fields, in the same order, under the same form codes as the original forms, on a clean layout.** Pixel-faithful reproduction of the Word layout (merged cells, exact column widths, exact pagination) is **not** a v1 requirement and moves to v1.1 if it is still wanted. This is the largest schedule risk in the project: a 600-row table with a photo chapter through a pure-PHP renderer on shared hosting. Run the spike in section 17 before committing to either scope.
+- REP-1: **The PDF follows the layout of the source form, chapter for chapter and table for table.** For D-062 this means the same order and the same visual blocks as the source document: Chapter 1 General Information (vessel particulars, operations at the time of inspection, last PSC and dry dock dates, the open items / memoranda / Conditions of Class / recommendations / notations table, INTERNAL CIRCULATION), Chapters 2 to 13 checklists with their own column sets, Chapter 14 best practices, Chapter 15 Summary of Observations, Chapter 16 photographic records, and the two comparison blocks at the end. The B-008 audit is built the same way from its own source document.
+- REP-1b: **One deliberate change to the D-062 layout: the Report Summary moves from the front to near the end.** In the source document the Report Summary sits inside Chapter 1, right after the header block, and the index reads "1. General Information & Report Summary". In this app the inspector cannot honestly rate chapters 1 to 13 until the checklist is filled in, so the summary is rated last and printed **after Chapter 15 Summary of Observations and before Chapter 16 photographic records**, under the heading `REPORT SUMMARY`. Photographs stay last because they are an appendix.
+- REP-1c: The summary keeps its original three-column rating table (No, Item, Very Good, Satisfactory, Unsatisfactory) for chapters 1 to 13, plus the calculated counts of High, Medium and Low observations required by INS-11, which the source form does not have.
+- REP-1d: **Chapter numbers are not renumbered.** The moved summary carries no chapter number of its own. Findings already cross-refer to chapter numbers (INS-9, chapter 15), and shifting 15 to 16 would break every job order, VIQ cross-reference and the printed index. The heading says where it came from: `REPORT SUMMARY (printed after Chapter 15; shown in Chapter 1 of form D-062 v01.01)`.
+- REP-1e: The printed index at the front is generated from the document's real page numbers, not typed in as fixed text as it is in the source document, where it goes stale as soon as one chapter grows.
+- REP-1f: Static text from the form is reproduced as written: the FILL IN INSTRUCTIONS block, the note under the open items table, the notes under the Summary of Observations table, and the "Add or remove lines respectively" instruction. Repeating rows (open items, summary of observations, attendance) add as many rows as needed instead of being clipped to the paper row count.
+- REP-1g: Because the layout is now a faithful reproduction, it is the largest single item in v1 and it is template driven: one layout definition per form, both forms sharing the same rendering engine. The spike in section 15 must run before the report UI is built.
 - REP-1a: Form code, form version, template version, report number, generation date, and page numbers in the footer of every page.
 - REP-2: Signature lines blank. Everything else filled, including each group's comments/remarks under its table.
 - REP-3: Inspection PDF includes chapter 16 photos.
@@ -444,7 +452,7 @@ There is no `vessels` table. See section 2.1.
 
 **Spikes first (before any feature build, one or two days each)**
 - Parse the two real Word files end to end and produce the review file. Confirms or kills section 5.
-- Generate one PDF with a 600-row checklist plus 30 photos through dompdf and through mPDF on the target host, and record time and memory. Decides REP-1.
+- Generate one PDF with a 600-row checklist plus 30 photos through dompdf and through mPDF on the target host, reproducing the D-062 layout including the moved Report Summary, and record time and memory. Decides the renderer for REP-1.
 - Push one 20 MB photo from a phone through client resize, upload, queued server processing, and thumbnail. Confirms IMG-1 to IMG-8 and section 13 item 3.
 
 **v1**
@@ -461,7 +469,7 @@ There is no `vessels` table. See section 2.1.
 - Findings lifecycle and Excel export
 - Dashboard
 - Previous-report comparison and 12-month coverage view
-- Pixel-faithful PDF layout, if still wanted
+- Layout refinement of the two form templates once real reports exist
 
 **Later (if needed)**
 - Full offline mode
@@ -490,7 +498,7 @@ Added in 0.3, to be confirmed by the project owner:
 
 - Report statuses are draft, in_progress, submitted, reviewed, closed, reopened (section 10).
 - Inapplicable questions stay in the report as auto-NA with a reason, rather than disappearing (FM-4).
-- v1 PDF is a clean layout with the same fields in the same order, not a pixel copy of the Word form (REP-1).
+- The PDF reproduces the D-062 and B-008 layouts, with the Report Summary moved to after Chapter 15 (REP-1, REP-1b). Chapter numbers are not renumbered.
 - HEIC is converted in the browser; the server does not depend on libheif (IMG-2a).
 - Answers autosave in batches, flushed on blur, every 5 seconds, and on leaving a group (NFR-1).
 - Records are retained 5 years from closure, archived, never hard deleted (NFR-17).
@@ -500,7 +508,7 @@ Added in 0.3, to be confirmed by the project owner:
 
 Not in v1, so that scope creep has to be a decision rather than a drift:
 
-- No pixel-faithful reproduction of the Word layout.
+- No correction to an old report's printed layout. A report's PDF is regenerated from the template version it was created with, and that layout is frozen; later template changes affect new reports only.
 - No full offline mode, and no service worker.
 - No email or push notifications. Nothing tells Corporate that an action was submitted; they see it on the dashboard. Revisit when FND-3 lands, because the close-out loop is weak without it.
 - No approval workflow of any kind, including for findings close-out by corporate.
@@ -534,7 +542,7 @@ Each item needs an owner and a date. The first one blocks the data model.
 | --- | --- | --- | --- |
 | OQ-1 | **RESOLVED in 0.4.** The `vessels` entity is removed. Vessel particulars are typed per report and vessel users are scoped by a normalised vessel name on their account (section 2.1). Consequences accepted: name typos are the main access risk, name changes are a logged bulk rename, and vessel names are treated as unique. | Closed | Closed |
 | OQ-2 | Is the status list in section 10 right, and may a Corporate User reopen a `closed` report? | Section 10 | Project owner |
-| OQ-3 | Pixel-faithful PDF, or clean layout? (REP-1) | Section 11 | Project owner |
+| OQ-3 | **RESOLVED in 0.5.** The PDF follows the D-062 layout, with the Report Summary moved to after Chapter 15 (REP-1, REP-1b). | Closed | Closed |
 | OQ-4 | Does the DPA accept crew-completed internal audits where the Master may audit a colleague? (section 7 note) | Section 7 | DPA |
 | OQ-5 | Results of the nine cPanel checks in section 13, especially PHP version, SSH, memory limit, cron, and disk quota. | Deployment | IT |
 | OQ-6 | Is 5 years the right retention, and who is allowed to archive? | NFR-17 | Project owner |
