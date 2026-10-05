@@ -134,7 +134,7 @@ erDiagram
         string report_type "inspection|audit"
         bigint form_id FK
         int template_version "snapshot of FORMS at creation"
-        string reference_number UK "D062-2026-0001 | AUD-003/2026"
+        string reference_number UK "D062-20261005-01 | B008-20261005-02"
         string status "draft|in_progress|submitted|reviewed|closed|reopened"
         string vessel_name
         string vessel_imo
@@ -501,7 +501,7 @@ Only columns that carry a rule or a non obvious choice are listed. Standard colu
 | `report_type` | enum | `inspection` (D-062) or `audit` (B-008). Separate from `form_id` so one form could be used both ways later |
 | `form_id` | FK | The template this report was built from |
 | `template_version` | int | Copied from `forms.template_version` at creation (FM-12) |
-| `reference_number` | varchar, **unique** | Generated in a transaction (RLS-7). Sequence table per form per year |
+| `reference_number` | varchar, **unique** | `FORMCODE-YYYYMMDD-NN` (SRS RLS-7). Form code, the **report date** the inspector entered, and a daily sequence. The sequence exists because form code plus date collides when one inspector writes two reports of the same form on one day |
 | `status` | enum | Section 10. Transitions validated by a policy, not in the UI |
 | `vessel_name` | varchar, indexed | Normalised on write. Index because every vessel-scoped query filters on it |
 | `vessel_gt`, `vessel_built` | decimal, smallint | Typed by the user (SRS 2.1) |
@@ -570,7 +570,8 @@ Not written for: reads, or for autosave retries that changed nothing (NFR-9).
 | Two people cannot silently overwrite each other | `row_version` + advisory `lock_owner_id` |
 | Evaluation scores stay private | Policy on `auditee_evaluations`, plus form ownership check on `criterion_id` |
 | Nothing submitted is deleted | `deleted_at` only on `draft` / `in_progress` (RLS-8) |
-| Report numbers cannot collide | `unique(reference_number)` + transactional sequence (RLS-7) |
+| A closed report is final | No transition out of `closed` is permitted (RLS-9) |
+| Report numbers cannot collide | `unique(reference_number)` plus a transactional daily sequence (RLS-7) |
 | A vessel user sees only their own vessel | `users.vessel_name` = `reports.vessel_name`, normalised comparison (SRS 2.1) |
 
 ---
@@ -579,9 +580,9 @@ Not written for: reads, or for autosave retries that changed nothing (NFR-9).
 
 | # | Question | Effect on this ERD |
 | --- | --- | --- |
-| OQ-2 | Is the status list right, and can a `closed` report be reopened? | Decides whether `reopened` is a status or a flag on `closed` |
-| OQ-6 | Is 5 year retention right? | Decides whether reports are archived to cold storage or dropped |
-| OQ-7 | Report numbering convention | Decides `reference_number` format and whether a `sequences` table is needed |
+| OQ-2 | Status list accepted; `closed` is final and never reopened | `closed` has no outgoing transition (RLS-9) |
+| OQ-6 | Five year retention confirmed | Decides whether reports are archived to cold storage or dropped |
+| OQ-7 | Report numbering is form code plus date plus daily sequence | `reference_number` format only |
 | OQ-8 | Real user and report counts | Decides whether progress counters are pre computed columns or counted live |
 | SRS 2.1 | Two vessels with the same name | Accepted as one vessel. If that changes, `vessel_names` becomes a real table and every `vessel_name` column becomes an FK |
 

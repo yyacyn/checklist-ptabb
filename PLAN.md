@@ -46,13 +46,13 @@ Throwaway code. Nothing here ships. Each spike ends in a written answer, not a m
 | # | Spike | Question it answers | Method | Output |
 | --- | --- | --- | --- | --- |
 | S1 | **Form parser** | Can the two documents be parsed reliably enough that nobody types questions by hand? | Parse both `.docx` (via `python-docx`-equivalent table walking in PHP, or the provided markdown conversions) into the §5 review file | Group and question counts per form vs the SRS numbers (B-008 ≈ 430 in 17 sections, D-062 chapters 2–13 ≈ 600). Warning list: duplicates, unsplittable guidance, dotted blanks, mangled words (`claSMS`, `trSMS`), "(continuing)" merges, subgroup detection |
-| S2 | **PDF renderer** | dompdf or mPDF? Does the faithful layout fit in host limits? | Build one 600-row checklist chapter + the moved Report Summary + 30 photos in both renderers on the target host | Wall time, peak memory, file size, whether chapter table headers repeat across pages correctly |
-| S3 | **Photo pipeline** | Does a 20 MB phone photo survive the whole trip on shared PHP? | Browser resize → upload → queued optimise → thumbnail, at 20 MB and at 40 MP | Wall time, peak memory, final file size against the 300–800 KB target (IMG-8) |
+| S2 | **PDF renderer** | dompdf or mPDF? Does the faithful layout fit the inherited memory limit? | Build one 600-row checklist chapter + the moved Report Summary + 30 photos in both renderers, measuring peak memory against the host's actual `memory_limit` | Wall time, peak memory vs limit, file size, whether chapter table headers repeat across pages correctly, and whether the REP-8 appendix split is mandatory |
+| S3 | **Photo pipeline** | Does a 20 MB phone photo survive the trip when INI cannot be raised? | Browser resize → upload → queued optimise → thumbnail, at 20 MB and 40 MP, against the host's real `upload_max_filesize` | Wall time, peak memory vs limit, final size against the 300–800 KB target (IMG-8), and what the user sees when the original is too big for the host |
 
 **GATE 1** — before any feature code:
 - S1 result decides whether §5 stays as written, or the importer is replaced by "one person types the questions over a week".
-- S2 result fixes the renderer and tells us whether the photo chapter needs the REP-8 appendix split.
-- S3 result either confirms the current design or forces a client-side-only pipeline with a smaller server image cap.
+- S2 result fixes the renderer and tells us whether the photo chapter needs the REP-8 appendix split. With inherited INI, if neither renderer fits, a document-only PDF plus a photo appendix is the plan, not a fallback.
+- S3 result confirms or replaces the client-first pipeline. Because `upload_max_filesize` cannot be raised, a browser that cannot resize means an upload that cannot happen, so the spike also tests the failure message the user would see.
 
 ---
 
@@ -221,11 +221,12 @@ These are needed at specific points. Late answers cost rework, not just delay.
 
 | Needed by | Decision | Currently |
 | --- | --- | --- |
-| Phase 1, task 1.4 | Status list correct, and may a `closed` report be reopened? (OQ-2) | Drafted in SRS §10, unconfirmed |
-| Phase 1, task 1.8 | Report numbering convention (OQ-7) | Assumed `D062-2026-0001` and `AUD-003/2026` |
+| Phase 0, before S2 and S3 run | The **actual inherited INI values** (OQ-5): `upload_max_filesize`, `post_max_size`, `memory_limit`, `max_execution_time`, `max_input_vars`, and whether GD or Imagick exists | PHP 8.8 and inherited INI known; the values are not |
+| Phase 1, task 1.7 | ~~Status list, reopening~~ | **Resolved:** `closed` is final, never reopened |
+| Phase 1, task 1.8 | ~~Report numbering~~ | **Resolved:** form code, date, daily sequence |
 | Phase 1, task 1.10 | Does the DPA accept crew-run internal audits? (OQ-4) | Open, does not block Phase 1 |
-| Phase 6 | cPanel results: PHP version, memory limit, Imagick or GD, cron, disk quota (OQ-5) | Unknown. **Blocks the PDF renderer decision** |
-| Phase 9 | 5 year retention confirmed (OQ-6) | Assumed |
+| Phase 9 | ~~Retention~~ | **Resolved:** five years |
+| Phase 9 | Real user and report counts (OQ-8) | 200 users assumed |
 
 ---
 
@@ -234,10 +235,12 @@ These are needed at specific points. Late answers cost rework, not just delay.
 | Risk | Impact | Mitigation |
 | --- | --- | --- |
 | Parser misses questions or mis-merges "(continuing)" tables | Whole app built on a wrong template | S1 first, human review of the review file, source keys for traceability |
-| PDF layout does not fit host limits | v1 slips by weeks | S2 first, REP-8 appendix split, clean-layout fallback behind a flag |
-| VSAT too slow to be usable in the field | Users go back to Word | NFR-13 measured on a throttled link before v1 ships, not after |
-| Photo pipeline exceeds shared memory | Uploads fail on the ship | S3 first, megapixel cap with a clear message, client-side resize doing most of the work |
+| PDF layout does not fit host limits | v1 slips by weeks | S2 first. REP-8 appendix split is pre-approved, not a debate |
+| `upload_max_filesize` smaller than a resized photo | Uploads fail at sea | S3 first. Client-side resize is already mandatory (SRS 13.1); the spike measures the real ceiling and sets target edge and quality to fit under it |
+| A queue job killed by the host's `memory_limit` or `max_execution_time` | Photo stuck in `processing` | Separate queue, explicit `failed` state with retry. Nothing is lost because the original never left the phone |
+| Photo pipeline exceeds shared memory | Uploads fail on the ship | S3 first, megapixel cap with a clear message, client-side resize doing all the heavy work |
 | Vessel name typos break access control | Crew cannot see their own records | Pick-from-list for vessel users, normalisation, superadmin notified on unmatched names |
+| VSAT too slow to be usable in the field | Users go back to Word | NFR-13 measured on a throttled link before v1 ships, not after |
 | Scope creep into v1.1 features | v1 never ships | The non-goals list in SRS §16.1 exists to be quoted back |
 | Findings close-out loop has no notification | Findings pile up unclosed | Explicitly accepted for v1; the dashboard surfaces them (REP-5, v1.1) |
 

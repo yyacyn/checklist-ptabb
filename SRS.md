@@ -1,7 +1,9 @@
 # Vessel Audit & Inspection App: SRS / PRD
 
-Version 0.5
+Version 0.6
 Source forms: B-008 Vessel Internal Audit Checklist (v00.00, 25-Aug-23), D-062 Vessel Inspection Report (v01.01, 01-Jul-23), PT. Amarin Ship Management
+
+**0.6: answers received.** `closed` is final and a closed report can never be reopened (RLS-9). Report numbers are form code plus date plus a daily sequence (RLS-7). The host offers PHP up to 8.8 and **inherited INI only** (section 13.1). Five year retention confirmed (NFR-17).
 
 **0.5: the PDF follows the D-062 layout, with the Report Summary moved to the back.** REP-1 to REP-1g.
 
@@ -261,13 +263,13 @@ Managed by the superadmin (add, rename, disable). Seeded with:
 
 VSAT is slow and costs money, and cPanel storage is limited, so photos must be shrunk before and after upload.
 
-- IMG-1: The system **accepts original photos of at least 20 MB** (configurable limit, default 25 MB). Phone photos are often 5 to 12 MB, and some cameras produce more.
+- IMG-1: **The browser accepts original photos of at least 20 MB** (configurable, default 25 MB). Phone photos are often 5 to 12 MB, and some cameras produce more. Because the host inherits its INI values and the upload limit cannot be raised (section 13.1), the file that crosses the wire is the **resized** image, normally under 1 MB. What the user experiences is "I can take a 20 MB photo", which is what this requirement is really about; what the server receives is small. If client-side processing fails entirely, the upload is refused with a clear message rather than attempting a transfer the host will reject.
 - IMG-2: **Client-side resize first** (in the browser, before upload): longest edge 2000 px, JPEG quality about 80, orientation fixed. This is what saves VSAT bandwidth.
 - IMG-2a: HEIC is converted in the browser, not on the server. Chrome cannot decode HEIC with `createImageBitmap`, so a WASM decoder (libheif-js) is used when `createImageBitmap` fails. If the conversion fails for any reason, the file is **not** silently uploaded as the original; the user is told the format is unsupported and the camera setting to use JPEG is suggested. This closes the gap where an unprocessable file would arrive at the server as HEIC, which shared-hosting PHP usually cannot decode (see IMG-4).
 - IMG-3: **Server-side optimize always**, even if the client already did it: auto-orient, resize to a maximum of 2000 px, recompress JPEG at about 80, strip metadata except capture time, and create a 400 px thumbnail. Original is discarded after processing (superadmin setting to keep originals, off by default).
 - IMG-4: Accepted formats: JPEG, PNG, WebP. HEIC/HEIF is accepted as well **only if** the browser converts it (IMG-2a) or the host has Imagick built with libheif. Everything is stored as JPEG. If an unconverted HEIC reaches the server and cannot be decoded, it is rejected with a clear message rather than stored unreadable.
 - IMG-5: Server processing runs as a queued job so the upload request returns quickly. The photo shows "processing" until ready.
-- IMG-6: Memory protection: a 20 MB JPEG can be 40+ megapixels and needs roughly 150 to 200 MB of RAM to decode. The job runs with an adequate memory limit, and images above a configurable megapixel cap are rejected with a clear message.
+- IMG-6: Memory protection. A 40 MP original needs roughly 150 to 200 MB to decode, which the host's inherited memory limit may not allow (section 13.1). Therefore the server only ever decodes an image the browser has already resized, which needs well under 100 MB. A megapixel cap still applies as a second line of defence, and anything above it is rejected with a message that tells the user to retake the photo rather than an error code.
 - IMG-7: Upload queue in the browser: files upload one at a time with status (queued, uploading, processing, done, failed) and retry on failure. A dropped VSAT connection must not lose the photo.
 - IMG-8: Result target: roughly 300 KB to 800 KB per photo. Rough planning figure: 10,000 photos at 0.5 MB is about 5 GB. Check the cPanel disk quota against that.
 
@@ -305,8 +307,9 @@ Rules:
 - RLS-4: Photos attached to a report are locked at `submitted`.
 - RLS-5: `reopened` requires a reason, written to the activity log. Reopening is a normal part of the review loop, not an exception.
 - RLS-6: Only `submitted`, `reviewed`, and `closed` reports count in the coverage view (INS-20) and in the previous-report comparison (INS-19).
-- RLS-7: Report numbers are assigned at creation and never change: D-062 `D062-2026-0001`, B-008 `AUD-003/2026` as in AUD-1. The sequence is generated in a transaction behind a unique index, so two simultaneous creations cannot collide. The year rolls over on 1 January.
+- RLS-7: Report numbers are assigned at creation and never change. Format is **form code, date, daily sequence**: `D062-20261005-01`, `B008-20261005-02`. The daily sequence is required, because form code plus date alone collides as soon as a superintendent writes two inspections of the same form on the same day, and a duplicate reference number on audit evidence is not acceptable. The sequence is generated in a transaction behind a unique index, so simultaneous creations cannot collide. The date is the report date entered by the inspector, not the creation timestamp, so a report written up the next morning keeps the visit date. This replaces the `AUD-003/2026` numbering shown on form B-008.
 - RLS-8: Only a `draft` or `in_progress` report may be deleted, and only by soft delete with a reason in the activity log. Anything that reached `submitted` is never deleted.
+- RLS-9: **`closed` is final. A closed report can never be reopened.** If something must change afterwards, a new report is created and the closed one is left alone as the record of what was known at the time. `reopened` exists only to return a `submitted` report to its author for correction, and can be used any number of times before submission is final.
 
 ## 11. Reports and output
 
@@ -362,20 +365,38 @@ Ships have VSAT: connected most of the time but slow, high latency, and sometime
 - Laravel + Inertia + React, MySQL/MariaDB (assumed. Tell me if the backend is not Laravel).
 - Image processing: Intervention Image with GD or Imagick (check which is available on the host).
 - PDF: dompdf or mPDF (pure PHP, works on cPanel). Headless Chrome is not an option on shared hosting.
-- Queue: database queue driver, run by a cron job every minute. Use `queue:work --stop-when-empty --timeout=300 --tries=2` and give the image and PDF jobs their own queue with a higher memory limit, because a 20 MB photo decode and a 600-row PDF will both exceed the default 30 second timeout and 128M memory on shared hosting.
+- Queue: database queue driver, run by a cron job every minute. Use `queue:work --stop-when-empty --tries=2` with a timeout inside the host's `max_execution_time`, and give the image and PDF jobs their own queue so a slow PDF cannot block a photo. Image and PDF jobs must fit inside the **inherited** memory limit, which is why the browser does the heavy image work and why REP-8 may be mandatory.
 - Front end: build assets on a local machine or CI and upload the `public/build` folder. Do not plan on running Node on shared cPanel.
 
-cPanel things to check before development starts:
+### 13.1 Host facts already known
 
-1. PHP version supports the Laravel version used (MultiPHP Manager).
-2. SSH access and Composer availability. Without SSH, deployment is much harder.
-3. `upload_max_filesize` and `post_max_size` at 25M or more, and a high enough `memory_limit` and `max_execution_time` (MultiPHP INI Editor).
+| Fact | Value | Consequence |
+| --- | --- | --- |
+| PHP version | up to **8.8** | Satisfies Laravel 13 (`php ^8.3`). Composer resolves against it, so a dependency that does not declare 8.8 support must be caught at install time, not in production |
+| INI settings | **inherited only**, cannot be edited per account or per domain | `upload_max_filesize`, `post_max_size`, `memory_limit`, `max_execution_time` and `max_input_vars` are whatever the host sets, and the app must live inside them |
+
+What inherited INI forces on the design:
+
+- **The browser must resize before upload** (IMG-2, IMG-2a), because the host upload limit cannot be raised to 25M. This is now a hard requirement, not a bandwidth optimisation. Target: a file under 1 MB on the wire.
+- **The server never decodes a 40 MP original** (IMG-6). Only the already-resized image arrives.
+- **Every long operation is queued and every request is small** (NFR-1, NFR-3), because a request that renders 600 rows in one go is a request that can hit `max_execution_time`.
+- **`max_input_vars` is untouchable**, which is the original reason answers save one at a time and never post a whole chapter (NFR-1).
+- **The PDF must fit the inherited memory limit.** If spike S2 shows neither dompdf nor mPDF can render a full D-062 with photos inside it, the REP-8 split becomes mandatory rather than optional: a document PDF plus a photo appendix.
+- **If a photo job is killed by the host**, the photo stays `failed` and the upload queue offers a retry that resends the resized file. Nothing is lost, because the original never left the phone.
+
+Recorded host INI values are kept in `docs/host-ini.md` and read before the spikes run. The design assumes nothing is raised.
+
+### 13.2 Still to confirm on the host
+
+1. PHP version actually selected per domain (MultiPHP Manager), and that it is 8.8 and not lower.
+2. SSH access and Composer availability. Without SSH, deployment is much harder, and without Composer on the host the route becomes "build locally, upload `vendor` and `public/build`".
+3. The **actual inherited values** of `upload_max_filesize`, `post_max_size`, `memory_limit`, `max_execution_time`, `max_input_vars`. They cannot be changed, so the design has to fit them (section 13.1).
 4. PHP `max_input_vars` defaults to 1000, which is another reason to save answers one at a time and never post a whole chapter in one form.
-5. GD or Imagick enabled, with HEIC support if possible (often missing).
+5. GD or Imagick enabled, with HEIC support if possible (often missing). With inherited INI this is the only image backend available.
 6. Disk quota and inode limit (thousands of photos plus thumbnails use many files).
 7. Cron jobs allowed at a one-minute interval.
 8. Document root points to `public/`, never the project root.
-9. Resource limits on shared hosting (CPU, RAM, processes). If PDF generation with many photos hits them, a VPS with cPanel is the fix.
+9. Resource limits on shared hosting (CPU, RAM, processes). If PDF generation with many photos hits them, a VPS with cPanel is the fix. This is now a live risk, not a contingency: section 13.1 caps the memory the PDF job may use.
 
 ---
 
@@ -503,6 +524,10 @@ Added in 0.3, to be confirmed by the project owner:
 - Answers autosave in batches, flushed on blur, every 5 seconds, and on leaving a group (NFR-1).
 - Records are retained 5 years from closure, archived, never hard deleted (NFR-17).
 - No vessel master table. Vessel particulars are typed by the user; vessel users are scoped by a normalised vessel name (section 2.1).
+- A closed report is final and is never reopened (RLS-9).
+- Report numbers are form code, date, daily sequence (RLS-7).
+- The host runs PHP 8.8 with inherited INI only, so client-side resizing and small requests are architecture, not optimisation (section 13.1).
+- Five year retention confirmed (NFR-17).
 
 ### 16.1 Non-goals for v1
 
@@ -541,10 +566,10 @@ Each item needs an owner and a date. The first one blocks the data model.
 | # | Question | Blocks | Owner |
 | --- | --- | --- | --- |
 | OQ-1 | **RESOLVED in 0.4.** The `vessels` entity is removed. Vessel particulars are typed per report and vessel users are scoped by a normalised vessel name on their account (section 2.1). Consequences accepted: name typos are the main access risk, name changes are a logged bulk rename, and vessel names are treated as unique. | Closed | Closed |
-| OQ-2 | Is the status list in section 10 right, and may a Corporate User reopen a `closed` report? | Section 10 | Project owner |
+| OQ-2 | **RESOLVED in 0.6.** Status list accepted. `closed` is final and can never be reopened (RLS-9); `reopened` only returns a `submitted` report to its author for correction. | Closed | Closed |
 | OQ-3 | **RESOLVED in 0.5.** The PDF follows the D-062 layout, with the Report Summary moved to after Chapter 15 (REP-1, REP-1b). | Closed | Closed |
 | OQ-4 | Does the DPA accept crew-completed internal audits where the Master may audit a colleague? (section 7 note) | Section 7 | DPA |
-| OQ-5 | Results of the nine cPanel checks in section 13, especially PHP version, SSH, memory limit, cron, and disk quota. | Deployment | IT |
-| OQ-6 | Is 5 years the right retention, and who is allowed to archive? | NFR-17 | Project owner |
-| OQ-7 | Report reference format: `D062-2026-0001` and `AUD-003/2026`, or does the company already use a numbering convention? | RLS-7 | Project owner |
+| OQ-5 | **PARTLY RESOLVED in 0.6.** PHP up to 8.8, INI inherited and unchangeable. Still need the actual inherited INI values, GD or Imagick, cron, disk quota, SSH. | Phase 0 spikes | IT |
+| OQ-6 | **RESOLVED in 0.6.** Five year retention confirmed (NFR-17). | Closed | Closed |
+| OQ-7 | **RESOLVED in 0.6.** Form code plus date plus a daily sequence, for example `D062-20261005-01`. The daily sequence was added because form code plus date alone collides on a busy day (RLS-7). Note this replaces the `AUD-003/2026` numbering printed on form B-008. | Closed | Closed |
 | OQ-8 | Real user count and report frequency, to replace the 200 user planning figure. | NFR-12 | Project owner |
