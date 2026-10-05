@@ -1,7 +1,9 @@
 # Vessel Audit & Inspection App: SRS / PRD
 
-Version 0.3
+Version 0.4
 Source forms: B-008 Vessel Internal Audit Checklist (v00.00, 25-Aug-23), D-062 Vessel Inspection Report (v01.01, 01-Jul-23), PT. Amarin Ship Management
+
+**0.4: the vessel master table is removed.** There is no `vessels` entity. Vessel particulars are typed by the user on each report, and a vessel user carries one vessel name on their account. Every rule that previously depended on a vessel record now matches on that name (sections 2, 2.1, FM-4, INS-1, AUD-1, PHO-2, PHO-4, PHO-8, FND-2, section 14).
 
 Changes in 0.3: report status state machine (section 10, was missing), applicability made visible instead of silently dropped (FM-4), template version stamped on reports (FM-12), deterministic import keys (section 5), batched autosave (NFR-1), HEIC handling made consistent (IMG-2a, IMG-4), v1 PDF scope reduced and generation queued (REP-1, REP-6), performance targets and a bundle budget (NFR-13, NFR-14), concurrency, timezone and retention rules (NFR-15 to NFR-17), data model completed for sections 6 and 7 (section 14), non-goals and open questions added (sections 16 and 17).
 
@@ -28,16 +30,28 @@ Scope numbers, from the files: B-008 has roughly 430 questions in 17 sections. D
 
 | Role | Who | Access |
 | --- | --- | --- |
-| Superadmin | Document owner / IT | Everything. Manages users, vessels, vessel types, form groups and questions, photo categories, and settings. |
+| Superadmin | Document owner / IT | Everything. Manages users, vessel types, form groups and questions, photo categories, and settings. |
 | Corporate User | Superintendents, managers | Creates and completes D-062 inspections on any vessel. Views all B-008 audits (read only), all photos, and exports PDFs. Can mark reports as reviewed. |
-| Vessel User | Master, officers, crew with an account | Sees only their own vessel. Creates and completes B-008 audits. Uploads photos for their vessel. Sees observations raised against their vessel (not appraisals or chapter ratings). |
+| Vessel User | Master, officers, crew with an account | Sees only records whose vessel name matches the vessel name on their account (see 2.1). Creates and completes B-008 audits. Uploads photos for that vessel. Sees observations raised against that vessel (not appraisals or chapter ratings). |
 
 Rules:
 
 - Every user has an individual account. No shared vessel login. Both forms carry sign-offs and the records are audit evidence.
 - Auditors and auditees on B-008 are entered as name and rank (free text or picked from vessel users). Not every crew member needs an account.
 - Auditee evaluation scores (B-008) are visible only to the audit author(s) and Corporate Users. Other vessel users never see them. Note: the crew member entering the scores obviously sees what they typed.
-- Crew change often. A user can be moved to another vessel or deactivated without losing history.
+- Crew change often. A user can be moved to another vessel name or deactivated without losing history.
+
+### 2.1 Vessel identity without a vessel table
+
+There is no vessel master record. Vessel particulars are entered by the user each time, and matching for "own vessel" is done on a text name.
+
+- Vessel particulars typed on a report: vessel name, IMO, flag, gross tonnage, year built, vessel type (chosen from the vessel type list), ice class yes/no. A vessel user has one vessel name on their account, set by the superadmin when the account is created.
+- Names are normalised on save: trimmed, collapsed spaces, compared case-insensitively. `MV MUMBAI`, `Mv Mumbai` and `mv  mumbai` are the same vessel.
+- The name list offered in the vessel name field is not stored anywhere. It is built on the fly from the distinct vessel names already in use across reports and user accounts, so it fills itself in as the fleet is worked with and nobody has to maintain a list.
+- Vessel users pick their vessel name from that list rather than typing it, so a typo cannot lock a crew member out of their own records. Free typing is still allowed; if a name is typed that matches no account, the report is still saved and the superadmin is notified so the account can be corrected.
+- Consequence accepted: renames and name corrections are data work, not CRUD. The superadmin can rename a vessel across all its reports, photos, findings and accounts in one action, which is logged.
+- Consequence accepted: two vessels with the same name are one vessel as far as the app is concerned. Vessel names are kept unique per owner.
+- Vessel types stay as a small managed list, because applicability (FM-4) needs them. Ice class is a per-report flag entered by the user, since there is no vessel record to hold it.
 
 ---
 
@@ -52,7 +66,7 @@ Rules:
 | E. Initial import | One-time load of both forms from the Word files |
 | F. Findings | Observations and non-conformities, tracked to closure |
 | G. Reports | PDF and Excel export |
-| H. Administration | Users, vessels, vessel types, settings |
+| H. Administration | Users, vessel types, known vessel names, settings |
 
 ---
 
@@ -74,7 +88,7 @@ This follows the files. B-008 groups are flat sections. D-062 has chapters with 
 - FM-1: Add, edit, delete, reorder (drag or up/down) groups, subgroups, and questions.
 - FM-2: **Disable / enable** any group, subgroup, or question. Disabled items do not appear in new reports.
 - FM-3: Question fields: text, guidance text (the bracketed notes in the forms, shown as expandable help), answer set, optional extra input (date, text, number), enabled flag, applicability.
-- FM-4: **Applicability by vessel type.** Each group/question applies to all vessel types or a chosen list. Vessel types are managed in admin, starting with: Cement Carrier, Tanker. A group can also be marked "ice class only". When a report is created, items **not** applicable to that vessel are still copied into the report but are locked to `NA` with an automatic reason ("Tanker only", "Ice class vessels only"). They are never deleted from the report, because a reader must be able to see that the chapter was skipped for a reason rather than missed by the inspector. Progress counts always read "answered of applicable", and the applicable total is shown next to it.
+- FM-4: **Applicability by vessel type.** Each group/question applies to all vessel types or a chosen list. Vessel types are managed in admin, starting with: Cement Carrier, Tanker. A group can also be marked "ice class only". Applicability is resolved when the report is created, from the vessel type and the ice class flag the user typed in the report header (section 2.1), not from a vessel record. Items **not** applicable are still copied into the report but are locked to `NA` with an automatic reason ("Tanker only", "Ice class vessels only"). They are never deleted from the report, because a reader must be able to see that the chapter was skipped for a reason rather than missed by the inspector. Progress counts always read "answered of applicable", and the applicable total is shown next to it.
 - FM-4a: An inspector may override an inapplicable item to a real answer, and may mark an applicable item as `NA` with their own reason. Both are recorded in the activity log.
 - FM-5: Answer sets are fixed per form: D-062 uses Yes / No / NS / NA. B-008 uses Yes / No / N/S (no N/A, as decided).
 - FM-6: Bulk actions: disable a whole group, move questions between groups, duplicate a question.
@@ -148,7 +162,7 @@ Superadmin can change any of it afterwards. Tanker-specific B-008 questions are 
 
 ### 6.1 Header and general information
 
-- INS-1: Create an inspection for a vessel. Header fields pre-fill from vessel master data (ship name, built, type). Entered per inspection: inspected by (defaults to the logged-in user), date, port, report reference number (auto-generated), sailing with vessel (yes/no, from, to), Master, Chief Engineer, Chief Officer.
+- INS-1: Create an inspection. The user types the vessel particulars on the report header: vessel name (picked from the known names list, section 2.1), IMO, flag, gross tonnage, year built, vessel type, ice class yes/no. Nothing is pre-filled from a vessel record, because there is none; a Corporate User typing the same ship twice types it twice. Entered per inspection: inspected by (defaults to the logged-in user), date, port, report reference number (auto-generated), sailing with vessel (yes/no, from, to), Master, Chief Engineer, Chief Officer.
 - INS-2: Operations at time of inspection, multi-select: loading, discharging, bunkering, deballasting, ballasting, river transit, IGS in operation, major repairs/drydock, COW in progress, repairs under way, STS operations, idle, at anchor, at sea/sailing, other.
 - INS-3: Port and date of last PSC inspection, flag to verify close-out if detained or deficiencies were found. Date of last dry dock and next dry dock.
 - INS-4: Repeating table: open items, memoranda, Conditions of Class, recommendations, notations (description, due date, time schedule for close-out).
@@ -187,7 +201,7 @@ Superadmin can change any of it afterwards. Tanker-specific B-008 questions are 
 
 ### 7.1 Set-up
 
-- AUD-1: Create an audit for the user's vessel. Audit number and year auto-generated (for example `AUD-003/2026`). Vessel particulars pre-fill from vessel master data (vessel, IMO, GT, flag). Entered: date, Master name, Chief Engineer name.
+- AUD-1: Create an audit. Audit number and year auto-generated (for example `AUD-003/2026`). Vessel name defaults to the vessel name on the user's account and vessel particulars (IMO, GT, flag, built, type) are typed or corrected by the user (section 2.1). Entered: date, Master name, Chief Engineer name.
 - AUD-2: Operation at time of audit, multi-select: loading, discharging, bunkering, repairs afloat, deballasting, ballasting, idle, river transit, at anchor, at sea, drydock.
 - AUD-3: Audit details: activities audited (Bridge, Deck, Engine, plus extra rows), audit type (A Internal, B Independent, C Unscheduled, D Other with specify), audit dates, auditees (name, rank), auditors (name, rank), lead auditor.
 - AUD-4: Follow-up from previous audit: date, number of NCRs and observations pulled from the vessel's last audit. Text field for verification of close-out and implementation of actions.
@@ -233,13 +247,13 @@ Managed by the superadmin (add, rename, disable). Seeded with:
 ### 8.2 Requirements
 
 - PHO-1: Capture from the phone camera or upload from the device. Multiple photos per upload.
-- PHO-2: Each photo has a vessel, a category, and a caption. Optional links: an inspection or audit, a specific question, a finding, and a location on the ship (free text, for example "port side aft").
+- PHO-2: Each photo has a vessel name, a category, and a caption. The vessel name comes from the report the photo is taken for, or is typed when a photo is uploaded on its own. Optional links: an inspection or audit, a specific question, a finding, and a location on the ship (free text, for example "port side aft").
 - PHO-3: Capture time and uploader are recorded automatically and cannot be edited.
-- PHO-4: Vessel gallery filtered by category, date range, and report.
+- PHO-4: Gallery filtered by vessel name, category, date range, and report.
 - PHO-5: Photos attach to findings as evidence in one action.
 - PHO-6: For an inspection, the inspector chooses which photos go into chapter 16 of the PDF. Photos are grouped by category with captions. Audit findings can include photos as an appendix.
 - PHO-7: When a report is submitted, its photos are locked (see the lifecycle in section 10). Before that, deletion is a soft delete and is logged.
-- PHO-8: Vessel Users can only upload and view photos for their own vessel. Corporate Users see all.
+- PHO-8: Vessel Users can only upload and view photos whose vessel name matches their own account (section 2.1). Corporate Users see all.
 
 ### 8.3 Image optimizer
 
@@ -262,7 +276,7 @@ VSAT is slow and costs money, and cPanel storage is limited, so photos must be s
 Observations (D-062) and observations/NCs (B-008) are stored in one table.
 
 - FND-1 (v1): Findings are created from "No" answers with the fields in sections 6 and 7 and appear in the PDF.
-- FND-2 (v1): List findings per vessel with filters (open/closed, risk, form, date). Vessel Users see findings for their own vessel only.
+- FND-2 (v1): List findings per vessel name with filters (open/closed, risk, form, date). Vessel Users see findings whose vessel name matches their own account only.
 - FND-3 (v1.1): Lifecycle: Open, Action submitted (by vessel), Verified and Closed (by corporate), Reopened. Target date, owner, overdue flag.
 - FND-4 (v1.1): Excel export of findings.
 
@@ -363,11 +377,13 @@ Naming: `report_*` tables are copies or children of a report, created when the r
 
 ### 14.1 Identity and reference
 
+There is no `vessels` table. See section 2.1.
+
 | Entity | Notes |
 | --- | --- |
-| users | role (superadmin / corporate / vessel), vessel_id (vessel users only), active, name, email |
-| vessels | name, IMO, flag, GT, built, vessel_type_id, ice_class |
-| vessel_types | name (Cement Carrier, Tanker, ...) |
+| users | role (superadmin / corporate / vessel), **vessel_name** (vessel users only, matched case-insensitively after normalisation), active, name, email |
+| vessel_types | name (Cement Carrier, Tanker, ...). Small managed list, needed by applicability (FM-4). Ice class is not here: it is a per-report flag the user types |
+| known_vessel_names | **not a table.** A distinct-name lookup built from `users.vessel_name` and `reports.vessel_name`, used for autocomplete only |
 
 ### 14.2 Templates (superadmin catalogue)
 
@@ -383,7 +399,7 @@ Naming: `report_*` tables are copies or children of a report, created when the r
 
 | Entity | Notes |
 | --- | --- |
-| reports | type (inspection/audit), vessel_id, **status** (section 10), **template_version**, reference number, report date, created_by, submitted_at/by, reviewed_at/by, closed_at, current_version, lock_owner, lock_expires_at, soft_deleted_at + reason |
+| reports | type (inspection/audit), **vessel_name** plus typed particulars (vessel_imo, vessel_flag, vessel_gt, vessel_built, vessel_type_id, vessel_ice_class), **status** (section 10), **template_version**, reference number, report date, created_by, submitted_at/by, reviewed_at/by, closed_at, current_version, lock_owner, lock_expires_at, soft_deleted_at + reason |
 | report_groups / report_questions | **copies** of group/question text taken when the report is created. report_groups also holds the group comments/remarks text |
 | report_questions | plus applicable (bool), **na_reason** (auto or user), answer_allowed values |
 | report_answers | question, answer, note, extra value, answered_by, answered_at, **client_save_id** (idempotency, NFR-2), **row_version** (conflict detection, NFR-15) |
@@ -416,7 +432,7 @@ Naming: `report_*` tables are copies or children of a report, created when the r
 | Entity | Notes |
 | --- | --- |
 | findings | report, report_question_id, kind (observation / non-conformity), risk or severity, description, viq_paragraph, job_order_no, target_date, status, owner, action_submitted_at/by, verified_at/by, closed_at, reopened_count. Lifecycle rules in FND-3 |
-| photos | vessel, category, caption, location (free text), report nullable, report_question_id nullable, finding_id nullable, captured_at, uploaded_by, status (processing/ready/failed), original path (nullable), path, thumb_path, width, height, bytes, checksum, soft_deleted_at |
+| photos | **vessel_name**, category, caption, location (free text), report nullable, report_question_id nullable, finding_id nullable, captured_at, uploaded_by, status (processing/ready/failed), original path (nullable), path, thumb_path, width, height, bytes, checksum, soft_deleted_at |
 | photo_categories | name, enabled, order |
 | attachments | report, file path, label, mime, bytes, uploaded_by |
 | activity_log | append only: user, report or template entity, action, field, before, after, at, ip. Never updated or deleted from the app (NFR-9, NFR-17) |
@@ -432,7 +448,7 @@ Naming: `report_*` tables are copies or children of a report, created when the r
 - Push one 20 MB photo from a phone through client resize, upload, queued server processing, and thumbnail. Confirms IMG-1 to IMG-8 and section 13 item 3.
 
 **v1**
-- Login, roles, vessels, vessel types, users (superadmin)
+- Login, roles, vessel types, known vessel names, users (superadmin)
 - Report status and transition policy (section 10), because it governs editing, locking, PDF, and audit log
 - Initial import (script, review file, artisan command)
 - Form management (groups, questions, enable/disable, applicability)
@@ -478,6 +494,7 @@ Added in 0.3, to be confirmed by the project owner:
 - HEIC is converted in the browser; the server does not depend on libheif (IMG-2a).
 - Answers autosave in batches, flushed on blur, every 5 seconds, and on leaving a group (NFR-1).
 - Records are retained 5 years from closure, archived, never hard deleted (NFR-17).
+- No vessel master table. Vessel particulars are typed by the user; vessel users are scoped by a normalised vessel name (section 2.1).
 
 ### 16.1 Non-goals for v1
 
@@ -497,7 +514,7 @@ Not in v1, so that scope creep has to be a decision rather than a drift:
 Assumptions in this draft (change them if wrong):
 
 1. Corporate Users can see all vessels (no per-user vessel assignment in v1).
-2. Vessel Users can see observations on their own vessel but not D-062 appraisals or chapter ratings.
+2. Vessel Users can see observations on records matching their own vessel name, but not D-062 appraisals or chapter ratings.
 3. D-024, C1-013/014, E-004, and B-001 are not built as forms. They can be uploaded as attachments to a report.
 4. "Image optimizer (20 MB min)" means accepting originals of at least 20 MB, not limiting uploads to 20 MB.
 5. Originals are discarded after optimization.
@@ -515,7 +532,7 @@ Each item needs an owner and a date. The first one blocks the data model.
 
 | # | Question | Blocks | Owner |
 | --- | --- | --- | --- |
-| OQ-1 | **The `vessels` entity is being removed.** This document still lists it in section 14.1 and references it in sections 2, 3, 8, 9, 15 and the assumptions. What replaces it: a `vessel_name` free text on the report and the user, a flat list of names in configuration, or a separate system the app reads from? This decides whether vessel-based filtering, photo galleries, applicability by vessel type (FM-4), and "own vessel only" access rules still work. | 14.1, FM-4, PHO-8, FND-2, section 2 | Project owner |
+| OQ-1 | **RESOLVED in 0.4.** The `vessels` entity is removed. Vessel particulars are typed per report and vessel users are scoped by a normalised vessel name on their account (section 2.1). Consequences accepted: name typos are the main access risk, name changes are a logged bulk rename, and vessel names are treated as unique. | Closed | Closed |
 | OQ-2 | Is the status list in section 10 right, and may a Corporate User reopen a `closed` report? | Section 10 | Project owner |
 | OQ-3 | Pixel-faithful PDF, or clean layout? (REP-1) | Section 11 | Project owner |
 | OQ-4 | Does the DPA accept crew-completed internal audits where the Master may audit a colleague? (section 7 note) | Section 7 | DPA |
