@@ -51,6 +51,7 @@ the company source documents. Output: the review file described in SRS 5.1.
 | --- | ---: |
 | `parenthetical_not_trailing` | 40 |
 | `escaped_comparison_operator` | 4 |
+| `unbalanced_parenthesis` | 3 |
 | `mangled_word:claSMS->claims` | 1 |
 | `struck_through_partial_review` | 1 |
 | `mangled_word:trSMS->trims` | 1 |
@@ -165,8 +166,9 @@ the company source documents. Output: the review file described in SRS 5.1.
 | --- | ---: |
 | `group_inferred_from_chapter` | 324 |
 | `markdown_emphasis_artifact` | 97 |
+| `parenthetical_not_trailing` | 20 |
 | `escaped_comparison_operator` | 19 |
-| `parenthetical_not_trailing` | 18 |
+| `unbalanced_parenthesis` | 6 |
 | `struck_through_partial_review` | 6 |
 | `dotted_blank_without_label` | 1 |
 
@@ -186,20 +188,15 @@ the company source documents. Output: the review file described in SRS 5.1.
 | near | 98% | ch5 Safety Management - General<br>vs<br>ch11 E/R Administration, PMS / Documentation System | Form D 062 Vessel Inspection Report (2).md:336<br>Form D 062 Vessel Inspection Report (2).md:869 |
 | near | 92% | ch6 Oil Record Book Part I & II, SOPEP, VRP / Deck Spill Prevention Arrangements<br>vs<br>ch6 Pollution Prevention & Environmental Protection / Pollution Prevention Equipment | Form D 062 Vessel Inspection Report (2).md:509<br>Form D 062 Vessel Inspection Report (2).md:544 |
 | near | 95% | ch7 Hull Structural Condition - General<br>vs<br>ch7 Hull Structural Condition - General / Weather Decks | Form D 062 Vessel Inspection Report (2).md:562<br>Form D 062 Vessel Inspection Report (2).md:572 |
+| near | 92% | ch11 Engine & Steering Compartments<br>vs<br>ch11 Engine & Steering Compartments | Form D 062 Vessel Inspection Report (2).md:903<br>Form D 062 Vessel Inspection Report (2).md:933 |
 | near | 95% | ch11 Engine & Steering Compartments<br>vs<br>ch11 Engine & Steering Compartments | Form D 062 Vessel Inspection Report (2).md:927<br>Form D 062 Vessel Inspection Report (2).md:937 |
 | near | 98% | ch11 Engine & Steering Compartments<br>vs<br>ch11 Engine & Steering Compartments | Form D 062 Vessel Inspection Report (2).md:964<br>Form D 062 Vessel Inspection Report (2).md:969 |
-| near | 93% | ch11 Engine & Steering Compartments<br>vs<br>ch11 Engine & Steering Compartments | Form D 062 Vessel Inspection Report (2).md:968<br>Form D 062 Vessel Inspection Report (2).md:972 |
-| near | 91% | ch11 Engine & Steering Compartments<br>vs<br>ch11 Engine & Steering Compartments | Form D 062 Vessel Inspection Report (2).md:968<br>Form D 062 Vessel Inspection Report (2).md:1001 |
-| near | 93% | ch11 Engine & Steering Compartments<br>vs<br>ch11 Engine & Steering Compartments | Form D 062 Vessel Inspection Report (2).md:972<br>Form D 062 Vessel Inspection Report (2).md:1001 |
 | near | 94% | ch11 Engine & Steering Compartments<br>vs<br>ch11 Engine & Steering Compartments | Form D 062 Vessel Inspection Report (2).md:977<br>Form D 062 Vessel Inspection Report (2).md:986 |
-| near | 97% | ch11 Engine & Steering Compartments<br>vs<br>ch11 Engine & Steering Compartments | Form D 062 Vessel Inspection Report (2).md:982<br>Form D 062 Vessel Inspection Report (2).md:987 |
-| near | 98% | ch11 Engine & Steering Compartments<br>vs<br>ch11 Engine & Steering Compartments | Form D 062 Vessel Inspection Report (2).md:982<br>Form D 062 Vessel Inspection Report (2).md:1002 |
-| near | 98% | ch11 Engine & Steering Compartments<br>vs<br>ch11 Engine & Steering Compartments | Form D 062 Vessel Inspection Report (2).md:987<br>Form D 062 Vessel Inspection Report (2).md:1002 |
 
 ### Acceptance (SRS 5.5)
 
 - Questions with empty text: 0 (must be 0)
-- Questions carrying guidance text: 263
+- Questions carrying guidance text: 280
 - Questions needing a typed input (date or text): 10
 - Every row carries a source_key and a source reference: yes
 - Re-running the parser produces identical output: deterministic by construction (no timestamps, no randomness)

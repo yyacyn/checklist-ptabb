@@ -12,7 +12,6 @@
  *
  * Usage:  php spikes/s1-parser/parse.php [--dry]
  */
-
 $dry = in_array('--dry', $argv, true);
 
 $root = dirname(__DIR__, 2);
@@ -116,7 +115,7 @@ function isSeparatorRow(array $cells): bool
 {
     foreach ($cells as $cell) {
         $c = trim(str_replace([' ', "\t"], '', $cell));
-        if ($c !== '' && !preg_match('/^:?-{1,}:?$/', $c)) {
+        if ($c !== '' && ! preg_match('/^:?-{1,}:?$/', $c)) {
             return false;
         }
     }
@@ -185,43 +184,64 @@ function isBoldOnly(string $cell): bool
 
 /**
  * Split a long trailing parenthetical off the question text as guidance.
- * Only splits when the bracket is long and ends the sentence, which is the "clean split"
- * the SRS asks for. Anything else is left in place and warned about.
+ *
+ * Brackets nest in these documents (for example "(Instructions for autopilot (e/g)
+ * disengagement, ...)"), so the outermost bracket that runs to the end of the sentence
+ * is the one that is guidance. Only splits when that bracket is long, which is the
+ * "clean split" the SRS asks for. Anything else is left in place and warned about.
  *
  * @return array{0:string,1:string,2:?string} text, guidance, warning
  */
 function splitGuidance(string $text): array
 {
-    // Bullet lists inside brackets are guidance even when long.
-    $open = strrpos($text, '(');
-    if ($open === false) {
-        return [$text, '', null];
+    $length = mb_strlen($text);
+
+    for ($start = 0; $start < $length; $start++) {
+        if (mb_substr($text, $start, 1) !== '(') {
+            continue;
+        }
+
+        // Walk forward to the matching close bracket.
+        $depth = 0;
+        $close = null;
+        for ($i = $start; $i < $length; $i++) {
+            $char = mb_substr($text, $i, 1);
+            if ($char === '(') {
+                $depth++;
+            } elseif ($char === ')') {
+                $depth--;
+                if ($depth === 0) {
+                    $close = $i;
+
+                    break;
+                }
+            }
+        }
+
+        if ($close === null) {
+            return [$text, '', 'unbalanced_parenthesis'];
+        }
+
+        $after = trim(mb_substr($text, $close + 1));
+        if ($after !== '' && $after !== '.') {
+            continue; // not a trailing bracket, keep looking for an outer one
+        }
+
+        $inner = trim(mb_substr($text, $start + 1, $close - $start - 1));
+        $before = trim(mb_substr($text, 0, $start));
+
+        // Short brackets are part of the sentence, not guidance.
+        if (mb_strlen($inner) < 60 || $before === '') {
+            return [$text, '', null];
+        }
+
+        return [$before, $inner, null];
     }
 
-    $close = strrpos($text, ')');
-    if ($close === false || $close < $open) {
-        return [$text, '', null];
-    }
-
-    $inner = substr($text, $open + 1, $close - $open - 1);
-    $after = trim(substr($text, $close + 1));
-    $before = trim(substr($text, 0, $open));
-
-    // Only a trailing bracket counts.
-    if ($after !== '' && $after !== '.') {
-        return [$text, '', 'parenthetical_not_trailing'];
-    }
-
-    // Short brackets are part of the sentence, not guidance.
-    if (mb_strlen($inner) < 60) {
-        return [$text, '', null];
-    }
-
-    if ($before === '') {
-        return [$text, '', null];
-    }
-
-    return [$before, trim($inner), null];
+    // A bracket exists but is not a clean trailing note.
+    return str_contains($text, '(')
+        ? [$text, '', 'parenthetical_not_trailing']
+        : [$text, '', null];
 }
 
 /**
@@ -233,7 +253,7 @@ function detectInput(string $text, string $guidance): array
 {
     $combined = $text.' '.$guidance;
 
-    if (!preg_match('/[.\x{2026}\x{2025}]{4,}/u', $combined)) {
+    if (! preg_match('/[.\x{2026}\x{2025}]{4,}/u', $combined)) {
         return [null, '', null];
     }
 
@@ -616,7 +636,7 @@ foreach ($inputs as $code => $path) {
     $report[] = "## {$code}";
     $report[] = '';
     $report[] = "- Answer set detected: `{$result['answer_set']}` (width {$result['answer_width']})";
-    $report[] = "- Questions extracted: **".count($rows)."** (expected about {$expectations[$code]['questions']})";
+    $report[] = '- Questions extracted: **'.count($rows)."** (expected about {$expectations[$code]['questions']})";
     if (isset($expectations[$code]['sections'])) {
         $report[] = '- Sections (groups) with questions: **'.count($byGroup).'** (expected about '
             .$expectations[$code]['sections'].'), '.$expectations[$code]['note'];
@@ -624,7 +644,7 @@ foreach ($inputs as $code => $path) {
         $report[] = '- Chapters with questions: **'.count($byChapter).'** (expected about '
             .$expectations[$code]['chapters'].'), '.$expectations[$code]['note'];
     }
-    $report[] = "- Groups: ".count($byGroup);
+    $report[] = '- Groups: '.count($byGroup);
     $report[] = "- Review file: `storage/app/spike/{$csvName}`";
     $report[] = '';
 

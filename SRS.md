@@ -117,8 +117,8 @@ Goal: nobody types ~1,000 questions by hand.
 
 1. A script reads the two `.docx` files and writes a **review file** (CSV or XLSX) with one row per question: form, group, subgroup, question text, guidance, detected extra field, suggested applicability, warnings.
 2. The superadmin (or document owner) opens the review file, fixes obvious problems, and saves it.
-3. A Laravel artisan command (`forms:import`) loads the reviewed file into the database. It has a **dry run** mode that prints counts and warnings without saving, and it is safe to re-run. Matching is by a `source_key`: a stable identifier the parser writes for each question (form code plus a hash of the normalised question text, plus the source table and row number). Order is never used as a key, because reordering the Word file would then create duplicates instead of updating them.
-4. A basic import screen for the superadmin to upload the reviewed file is a nice-to-have. The artisan command is enough for v1.
+3. A seeder (`database/seeders/FormSeeder.php`) loads the reviewed file into the database. It has a **dry run** mode (`FORMS_SEED_DRY=1`) that reports the counts without saving, and it is safe to re-run: matching is on `source_key`, a stable identifier the parser writes for each question (form code plus a hash of the normalised question text, plus the source table and row number). Order is never used as a key, because reordering the Word file would then create duplicates instead of updating them. Groups are matched on form, parent and title for the same reason.
+4. Why a seeder and not a migration or a command: migrations are for schema, not data, and re-running them for data is slow and unreviewable. An artisan command would duplicate what the seeder already does. The dry run the command would have provided already exists one step earlier, as the parser's own report. A later import screen in the UI is a nice-to-have; nothing in v1 needs it.
 
 ### 5.2 Parsing rules (based on how the files are built)
 
@@ -166,6 +166,8 @@ Superadmin can change any of it afterwards. Tanker-specific B-008 questions are 
 - Dry run output lists every warning (duplicates, unsplit guidance, dotted blanks).
 - Every imported question keeps its `source_key` and source table/row reference, so any question in the app can be traced back to a row of the original Word file.
 - Re-running the import over the same reviewed file changes nothing (verified by row counts before and after).
+
+Loading is done by a seeder, not a migration: `php artisan db:seed --class=FormSeeder`, dry run with `FORMS_SEED_DRY=1`. The form editor (section 4) is how the templates are changed after that, with an audit trail (FM-7), and edits made in the editor are never overwritten by re-seeding, because the seeder only writes questions it still finds by `source_key` and leaves archived rows alone.
 
 Measured in spike S1 against the source documents:
 

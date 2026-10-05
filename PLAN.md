@@ -62,8 +62,8 @@ The point of this phase is the correctness rule, not the tables.
 
 | # | Task | Notes |
 | --- | --- | --- |
-| 1.1 | Migrations group 1: reference and templates | ERD §2. `users`, `vessel_types`, `forms`, `form_groups`, `form_questions`, `form_applicability`, `evaluation_criteria` |
-| 1.2 | Models, factories, seeders | Vessel types seeded: Cement Carrier, Tanker. B-008 evaluation criteria seeded from the form's 1–5 definitions |
+| 1.1 | Migrations group 1: reference and templates | ERD §2. `users` role/vessel_name/is_active, `vessel_types`, `forms`, `form_groups`, `form_questions`, `form_applicability`, `evaluation_criteria` — **done** |
+| 1.2 | Models, factories, seeders | **done**: 6 models, 6 factories, `FormSeeder` loads 1,044 questions in 47 groups, 11 tests |
 | 1.3 | `forms.template_version` bump rule | Bumped only on structural change (question added, removed, regrouped), never on a wording typo |
 | 1.4 | Migrations group 2: reports, groups, questions, answers | ERD §3, including `client_save_id` and `row_version` |
 | 1.5 | **`ReportSnapshot` service** | On creation: copy enabled groups and questions, resolve applicability from the typed vessel type and ice class, stamp `template_version`, insert group comment boxes (FM-7a) |
@@ -88,8 +88,8 @@ reopened and closed through the console with no UI.
 | 2.4 | Applicability editor: vessel types, ice class, at group and question level | FM-4 |
 | 2.5 | "Used in N reports" warning on delete, archive instead of delete | FM-9 |
 | 2.6 | Change history per group and question | FM-7, FM-12 |
-| 2.7 | `forms:import` command with dry run and the reviewed-file loader | §5 |
-| 2.8 | Tests: import idempotency, archive rules, reorder stability | §5.5 |
+| 2.7 | Template catalogue seeded from the reviewed CSV | `FormSeeder`, dry run via `FORMS_SEED_DRY=1`. Already built in Phase 1 |
+| 2.8 | Tests: seed idempotency, archive rules, reorder stability | §5.5, done for the seed; the rest lands with the editor |
 
 ---
 
