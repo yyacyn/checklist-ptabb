@@ -130,6 +130,13 @@ Goal: nobody types ~1,000 questions by hand.
 - Text in trailing brackets is split off as guidance when the split is clean. Unclear cases keep the full text in the question and get a warning.
 - Rows containing dotted blanks (for example "Date of last OWS test: ……") are flagged as questions that need a **date** or **text** input.
 - Pre-ticked boxes (a few cells in D-062 are marked with a cross) are ignored.
+- **A table is a checklist only if its header row carries two or more answer labels** (Yes / No / NS / NA / N/S). Nothing else is a checklist. This one rule keeps the general information block, the index, the instructions, the appraisal tables, the circulation table and the comparison blocks out, with no hardcoded section names. Proven by spike S1.
+- **A question row must carry exactly as many checkboxes as the form's answer width.** Rows that do not match are not questions: this excludes the D-062 Report Summary ratings table (3 boxes in a 4 box form) and the B-008 auditee evaluation blocks (5 boxes in a 3 box form). Proven by spike S1.
+- A chapter table titled "(continuing)" merges into the chapter it continues. Seventeen such tables exist in D-062.
+- A checklist table with no group header of its own inherits the chapter title as its group, and every such row is flagged so the superadmin can name or merge it.
+- Markdown emphasis markers, strikethrough wrappers and escaped comparison operators are cleaned out of the question text, and every cleanup is flagged on the row.
+- Near-duplicate detection compares across the **whole form**, not inside one group, because the known duplicates sit in different sections (the EnMS and SEEMP questions appear in both the General and the Environmental sections). Threshold 90% similarity.
+- The supplied markdown conversions lose emphasis fidelity: 97 D-062 questions arrive wrapped in `~~***…***`, which is a converter artifact rather than a deletion in the form. **Struck-through text cannot be distinguished from bold text in these files.** If the original `.docx` becomes available, parse that instead.
 - Not imported as questions: header and vessel particulars, report summary and rating tables, findings tables, appraisal tables, circulation tables, scoring tables, signature blocks, and the sample data in the D-062 header (the MV Mumbai / Rendy entries). These are built into the app as proper fields (sections 6 and 7).
 
 ### 5.3 Cleanup flagged by the importer
@@ -159,6 +166,19 @@ Superadmin can change any of it afterwards. Tanker-specific B-008 questions are 
 - Dry run output lists every warning (duplicates, unsplit guidance, dotted blanks).
 - Every imported question keeps its `source_key` and source table/row reference, so any question in the app can be traced back to a row of the original Word file.
 - Re-running the import over the same reviewed file changes nothing (verified by row counts before and after).
+
+Measured in spike S1 against the source documents:
+
+| Check | B-008 | D-062 |
+| --- | --- | --- |
+| Questions extracted | 428 (expected ~430) | 616 (expected ~600) |
+| Structure found | 17 sections (expected 17) | 12 chapters, 2 to 13 |
+| Questions with empty text | 0 | 0 |
+| Rows carrying guidance | 63 | 263 |
+| Rows needing a typed input | 2 | 10 |
+| Known defects in 5.3 found by the parser | all 6 | 1 of 1 |
+
+Read with `spikes/s1-parser/FINDINGS.md`, which lists what still needs a human decision before import.
 
 ---
 

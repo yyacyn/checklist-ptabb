@@ -43,14 +43,14 @@ phase ends with something a real user can be shown.
 
 Throwaway code. Nothing here ships. Each spike ends in a written answer, not a merged branch.
 
-| # | Spike | Question it answers | Method | Output |
-| --- | --- | --- | --- | --- |
-| S1 | **Form parser** | Can the two documents be parsed reliably enough that nobody types questions by hand? | Parse both `.docx` (via `python-docx`-equivalent table walking in PHP, or the provided markdown conversions) into the §5 review file | Group and question counts per form vs the SRS numbers (B-008 ≈ 430 in 17 sections, D-062 chapters 2–13 ≈ 600). Warning list: duplicates, unsplittable guidance, dotted blanks, mangled words (`claSMS`, `trSMS`), "(continuing)" merges, subgroup detection |
+| # | Spike | Question it answers | Method | Output | Result |
+| --- | --- | --- | --- | --- | --- |
+| S1 | **Form parser** | Can the two documents be parsed reliably enough that nobody types questions by hand? | Parse both source documents into the §5 review file | Group and question counts per form vs the SRS numbers, warning list, duplicates | **DONE. 428 questions in 17 sections (B-008), 616 across chapters 2 to 13 (D-062). All 6 known defects in SRS 5.3 found. See `spikes/s1-parser/FINDINGS.md`** |
 | S2 | **PDF renderer** | dompdf or mPDF? Does the faithful layout fit the inherited memory limit? | Build one 600-row checklist chapter + the moved Report Summary + 30 photos in both renderers, measuring peak memory against the host's actual `memory_limit` | Wall time, peak memory vs limit, file size, whether chapter table headers repeat across pages correctly, and whether the REP-8 appendix split is mandatory |
 | S3 | **Photo pipeline** | Does a 20 MB phone photo survive the trip when INI cannot be raised? | Browser resize → upload → queued optimise → thumbnail, at 20 MB and 40 MP, against the host's real `upload_max_filesize` | Wall time, peak memory vs limit, final size against the 300–800 KB target (IMG-8), and what the user sees when the original is too big for the host |
 
 **GATE 1** — before any feature code:
-- S1 result decides whether §5 stays as written, or the importer is replaced by "one person types the questions over a week".
+- S1 result: **parsing works.** Counts match the SRS predictions, and the two parsing rules that matter (answer-label detection, answer-width matching) are now written into SRS 5.2. Nothing about §5 needs rewriting. The import in task 2.7 loads the review file rather than re-parsing.
 - S2 result fixes the renderer and tells us whether the photo chapter needs the REP-8 appendix split. With inherited INI, if neither renderer fits, a document-only PDF plus a photo appendix is the plan, not a fallback.
 - S3 result confirms or replaces the client-first pipeline. Because `upload_max_filesize` cannot be raised, a browser that cannot resize means an upload that cannot happen, so the spike also tests the failure message the user would see.
 
