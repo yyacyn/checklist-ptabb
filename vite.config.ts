@@ -25,6 +25,15 @@ export default defineConfig({
         }),
     ],
     server: {
+        // Bind to the IPv4 loopback so the generated public/hot file contains
+        // http://127.0.0.1:5173 instead of http://[::1]:5173 (browsers often
+        // refuse to load assets from an IPv6 literal in Laragon/Apache setups).
+        host: '127.0.0.1',
+        port: 5173,
+        strictPort: false,
+        hmr: {
+            host: '127.0.0.1',
+        },
         watch: {
             ignored: ['**/vendor/**'],
         },
