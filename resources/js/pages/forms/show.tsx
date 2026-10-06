@@ -245,6 +245,7 @@ export default function FormShow({
                 chapter_no: groupChapterNo || null,
                 ice_class_only: groupIceClass,
             }, {
+                preserveScroll: true,
                 onSuccess: () => setGroupModalOpen(false),
             });
         } else {
@@ -254,6 +255,7 @@ export default function FormShow({
                 parent_id: groupParentId,
                 ice_class_only: groupIceClass,
             }, {
+                preserveScroll: true,
                 onSuccess: () => setGroupModalOpen(false),
             });
         }
@@ -286,6 +288,7 @@ export default function FormShow({
                 guidance: questionGuidance || null,
                 input_type: questionInputType,
             }, {
+                preserveScroll: true,
                 onSuccess: () => setQuestionModalOpen(false),
             });
         } else if (questionGroupId) {
@@ -294,6 +297,7 @@ export default function FormShow({
                 guidance: questionGuidance || null,
                 input_type: questionInputType,
             }, {
+                preserveScroll: true,
                 onSuccess: () => setQuestionModalOpen(false),
             });
         }
@@ -326,6 +330,7 @@ export default function FormShow({
             vessel_type_ids: selectedVesselTypes,
             ice_class_only: selectedIceClassOnly,
         }, {
+            preserveScroll: true,
             onSuccess: () => setApplicabilityModalOpen(false),
         });
     };
@@ -339,6 +344,7 @@ export default function FormShow({
             question_ids: selectedQuestionIds,
             target_group_id: Number(targetGroupId),
         }, {
+            preserveScroll: true,
             onSuccess: () => {
                 setBulkMoveModalOpen(false);
                 setSelectedQuestionIds([]);
@@ -349,7 +355,7 @@ export default function FormShow({
 
     // Bulk Toggle Group (Task 2.3)
     const handleBulkToggleGroup = (group: GroupData, enable: boolean) => {
-        router.post(`/admin/groups/${group.id}/bulk-toggle`, { enable });
+        router.post(`/admin/groups/${group.id}/bulk-toggle`, { enable }, { preserveScroll: true });
     };
 
     // History View (Task 2.6)
@@ -371,11 +377,11 @@ export default function FormShow({
 
     // Action Helpers
     const handleReorderGroup = (id: number, direction: 'up' | 'down') => {
-        router.post(`/admin/groups/${id}/reorder`, { direction });
+        router.post(`/admin/groups/${id}/reorder`, { direction }, { preserveScroll: true });
     };
 
     const handleToggleGroup = (id: number) => {
-        router.post(`/admin/groups/${id}/toggle`);
+        router.post(`/admin/groups/${id}/toggle`, {}, { preserveScroll: true });
     };
 
     const handleDeleteGroup = (group: GroupData) => {
@@ -385,20 +391,20 @@ export default function FormShow({
             : 'Are you sure you want to permanently delete this group?';
 
         if (confirm(msg)) {
-            router.delete(`/admin/groups/${group.id}`);
+            router.delete(`/admin/groups/${group.id}`, { preserveScroll: true });
         }
     };
 
     const handleReorderQuestion = (id: number, direction: 'up' | 'down') => {
-        router.post(`/admin/questions/${id}/reorder`, { direction });
+        router.post(`/admin/questions/${id}/reorder`, { direction }, { preserveScroll: true });
     };
 
     const handleToggleQuestion = (id: number) => {
-        router.post(`/admin/questions/${id}/toggle`);
+        router.post(`/admin/questions/${id}/toggle`, {}, { preserveScroll: true });
     };
 
     const handleDuplicateQuestion = (id: number) => {
-        router.post(`/admin/questions/${id}/duplicate`);
+        router.post(`/admin/questions/${id}/duplicate`, {}, { preserveScroll: true });
     };
 
     const handleDeleteQuestion = (question: QuestionData) => {
@@ -408,7 +414,7 @@ export default function FormShow({
             : 'Are you sure you want to permanently delete this question?';
 
         if (confirm(msg)) {
-            router.delete(`/admin/questions/${question.id}`);
+            router.delete(`/admin/questions/${question.id}`, { preserveScroll: true });
         }
     };
 
@@ -490,16 +496,11 @@ export default function FormShow({
                                                     <Square className="size-4" />
                                                 )}
                                             </button>
-                                            {chapter.chapter_no && (
-                                                <Badge variant="secondary" className="font-mono shrink-0">
-                                                    Ch. {chapter.chapter_no}
-                                                </Badge>
-                                            )}
                                             <h3
                                                 className="font-semibold text-lg cursor-pointer select-none"
                                                 onClick={() => toggleChapterCollapse(chapter.id)}
                                             >
-                                                {chapter.title}
+                                                {chapter.chapter_no ? `${chapter.chapter_no}. ` : ''}{chapter.title}
                                             </h3>
                                             {!chapter.is_enabled && <Badge variant="destructive">Disabled</Badge>}
                                             {chapter.ice_class_only && <Badge variant="outline">Ice Class Only</Badge>}

@@ -40,12 +40,17 @@ export function AppSidebar() {
             href: dashboard(),
             icon: LayoutGrid,
         },
+        {
+            title: 'Reports & Audits',
+            href: '/reports',
+            icon: ClipboardList,
+        },
         ...(isSuperadmin
             ? [
                   {
                       title: 'Form Templates',
                       href: '/admin/forms',
-                      icon: ClipboardList,
+                      icon: BookOpen,
                   },
               ]
             : []),

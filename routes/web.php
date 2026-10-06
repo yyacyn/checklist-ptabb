@@ -3,12 +3,19 @@
 use App\Http\Controllers\Admin\FormController;
 use App\Http\Controllers\Admin\FormGroupController;
 use App\Http\Controllers\Admin\FormQuestionController;
+use App\Http\Controllers\ReportController;
 use Illuminate\Support\Facades\Route;
 
 Route::inertia('/', 'welcome')->name('home');
 
 Route::middleware(['auth', 'verified'])->group(function () {
     Route::inertia('dashboard', 'dashboard')->name('dashboard');
+
+    // Reports (Task 3.1, 3.2)
+    Route::get('reports', [ReportController::class, 'index'])->name('reports.index');
+    Route::get('reports/create', [ReportController::class, 'create'])->name('reports.create');
+    Route::post('reports', [ReportController::class, 'store'])->name('reports.store');
+    Route::get('reports/{report}', [ReportController::class, 'show'])->name('reports.show');
 
     Route::middleware('can:manage-forms')->prefix('admin')->name('admin.')->group(function () {
         Route::get('forms', [FormController::class, 'index'])->name('forms.index');
