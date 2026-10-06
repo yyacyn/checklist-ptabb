@@ -1,7 +1,6 @@
 import { Head, router, useForm } from '@inertiajs/react';
 import { ArrowLeft, Check, FileCheck, Info, Ship } from 'lucide-react';
 import React, { useState } from 'react';
-import Heading from '@/components/heading';
 import { Badge } from '@/components/ui/badge';
 import { Button } from '@/components/ui/button';
 import { Card, CardContent, CardDescription, CardHeader, CardTitle } from '@/components/ui/card';
@@ -96,10 +95,8 @@ export default function ReportCreate({
                         <ArrowLeft className="size-4 mr-1" /> Back
                     </Button>
                     <div>
-                        <Heading
-                            title="Create Report"
-                            description="Take an immutable snapshot from the current template catalogue and initialise inspection."
-                        />
+                        <h1 className="text-xl font-semibold tracking-tight text-foreground">Create Report</h1>
+                        <p className="text-sm text-muted-foreground">Initialise a new inspection or audit report.</p>
                     </div>
                 </div>
 
@@ -159,7 +156,7 @@ export default function ReportCreate({
                         <CardHeader>
                             <CardTitle className="text-base flex items-center gap-2">
                                 <Ship className="size-4 text-primary" />
-                                <span>2. Vessel Particulars (SRS 2.1, INS-1, AUD-1)</span>
+                                <span>2. Vessel Particulars</span>
                             </CardTitle>
                             <CardDescription>
                                 Vessel particulars resolve template applicability (Tanker vs Cement, Ice Class).
@@ -381,7 +378,7 @@ export default function ReportCreate({
                             Cancel
                         </Button>
                         <Button type="submit" disabled={processing} className="min-w-36">
-                            {processing ? 'Creating Snapshot...' : 'Create & Start Filling'}
+                            {processing ? 'Creating Report...' : 'Create & Start Filling'}
                         </Button>
                     </div>
                 </form>

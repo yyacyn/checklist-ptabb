@@ -27,7 +27,7 @@ export default function FormsIndex({ forms }: Props) {
             <div className="flex h-full flex-1 flex-col gap-6 p-6">
                 <div>
                     <Heading
-                        title="Form Templates Catalogue"
+                        title="Form Templates"
                         description="Manage checklist questions, chapters, subgroups, and applicability for inspections and internal audits."
                     />
                 </div>

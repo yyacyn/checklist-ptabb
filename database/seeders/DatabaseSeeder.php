@@ -28,10 +28,29 @@ class DatabaseSeeder extends Seeder
 
         if (! User::query()->where('email', 'test@example.com')->exists()) {
             User::factory()->create([
-                'name' => 'Test User',
+                'name' => 'Superadmin User',
                 'email' => 'test@example.com',
                 'role' => 'superadmin',
             ]);
         }
+
+        if (! User::query()->where('email', 'corporate@example.com')->exists()) {
+            User::factory()->create([
+                'name' => 'Capt. H. Miller (Superintendent)',
+                'email' => 'corporate@example.com',
+                'role' => 'corporate',
+            ]);
+        }
+
+        if (! User::query()->where('email', 'vessel@example.com')->exists()) {
+            User::factory()->create([
+                'name' => 'MV Amarin Glory (Ship Account)',
+                'email' => 'vessel@example.com',
+                'role' => 'vessel',
+                'vessel_name' => 'MV Amarin Glory',
+            ]);
+        }
+
+        $this->call(FleetVesselSeeder::class);
     }
 }

@@ -81,7 +81,7 @@ export default function ReportsIndex({ reports }: Props) {
                         <Ship className="size-12 text-muted-foreground/60 mb-3" />
                         <h3 className="font-semibold text-lg text-foreground">No reports found</h3>
                         <p className="text-sm text-muted-foreground mt-1 max-w-sm">
-                            Create your first inspection or audit to take an immutable snapshot and start checklist entry.
+                            Create your first inspection or audit to start checklist entry.
                         </p>
                         <Button asChild className="mt-4">
                             <Link href="/reports/create">Create Report</Link>

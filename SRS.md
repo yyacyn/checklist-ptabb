@@ -34,16 +34,16 @@ Scope numbers, from the files: B-008 has roughly 430 questions in 17 sections. D
 
 | Role | Who | Access |
 | --- | --- | --- |
-| Superadmin | Document owner / IT | Everything. Manages users, vessel types, form groups and questions, photo categories, and settings. |
+| Superadmin | Document owner / IT | Everything. Manages users/vessel accounts, vessel types, form groups and questions, photo categories, and settings. |
 | Corporate User | Superintendents, managers | Creates and completes D-062 inspections on any vessel. Views all B-008 audits (read only), all photos, and exports PDFs. Can mark reports as reviewed. |
-| Vessel User | Master, officers, crew with an account | Sees only records whose vessel name matches the vessel name on their account (see 2.1). Creates and completes B-008 audits. Uploads photos for that vessel. Sees observations raised against that vessel (not appraisals or chapter ratings). |
+| Vessel Account | Dedicated shipboard account (one per vessel) | Shared ship account tied permanently to a vessel (e.g. `mv.amarin-glory@vessel.local`). Sees only records whose vessel name matches the account's assigned vessel name (see 2.1). Creates and completes B-008 audits for that vessel. Uploads photos for that vessel. |
 
 Rules:
 
-- Every user has an individual account. No shared vessel login. Both forms carry sign-offs and the records are audit evidence.
-- Auditors and auditees on B-008 are entered as name and rank (free text or picked from vessel users). Not every crew member needs an account.
-- Auditee evaluation scores (B-008) are visible only to the audit author(s) and Corporate Users. Other vessel users never see them. Note: the crew member entering the scores obviously sees what they typed.
-- Crew change often. A user can be moved to another vessel name or deactivated without losing history.
+- Vessel accounts are provisioned per vessel (one account per ship, e.g. for the ship's cargo office / bridge workstation) rather than creating and maintaining individual accounts for rotating crew members. This eliminates IT overhead during frequent crew changes.
+- Actual inspector, auditor, and auditee identities are recorded as typed particulars on each report (name, rank, master, chief engineer), ensuring non-repudiation and legal audit evidence without requiring individual login accounts per seafarer.
+- Auditee evaluation scores (B-008 Chapter 14) are visible to Corporate Users and the authoring Vessel Account. Other vessels never see them.
+- If a vessel is renamed or decommissioned, the vessel account can be updated or deactivated by the Superadmin without losing historical report integrity.
 
 ### 2.1 Vessel identity without a vessel table
 

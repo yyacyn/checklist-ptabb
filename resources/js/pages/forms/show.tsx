@@ -387,7 +387,7 @@ export default function FormShow({
     const handleDeleteGroup = (group: GroupData) => {
         const isUsed = group.reports_count > 0;
         const msg = isUsed
-            ? `WARNING (SRS FM-9): This group is used in ${group.reports_count} historical report(s). It cannot be permanently deleted. Proceeding will archive it from future templates while preserving past audit evidence.`
+            ? `WARNING: This group is used in ${group.reports_count} historical report(s). It cannot be permanently deleted. Proceeding will archive it from future templates while preserving past audit evidence.`
             : 'Are you sure you want to permanently delete this group?';
 
         if (confirm(msg)) {
@@ -410,7 +410,7 @@ export default function FormShow({
     const handleDeleteQuestion = (question: QuestionData) => {
         const isUsed = question.reports_count > 0;
         const msg = isUsed
-            ? `WARNING (SRS FM-9): This question is used in ${question.reports_count} historical report(s). It cannot be permanently deleted. Proceeding will archive it from future templates while preserving past audit evidence.`
+            ? `WARNING: This question is used in ${question.reports_count} historical report(s). It cannot be permanently deleted. Proceeding will archive it from future templates while preserving past audit evidence.`
             : 'Are you sure you want to permanently delete this question?';
 
         if (confirm(msg)) {
@@ -433,7 +433,7 @@ export default function FormShow({
                             <Badge variant="default">Template v{form.template_version}</Badge>
                             <span className="text-xs text-muted-foreground">(Paper {form.form_version})</span>
                         </div>
-                        <Heading title={form.name} description="Superadmin template editor: live changes update future reports immediately (FM-11)." />
+                        <Heading title={form.name} description="Superadmin template editor: live changes update future reports immediately." />
                     </div>
 
                     <div className="flex items-center gap-2 self-start flex-wrap">
@@ -854,7 +854,7 @@ export default function FormShow({
             <Dialog open={applicabilityModalOpen} onOpenChange={setApplicabilityModalOpen}>
                 <DialogContent>
                     <DialogHeader>
-                        <DialogTitle>Edit Applicability (FM-4)</DialogTitle>
+                        <DialogTitle>Edit Applicability</DialogTitle>
                     </DialogHeader>
                     {applicabilityTarget && (
                         <form onSubmit={handleSaveApplicability} className="space-y-4">
@@ -919,7 +919,7 @@ export default function FormShow({
             <Dialog open={bulkMoveModalOpen} onOpenChange={setBulkMoveModalOpen}>
                 <DialogContent>
                     <DialogHeader>
-                        <DialogTitle>Move {selectedQuestionIds.length} Question(s) (FM-6)</DialogTitle>
+                        <DialogTitle>Move {selectedQuestionIds.length} Question(s)</DialogTitle>
                     </DialogHeader>
                     <form onSubmit={handleBulkMove} className="space-y-4">
                         <div className="space-y-2">
@@ -954,7 +954,7 @@ export default function FormShow({
             <Dialog open={historyModalOpen} onOpenChange={setHistoryModalOpen}>
                 <DialogContent className="max-w-xl max-h-[80vh] flex flex-col">
                     <DialogHeader>
-                        <DialogTitle>Change History (FM-7)</DialogTitle>
+                        <DialogTitle>Change History</DialogTitle>
                     </DialogHeader>
                     <p className="text-xs text-muted-foreground line-clamp-1 mb-2 font-medium">{historyTitle}</p>
 

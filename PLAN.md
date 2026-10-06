@@ -100,13 +100,13 @@ This is the phase users feel. Budget it properly.
 | # | Task | Ref |
 | --- | --- | --- |
 | 3.1 | Report creation: typed vessel particulars, known-name autocomplete, type and ice class, reference number | **done**: `ReportController`, `reports/create.tsx`, `reports/index.tsx`, `ReportCreationTest` (INS-1, AUD-1, SRS 2.1) |
-| 3.2 | One group per screen, sticky chapter nav, progress per group, unanswered filter, search-jump | NFR-3, INS-8, INS-22 |
-| 3.3 | Answer row: Yes/No/NS/NA (D-062) or Yes/No/N/S (B-008), note, typed extra input, guidance expander | INS-5, AUD-6, AUD-7, FM-3 |
+| 3.2 | One group per screen, sticky chapter nav, progress per group, unanswered filter, search-jump | **done**: `reports/show.tsx` single-chapter screen, sticky sidebar, progress counters, unanswered filter, search-jump (NFR-3, INS-8, INS-22) |
+| 3.3 | Answer row: Yes/No/NS/NA (D-062) or Yes/No/N/S (B-008), note, typed extra input, guidance expander | **done**: segmented answer pills, expandable guidance panel, inline note textarea, typed extra inputs (INS-5, AUD-6, AUD-7, FM-3) |
 | 3.4 | **Autosave engine**: debounce, flush on blur / 5s / group exit, saved-saving-retrying indicator | NFR-1, NFR-2 |
 | 3.5 | **Browser retry queue** in IndexedDB, idempotent `client_save_id`, reconcile on reconnect | NFR-2 |
 | 3.6 | Conflict handling: stale `row_version` refused and surfaced, advisory edit lock with "X is editing" | NFR-15 |
-| 3.7 | Inapplicable items shown as locked `NA` with reason, overridable | FM-4, FM-4a |
-| 3.8 | Group comments box with the NS/NA hint | INS-6, FM-7a |
+| 3.7 | Inapplicable items shown as locked `NA` with reason, overridable | **done**: frozen snapshot flags `is_applicable=false`, rendered as locked `NA` with applicability badge (FM-4, FM-4a) |
+| 3.8 | Group comments box with the NS/NA hint | **done**: Chapter remarks textarea with NS/NA explanation prompt and auto-save endpoint (INS-6, FM-7a) |
 | 3.9 | `No` requires a comment and a risk level, with optional VIQ paragraph and job order | INS-9 |
 | 3.10 | Undo of a recent answer | INS-23 |
 | 3.11 | Tests: payload sizes, one-answer-per-request, retry does not duplicate, never posts a whole chapter | NFR-13, cPanel check 4 |
@@ -166,7 +166,7 @@ This is the phase users feel. Budget it properly.
 | --- | --- | --- |
 | 7.1 | Audit set-up: operations, activities, type, dates, auditees, auditors, lead auditor | AUD-2, AUD-3 |
 | 7.2 | Follow-up from the previous audit, with auto-pulled counts | AUD-4 |
-| 7.3 | Auditee evaluation blocks, minimum four, scores 1–5 with help text, hidden from other vessel users | AUD-11, §2 |
+| 7.3 | Auditee evaluation blocks, minimum four, scores 1–5 with help text, visible to Corporate and authoring Vessel Account | AUD-11, §2 |
 | 7.4 | Execution log, general comments, distribution list on the PDF | AUD-12, AUD-13, AUD-15 |
 | 7.5 | Corporate review and "mark as reviewed" | AUD-16, RLS-6 |
 
@@ -176,7 +176,7 @@ This is the phase users feel. Budget it properly.
 
 | # | Task | Ref |
 | --- | --- | --- |
-| 8.1 | Users: create, role, vessel name, activate, deactivate | §2 |
+| 8.1 | Users & Vessel Accounts: create, role (superadmin, corporate, vessel), vessel name, activate, deactivate | §2 |
 | 8.2 | Vessel types | FM-4 |
 | 8.3 | Vessel rename across reports, photos, findings and accounts, logged | SRS 2.1 |
 | 8.4 | Settings: limits, keep-originals flag, chapters, criteria wording | IMG-1, IMG-3 |
