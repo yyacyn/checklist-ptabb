@@ -308,8 +308,8 @@ class FormManagementTest extends TestCase
     {
         $this->seedCatalogue();
         $superadmin = User::factory()->create(['role' => 'superadmin']);
-        $sourceGroup = FormGroup::query()->where('chapter_no', '2')->whereNull('parent_id')->firstOrFail();
-        $targetGroup = FormGroup::query()->where('chapter_no', '3')->whereNull('parent_id')->firstOrFail();
+        $sourceGroup = FormGroup::query()->has('questions', '>=', 2)->firstOrFail();
+        $targetGroup = FormGroup::query()->where('id', '!=', $sourceGroup->id)->where('form_id', $sourceGroup->form_id)->firstOrFail();
 
         $questionsToMove = $sourceGroup->questions()->take(2)->get();
         $questionIds = $questionsToMove->pluck('id')->all();

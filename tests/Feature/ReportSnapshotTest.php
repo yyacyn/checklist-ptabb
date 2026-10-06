@@ -67,8 +67,8 @@ class ReportSnapshotTest extends TestCase
         $this->assertSame(1, $report->template_version);
         $this->assertSame('MV Oceanic Pioneer', $report->vessel_name);
 
-        // All 616 questions from chapters 2 to 13 must be copied
-        $this->assertSame(616, $report->questions()->count());
+        // All 647 questions from chapters 1 to 13 must be copied
+        $this->assertSame(647, $report->questions()->count());
 
         // Subgroups must link to their parent report group
         $subgroups = $report->groups()->whereNotNull('parent_id')->get();
@@ -80,7 +80,7 @@ class ReportSnapshotTest extends TestCase
 
         // Top-level groups exist with empty comments box ready (FM-7a)
         $topLevel = $report->topLevelGroups()->get();
-        $this->assertCount(12, $topLevel); // Chapters 2 to 13
+        $this->assertCount(13, $topLevel); // Chapters 1 to 13
         foreach ($topLevel as $group) {
             $this->assertNull($group->comments);
         }
@@ -129,8 +129,9 @@ class ReportSnapshotTest extends TestCase
         $this->assertFalse($chapter8->is_applicable);
         $this->assertStringContainsString('Tanker only', (string) $chapter8->na_reason);
 
-        // All questions inside Chapter 8 must also be marked not applicable
-        $ch8Questions = $report->questions()->where('report_group_id', $chapter8->id)->get();
+        // All questions inside Chapter 8 (including in its subgroups) must also be marked not applicable
+        $ch8GroupIds = $report->groups()->where(fn ($q) => $q->where('id', $chapter8->id)->orWhere('parent_id', $chapter8->id))->pluck('id');
+        $ch8Questions = $report->questions()->whereIn('report_group_id', $ch8GroupIds)->get();
         $this->assertGreaterThan(0, $ch8Questions->count());
         foreach ($ch8Questions as $q) {
             $this->assertFalse($q->is_applicable);

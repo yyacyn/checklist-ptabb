@@ -4,6 +4,10 @@ import {
     ArrowRightLeft,
     ArrowUp,
     CheckSquare,
+    ChevronDown,
+    ChevronRight,
+    ChevronsDownUp,
+    ChevronsUpDown,
     Copy,
     Edit2,
     Eye,
@@ -12,6 +16,7 @@ import {
     FolderPlus,
     HelpCircle,
     History,
+    MoreHorizontal,
     Plus,
     Square,
     Trash2,
@@ -22,10 +27,16 @@ import { Badge } from '@/components/ui/badge';
 import { Button } from '@/components/ui/button';
 import { Card, CardContent, CardHeader } from '@/components/ui/card';
 import { Dialog, DialogContent, DialogFooter, DialogHeader, DialogTitle } from '@/components/ui/dialog';
+import {
+    DropdownMenu,
+    DropdownMenuContent,
+    DropdownMenuItem,
+    DropdownMenuSeparator,
+    DropdownMenuTrigger,
+} from '@/components/ui/dropdown-menu';
 import { Input } from '@/components/ui/input';
 import { Label } from '@/components/ui/label';
 import { Select, SelectContent, SelectItem, SelectTrigger, SelectValue } from '@/components/ui/select';
-import AppLayout from '@/layouts/app-layout';
 
 interface QuestionData {
     id: number;
@@ -90,18 +101,20 @@ interface HistoryItem {
 
 interface Props {
     form: FormData;
-    chapters: GroupData[];
-    all_groups: GroupOption[];
-    vessel_types: VesselTypeItem[];
+    chapters?: GroupData[];
+    all_groups?: GroupOption[];
+    flat_groups?: GroupOption[];
+    vessel_types?: VesselTypeItem[];
 }
 
-export default function FormShow({ form, chapters, all_groups, vessel_types }: Props) {
-    const breadcrumbs = [
-        { title: 'Dashboard', href: '/dashboard' },
-        { title: 'Form Templates', href: '/admin/forms' },
-        { title: `${form.code} (${form.name})`, href: `/admin/forms/${form.id}` },
-    ];
-
+export default function FormShow({
+    form,
+    chapters = [],
+    all_groups = [],
+    flat_groups = [],
+    vessel_types = [],
+}: Props) {
+    const groupsList = all_groups.length > 0 ? all_groups : flat_groups;
     // Group Modal State
     const [groupModalOpen, setGroupModalOpen] = useState(false);
     const [editingGroup, setEditingGroup] = useState<GroupData | null>(null);
@@ -138,6 +151,37 @@ export default function FormShow({ form, chapters, all_groups, vessel_types }: P
     // Expanded guidance state
     const [expandedGuidance, setExpandedGuidance] = useState<Record<number, boolean>>({});
 
+
+    // Collapse/Expand state for chapters and subgroups
+    const [collapsedChapters, setCollapsedChapters] = useState<Record<number, boolean>>({});
+    const [collapsedSubgroups, setCollapsedSubgroups] = useState<Record<number, boolean>>({});
+
+    const toggleChapterCollapse = (id: number) => {
+        setCollapsedChapters((prev) => ({ ...prev, [id]: !prev[id] }));
+    };
+
+    const toggleSubgroupCollapse = (id: number) => {
+        setCollapsedSubgroups((prev) => ({ ...prev, [id]: !prev[id] }));
+    };
+
+    const expandAll = () => {
+        setCollapsedChapters({});
+        setCollapsedSubgroups({});
+    };
+
+    const collapseAll = () => {
+        const chMap: Record<number, boolean> = {};
+        const subMap: Record<number, boolean> = {};
+        chapters.forEach((ch) => {
+            chMap[ch.id] = true;
+            (ch.subgroups || []).forEach((sg) => {
+                subMap[sg.id] = true;
+            });
+        });
+        setCollapsedChapters(chMap);
+        setCollapsedSubgroups(subMap);
+    };
+
     const toggleGuidance = (id: number) => {
         setExpandedGuidance((prev) => ({ ...prev, [id]: !prev[id] }));
     };
@@ -149,9 +193,15 @@ export default function FormShow({ form, chapters, all_groups, vessel_types }: P
         );
     };
 
+    const getAllGroupQuestionIds = (group: GroupData): number[] => {
+        const direct = (group.questions || []).map((q) => q.id);
+        const sub = (group.subgroups || []).flatMap((sg) => (sg.questions || []).map((q) => q.id));
+        return [...direct, ...sub];
+    };
+
     const selectAllInGroup = (group: GroupData) => {
-        const ids = group.questions.map((q) => q.id);
-        const allSelected = ids.every((id) => selectedQuestionIds.includes(id));
+        const ids = getAllGroupQuestionIds(group);
+        const allSelected = ids.length > 0 && ids.every((id) => selectedQuestionIds.includes(id));
         if (allSelected) {
             setSelectedQuestionIds((prev) => prev.filter((id) => !ids.includes(id)));
         } else {
@@ -363,7 +413,7 @@ export default function FormShow({ form, chapters, all_groups, vessel_types }: P
     };
 
     return (
-        <AppLayout breadcrumbs={breadcrumbs}>
+        <>
             <Head title={`Template Editor: ${form.code}`} />
 
             <div className="flex h-full flex-1 flex-col gap-6 p-6">
@@ -380,7 +430,15 @@ export default function FormShow({ form, chapters, all_groups, vessel_types }: P
                         <Heading title={form.name} description="Superadmin template editor: live changes update future reports immediately (FM-11)." />
                     </div>
 
-                    <div className="flex items-center gap-2 self-start">
+                    <div className="flex items-center gap-2 self-start flex-wrap">
+                        <Button variant="outline" size="sm" onClick={expandAll} className="flex items-center gap-1.5 text-xs">
+                            <ChevronsUpDown className="size-3.5" />
+                            <span>Expand All</span>
+                        </Button>
+                        <Button variant="outline" size="sm" onClick={collapseAll} className="flex items-center gap-1.5 text-xs">
+                            <ChevronsDownUp className="size-3.5" />
+                            <span>Collapse All</span>
+                        </Button>
                         {selectedQuestionIds.length > 0 && (
                             <Button variant="secondary" onClick={() => setBulkMoveModalOpen(true)} className="flex items-center gap-1.5">
                                 <ArrowRightLeft className="size-4" />
@@ -396,192 +454,292 @@ export default function FormShow({ form, chapters, all_groups, vessel_types }: P
 
                 {/* Chapter Tree */}
                 <div className="space-y-6">
-                    {chapters.map((chapter) => (
-                        <Card key={chapter.id} className={`border-2 ${!chapter.is_enabled ? 'opacity-60 bg-muted/20' : ''}`}>
-                            <CardHeader className="bg-muted/40 p-4">
-                                <div className="flex flex-col gap-2 md:flex-row md:items-center md:justify-between">
-                                    <div className="flex items-center gap-2 flex-wrap">
-                                        <button
-                                            type="button"
-                                            onClick={() => selectAllInGroup(chapter)}
-                                            className="text-muted-foreground hover:text-foreground mr-1"
-                                            title="Select all questions in this group"
-                                        >
-                                            {chapter.questions.length > 0 && chapter.questions.every((q) => selectedQuestionIds.includes(q.id)) ? (
-                                                <CheckSquare className="size-4 text-primary" />
-                                            ) : (
-                                                <Square className="size-4" />
+                    {chapters.map((chapter) => {
+                        const chapterQuestionIds = getAllGroupQuestionIds(chapter);
+                        const isChapterAllSelected =
+                            chapterQuestionIds.length > 0 &&
+                            chapterQuestionIds.every((id) => selectedQuestionIds.includes(id));
+                        const isChapterCollapsed = Boolean(collapsedChapters[chapter.id]);
+
+                        return (
+                            <Card key={chapter.id} className={`gap-0 overflow-hidden py-0 ${!chapter.is_enabled ? 'opacity-60 bg-muted/20' : ''}`}>
+                                <CardHeader className="border-b bg-muted/40 p-4">
+                                    <div className="flex flex-col gap-3 md:flex-row md:items-center md:justify-between">
+                                        <div className="flex items-center gap-2 flex-wrap min-w-0">
+                                            <button
+                                                type="button"
+                                                onClick={() => toggleChapterCollapse(chapter.id)}
+                                                className="text-muted-foreground hover:text-foreground shrink-0 p-0.5"
+                                                title={isChapterCollapsed ? 'Expand Chapter' : 'Collapse Chapter'}
+                                            >
+                                                {isChapterCollapsed ? (
+                                                    <ChevronRight className="size-4" />
+                                                ) : (
+                                                    <ChevronDown className="size-4" />
+                                                )}
+                                            </button>
+                                            <button
+                                                type="button"
+                                                onClick={() => selectAllInGroup(chapter)}
+                                                className="text-muted-foreground hover:text-foreground shrink-0 mr-1"
+                                                title="Select all questions in this group"
+                                            >
+                                                {isChapterAllSelected ? (
+                                                    <CheckSquare className="size-4 text-primary" />
+                                                ) : (
+                                                    <Square className="size-4" />
+                                                )}
+                                            </button>
+                                            {chapter.chapter_no && (
+                                                <Badge variant="secondary" className="font-mono shrink-0">
+                                                    Ch. {chapter.chapter_no}
+                                                </Badge>
                                             )}
-                                        </button>
-                                        {chapter.chapter_no && (
-                                            <Badge variant="secondary" className="font-mono">
-                                                Ch. {chapter.chapter_no}
-                                            </Badge>
-                                        )}
-                                        <h3 className="font-semibold text-lg">{chapter.title}</h3>
-                                        {!chapter.is_enabled && <Badge variant="destructive">Disabled</Badge>}
-                                        {chapter.ice_class_only && <Badge variant="outline">Ice Class Only</Badge>}
-                                        {chapter.vessel_type_ids.length > 0 && (
-                                            <Badge variant="outline" className="text-xs">
-                                                {vessel_types.filter((vt) => chapter.vessel_type_ids.includes(vt.id)).map((vt) => vt.name).join('/')} only
-                                            </Badge>
-                                        )}
-                                        {chapter.reports_count > 0 && (
-                                            <Badge variant="outline" className="text-xs text-muted-foreground">
-                                                Used in {chapter.reports_count} reports
-                                            </Badge>
-                                        )}
-                                    </div>
+                                            <h3
+                                                className="font-semibold text-lg cursor-pointer select-none"
+                                                onClick={() => toggleChapterCollapse(chapter.id)}
+                                            >
+                                                {chapter.title}
+                                            </h3>
+                                            {!chapter.is_enabled && <Badge variant="destructive">Disabled</Badge>}
+                                            {chapter.ice_class_only && <Badge variant="outline">Ice Class Only</Badge>}
+                                            {(chapter.vessel_type_ids || []).length > 0 && (
+                                                <Badge variant="outline" className="text-xs">
+                                                    {(vessel_types || [])
+                                                        .filter((vt) => (chapter.vessel_type_ids || []).includes(vt.id))
+                                                        .map((vt) => vt.name)
+                                                        .join('/')}{' '}
+                                                    only
+                                                </Badge>
+                                            )}
+                                            {chapter.reports_count > 0 && (
+                                                <Badge variant="outline" className="text-xs text-muted-foreground">
+                                                    Used in {chapter.reports_count} reports
+                                                </Badge>
+                                            )}
+                                        </div>
 
-                                    <div className="flex items-center gap-1 flex-wrap">
-                                        <Button size="sm" variant="ghost" title="Move Up" onClick={() => handleReorderGroup(chapter.id, 'up')}>
-                                            <ArrowUp className="size-3.5" />
-                                        </Button>
-                                        <Button size="sm" variant="ghost" title="Move Down" onClick={() => handleReorderGroup(chapter.id, 'down')}>
-                                            <ArrowDown className="size-3.5" />
-                                        </Button>
-                                        <Button size="sm" variant="ghost" title={chapter.is_enabled ? 'Disable' : 'Enable'} onClick={() => handleToggleGroup(chapter.id)}>
-                                            {chapter.is_enabled ? <Eye className="size-3.5" /> : <EyeOff className="size-3.5 text-muted-foreground" />}
-                                        </Button>
-                                        <Button size="sm" variant="outline" title="Bulk toggle all questions in group" onClick={() => handleBulkToggleGroup(chapter, !chapter.is_enabled)}>
-                                            {chapter.is_enabled ? 'Disable All' : 'Enable All'}
-                                        </Button>
-                                        <Button size="sm" variant="outline" onClick={() => openGroupApplicability(chapter)} title="Edit Applicability (FM-4)">
-                                            <Filter className="size-3.5 mr-1" /> Applicability
-                                        </Button>
-                                        <Button size="sm" variant="outline" onClick={() => openHistory('group', chapter.id, chapter.title)} title="View Change History (FM-7)">
-                                            <History className="size-3.5 mr-1" /> History
-                                        </Button>
-                                        <Button size="sm" variant="outline" onClick={() => openEditGroup(chapter)}>
-                                            <Edit2 className="size-3.5 mr-1" /> Edit
-                                        </Button>
-                                        <Button size="sm" variant="outline" onClick={() => openAddSubgroup(chapter.id)}>
-                                            <FolderPlus className="size-3.5 mr-1" /> Add Subgroup
-                                        </Button>
-                                        <Button size="sm" variant="outline" onClick={() => openAddQuestion(chapter.id)}>
-                                            <Plus className="size-3.5 mr-1" /> Add Question
-                                        </Button>
-                                        <Button size="sm" variant="ghost" className="text-destructive hover:bg-destructive/10" onClick={() => handleDeleteGroup(chapter)}>
-                                            <Trash2 className="size-3.5" />
-                                        </Button>
-                                    </div>
-                                </div>
-                            </CardHeader>
+                                        <div className="flex items-center gap-1.5 shrink-0">
+                                            <Button
+                                                size="sm"
+                                                variant="ghost"
+                                                title={chapter.is_enabled ? 'Disable' : 'Enable'}
+                                                onClick={() => handleToggleGroup(chapter.id)}
+                                            >
+                                                {chapter.is_enabled ? <Eye className="size-4" /> : <EyeOff className="size-4 text-muted-foreground" />}
+                                            </Button>
 
-                            <CardContent className="space-y-4 p-4">
-                                {/* Subgroups */}
-                                {chapter.subgroups && chapter.subgroups.length > 0 && (
-                                    <div className="space-y-4 pl-4 border-l-2 border-border/80">
-                                        {chapter.subgroups.map((subgroup) => (
-                                            <div key={subgroup.id} className="rounded-lg border bg-card p-3 shadow-xs">
-                                                <div className="flex flex-col gap-2 md:flex-row md:items-center md:justify-between pb-2 mb-2 border-b">
-                                                    <div className="flex items-center gap-2 flex-wrap">
-                                                        <button
-                                                            type="button"
-                                                            onClick={() => selectAllInGroup(subgroup)}
-                                                            className="text-muted-foreground hover:text-foreground mr-1"
-                                                        >
-                                                            {subgroup.questions.length > 0 && subgroup.questions.every((q) => selectedQuestionIds.includes(q.id)) ? (
-                                                                <CheckSquare className="size-3.5 text-primary" />
-                                                            ) : (
-                                                                <Square className="size-3.5" />
+                                            <Button size="sm" variant="outline" onClick={() => openAddSubgroup(chapter.id)}>
+                                                <FolderPlus className="size-3.5 mr-1" /> Add Subgroup
+                                            </Button>
+                                            <Button size="sm" variant="outline" onClick={() => openAddQuestion(chapter.id)}>
+                                                <Plus className="size-3.5 mr-1" /> Add Question
+                                            </Button>
+
+                                            <DropdownMenu>
+                                                <DropdownMenuTrigger asChild>
+                                                    <Button size="sm" variant="ghost" className="h-8 w-8 p-0" title="More Options">
+                                                        <MoreHorizontal className="size-4" />
+                                                    </Button>
+                                                </DropdownMenuTrigger>
+                                                <DropdownMenuContent align="end" className="w-52">
+                                                    <DropdownMenuItem onClick={() => handleReorderGroup(chapter.id, 'up')}>
+                                                        <ArrowUp className="size-4 mr-2" /> Move Up
+                                                    </DropdownMenuItem>
+                                                    <DropdownMenuItem onClick={() => handleReorderGroup(chapter.id, 'down')}>
+                                                        <ArrowDown className="size-4 mr-2" /> Move Down
+                                                    </DropdownMenuItem>
+                                                    <DropdownMenuItem onClick={() => handleBulkToggleGroup(chapter, !chapter.is_enabled)}>
+                                                        {chapter.is_enabled ? <EyeOff className="size-4 mr-2" /> : <Eye className="size-4 mr-2" />}
+                                                        {chapter.is_enabled ? 'Disable All Questions' : 'Enable All Questions'}
+                                                    </DropdownMenuItem>
+                                                    <DropdownMenuItem onClick={() => openGroupApplicability(chapter)}>
+                                                        <Filter className="size-4 mr-2" /> Applicability
+                                                    </DropdownMenuItem>
+                                                    <DropdownMenuItem onClick={() => openHistory('group', chapter.id, chapter.title)}>
+                                                        <History className="size-4 mr-2" /> Change History
+                                                    </DropdownMenuItem>
+                                                    <DropdownMenuItem onClick={() => openEditGroup(chapter)}>
+                                                        <Edit2 className="size-4 mr-2" /> Edit Chapter
+                                                    </DropdownMenuItem>
+                                                    <DropdownMenuSeparator />
+                                                    <DropdownMenuItem className="text-destructive focus:text-destructive" onClick={() => handleDeleteGroup(chapter)}>
+                                                        <Trash2 className="size-4 mr-2" /> Delete Chapter
+                                                    </DropdownMenuItem>
+                                                </DropdownMenuContent>
+                                            </DropdownMenu>
+                                        </div>
+                                    </div>
+                                </CardHeader>
+
+                                {!isChapterCollapsed && (
+                                    <CardContent className="space-y-4 p-4">
+                                        {/* Subgroups */}
+                                        {chapter.subgroups && chapter.subgroups.length > 0 && (
+                                            <div className="space-y-6">
+                                                {chapter.subgroups.map((subgroup) => {
+                                                    const subQuestionIds = (subgroup.questions || []).map((q) => q.id);
+                                                    const isSubAllSelected =
+                                                        subQuestionIds.length > 0 &&
+                                                        subQuestionIds.every((id) => selectedQuestionIds.includes(id));
+                                                    const isSubCollapsed = Boolean(collapsedSubgroups[subgroup.id]);
+
+                                                    return (
+                                                        <section key={subgroup.id} className={!subgroup.is_enabled ? 'opacity-60' : ''}>
+                                                            <div className="flex items-center justify-between gap-2 pb-2 mb-2 border-b">
+                                                                <div className="flex items-center gap-2 flex-wrap min-w-0">
+                                                                    <button
+                                                                        type="button"
+                                                                        onClick={() => toggleSubgroupCollapse(subgroup.id)}
+                                                                        className="text-muted-foreground hover:text-foreground shrink-0 p-0.5"
+                                                                        title={isSubCollapsed ? 'Expand Subgroup' : 'Collapse Subgroup'}
+                                                                    >
+                                                                        {isSubCollapsed ? (
+                                                                            <ChevronRight className="size-3.5" />
+                                                                        ) : (
+                                                                            <ChevronDown className="size-3.5" />
+                                                                        )}
+                                                                    </button>
+                                                                    <button
+                                                                        type="button"
+                                                                        onClick={() => selectAllInGroup(subgroup)}
+                                                                        className="text-muted-foreground hover:text-foreground shrink-0 mr-1"
+                                                                    >
+                                                                        {isSubAllSelected ? (
+                                                                            <CheckSquare className="size-3.5 text-primary" />
+                                                                        ) : (
+                                                                            <Square className="size-3.5" />
+                                                                        )}
+                                                                    </button>
+                                                                    <h4
+                                                                        className="font-semibold text-sm uppercase tracking-wide text-muted-foreground cursor-pointer select-none"
+                                                                        onClick={() => toggleSubgroupCollapse(subgroup.id)}
+                                                                    >
+                                                                        {subgroup.title}
+                                                                    </h4>
+                                                                    {!subgroup.is_enabled && <Badge variant="destructive" className="text-xs">Disabled</Badge>}
+                                                                    {(subgroup.vessel_type_ids || []).length > 0 && (
+                                                                        <Badge variant="outline" className="text-[10px]">
+                                                                            {(vessel_types || [])
+                                                                                .filter((vt) => (subgroup.vessel_type_ids || []).includes(vt.id))
+                                                                                .map((vt) => vt.name)
+                                                                                .join('/')}{' '}
+                                                                            only
+                                                                        </Badge>
+                                                                    )}
+                                                                    {subgroup.reports_count > 0 && (
+                                                                        <span className="text-xs text-muted-foreground">({subgroup.reports_count} reports)</span>
+                                                                    )}
+                                                                </div>
+                                                                <div className="flex items-center gap-1 shrink-0">
+                                                                    <Button
+                                                                        size="sm"
+                                                                        variant="ghost"
+                                                                        className="h-7 w-7 p-0"
+                                                                        title={subgroup.is_enabled ? 'Disable' : 'Enable'}
+                                                                        onClick={() => handleToggleGroup(subgroup.id)}
+                                                                    >
+                                                                        {subgroup.is_enabled ? <Eye className="size-3.5" /> : <EyeOff className="size-3.5 text-muted-foreground" />}
+                                                                    </Button>
+                                                                    <Button size="sm" variant="outline" className="h-7 text-xs" onClick={() => openAddQuestion(subgroup.id)}>
+                                                                        <Plus className="size-3 mr-1" /> Question
+                                                                    </Button>
+                                                                    <DropdownMenu>
+                                                                        <DropdownMenuTrigger asChild>
+                                                                            <Button size="sm" variant="ghost" className="h-7 w-7 p-0" title="More Options">
+                                                                                <MoreHorizontal className="size-3.5" />
+                                                                            </Button>
+                                                                        </DropdownMenuTrigger>
+                                                                        <DropdownMenuContent align="end" className="w-44">
+                                                                            <DropdownMenuItem onClick={() => handleReorderGroup(subgroup.id, 'up')}>
+                                                                                <ArrowUp className="size-3.5 mr-2" /> Move Up
+                                                                            </DropdownMenuItem>
+                                                                            <DropdownMenuItem onClick={() => handleReorderGroup(subgroup.id, 'down')}>
+                                                                                <ArrowDown className="size-3.5 mr-2" /> Move Down
+                                                                            </DropdownMenuItem>
+                                                                            <DropdownMenuItem onClick={() => openGroupApplicability(subgroup)}>
+                                                                                <Filter className="size-3.5 mr-2" /> Applicability
+                                                                            </DropdownMenuItem>
+                                                                            <DropdownMenuItem onClick={() => openHistory('group', subgroup.id, subgroup.title)}>
+                                                                                <History className="size-3.5 mr-2" /> Change History
+                                                                            </DropdownMenuItem>
+                                                                            <DropdownMenuItem onClick={() => openEditGroup(subgroup)}>
+                                                                                <Edit2 className="size-3.5 mr-2" /> Rename
+                                                                            </DropdownMenuItem>
+                                                                            <DropdownMenuSeparator />
+                                                                            <DropdownMenuItem className="text-destructive focus:text-destructive" onClick={() => handleDeleteGroup(subgroup)}>
+                                                                                <Trash2 className="size-3.5 mr-2" /> Delete Subgroup
+                                                                            </DropdownMenuItem>
+                                                                        </DropdownMenuContent>
+                                                                    </DropdownMenu>
+                                                                </div>
+                                                            </div>
+
+                                                            {/* Subgroup Questions */}
+                                                            {!isSubCollapsed && (
+                                                                <div className="space-y-2">
+                                                                    {(subgroup.questions || []).map((q) => (
+                                                                        <QuestionRow
+                                                                            key={q.id}
+                                                                            question={q}
+                                                                            vesselTypes={vessel_types}
+                                                                            isSelected={selectedQuestionIds.includes(q.id)}
+                                                                            isExpanded={Boolean(expandedGuidance[q.id])}
+                                                                            onSelect={() => toggleSelectQuestion(q.id)}
+                                                                            onToggleGuidance={() => toggleGuidance(q.id)}
+                                                                            onEdit={() => openEditQuestion(q)}
+                                                                            onApplicability={() => openQuestionApplicability(q)}
+                                                                            onHistory={() => openHistory('question', q.id, q.question_text)}
+                                                                            onReorder={(dir) => handleReorderQuestion(q.id, dir)}
+                                                                            onToggle={() => handleToggleQuestion(q.id)}
+                                                                            onDuplicate={() => handleDuplicateQuestion(q.id)}
+                                                                            onDelete={() => handleDeleteQuestion(q)}
+                                                                        />
+                                                                    ))}
+                                                                    {(subgroup.questions || []).length === 0 && (
+                                                                        <p className="text-xs text-muted-foreground italic py-2">No questions in this subgroup.</p>
+                                                                    )}
+                                                                </div>
                                                             )}
-                                                        </button>
-                                                        <h4 className="font-medium text-sm text-foreground">{subgroup.title}</h4>
-                                                        {!subgroup.is_enabled && <Badge variant="destructive" className="text-xs">Disabled</Badge>}
-                                                        {subgroup.vessel_type_ids.length > 0 && (
-                                                            <Badge variant="outline" className="text-[10px]">
-                                                                {vessel_types.filter((vt) => subgroup.vessel_type_ids.includes(vt.id)).map((vt) => vt.name).join('/')} only
-                                                            </Badge>
-                                                        )}
-                                                        {subgroup.reports_count > 0 && (
-                                                            <span className="text-xs text-muted-foreground">({subgroup.reports_count} reports)</span>
-                                                        )}
-                                                    </div>
-                                                    <div className="flex items-center gap-1 flex-wrap">
-                                                        <Button size="sm" variant="ghost" onClick={() => handleReorderGroup(subgroup.id, 'up')}>
-                                                            <ArrowUp className="size-3" />
-                                                        </Button>
-                                                        <Button size="sm" variant="ghost" onClick={() => handleReorderGroup(subgroup.id, 'down')}>
-                                                            <ArrowDown className="size-3" />
-                                                        </Button>
-                                                        <Button size="sm" variant="ghost" onClick={() => handleToggleGroup(subgroup.id)}>
-                                                            {subgroup.is_enabled ? <Eye className="size-3" /> : <EyeOff className="size-3 text-muted-foreground" />}
-                                                        </Button>
-                                                        <Button size="sm" variant="outline" onClick={() => openGroupApplicability(subgroup)} title="Applicability">
-                                                            <Filter className="size-3 mr-1" /> Scope
-                                                        </Button>
-                                                        <Button size="sm" variant="outline" onClick={() => openHistory('group', subgroup.id, subgroup.title)}>
-                                                            <History className="size-3 mr-1" /> Log
-                                                        </Button>
-                                                        <Button size="sm" variant="outline" onClick={() => openEditGroup(subgroup)}>
-                                                            <Edit2 className="size-3 mr-1" /> Rename
-                                                        </Button>
-                                                        <Button size="sm" variant="outline" onClick={() => openAddQuestion(subgroup.id)}>
-                                                            <Plus className="size-3 mr-1" /> Question
-                                                        </Button>
-                                                        <Button size="sm" variant="ghost" className="text-destructive hover:bg-destructive/10" onClick={() => handleDeleteGroup(subgroup)}>
-                                                            <Trash2 className="size-3" />
-                                                        </Button>
-                                                    </div>
-                                                </div>
-
-                                                {/* Subgroup Questions */}
-                                                <div className="space-y-2">
-                                                    {subgroup.questions.map((q) => (
-                                                        <QuestionRow
-                                                            key={q.id}
-                                                            question={q}
-                                                            vesselTypes={vessel_types}
-                                                            isSelected={selectedQuestionIds.includes(q.id)}
-                                                            isExpanded={Boolean(expandedGuidance[q.id])}
-                                                            onSelect={() => toggleSelectQuestion(q.id)}
-                                                            onToggleGuidance={() => toggleGuidance(q.id)}
-                                                            onEdit={() => openEditQuestion(q)}
-                                                            onApplicability={() => openQuestionApplicability(q)}
-                                                            onHistory={() => openHistory('question', q.id, q.question_text)}
-                                                            onReorder={(dir) => handleReorderQuestion(q.id, dir)}
-                                                            onToggle={() => handleToggleQuestion(q.id)}
-                                                            onDuplicate={() => handleDuplicateQuestion(q.id)}
-                                                            onDelete={() => handleDeleteQuestion(q)}
-                                                        />
-                                                    ))}
-                                                    {subgroup.questions.length === 0 && (
-                                                        <p className="text-xs text-muted-foreground italic py-2">No questions in this subgroup.</p>
-                                                    )}
-                                                </div>
+                                                        </section>
+                                                    );
+                                                })}
                                             </div>
-                                        ))}
-                                    </div>
-                                )}
+                                        )}
 
-                                {/* Direct Chapter Questions */}
-                                <div className="space-y-2">
-                                    {chapter.questions.map((q) => (
-                                        <QuestionRow
-                                            key={q.id}
-                                            question={q}
-                                            vesselTypes={vessel_types}
-                                            isSelected={selectedQuestionIds.includes(q.id)}
-                                            isExpanded={Boolean(expandedGuidance[q.id])}
-                                            onSelect={() => toggleSelectQuestion(q.id)}
-                                            onToggleGuidance={() => toggleGuidance(q.id)}
-                                            onEdit={() => openEditQuestion(q)}
-                                            onApplicability={() => openQuestionApplicability(q)}
-                                            onHistory={() => openHistory('question', q.id, q.question_text)}
-                                            onReorder={(dir) => handleReorderQuestion(q.id, dir)}
-                                            onToggle={() => handleToggleQuestion(q.id)}
-                                            onDuplicate={() => handleDuplicateQuestion(q.id)}
-                                            onDelete={() => handleDeleteQuestion(q)}
-                                        />
-                                    ))}
-                                    {chapter.questions.length === 0 && (!chapter.subgroups || chapter.subgroups.length === 0) && (
-                                        <p className="text-xs text-muted-foreground italic py-2">No questions in this chapter.</p>
-                                    )}
-                                </div>
-                            </CardContent>
-                        </Card>
-                    ))}
+                                        {/* Direct Chapter Questions */}
+                                        {(chapter.questions || []).length > 0 && (
+                                            <div className="space-y-2">
+                                                {(chapter.questions || []).map((q) => (
+                                                    <QuestionRow
+                                                        key={q.id}
+                                                        question={q}
+                                                        vesselTypes={vessel_types}
+                                                        isSelected={selectedQuestionIds.includes(q.id)}
+                                                        isExpanded={Boolean(expandedGuidance[q.id])}
+                                                        onSelect={() => toggleSelectQuestion(q.id)}
+                                                        onToggleGuidance={() => toggleGuidance(q.id)}
+                                                        onEdit={() => openEditQuestion(q)}
+                                                        onApplicability={() => openQuestionApplicability(q)}
+                                                        onHistory={() => openHistory('question', q.id, q.question_text)}
+                                                        onReorder={(dir) => handleReorderQuestion(q.id, dir)}
+                                                        onToggle={() => handleToggleQuestion(q.id)}
+                                                        onDuplicate={() => handleDuplicateQuestion(q.id)}
+                                                        onDelete={() => handleDeleteQuestion(q)}
+                                                    />
+                                                ))}
+                                            </div>
+                                        )}
+
+                                        {(chapter.questions || []).length === 0 &&
+                                            (!chapter.subgroups || chapter.subgroups.length === 0) && (
+                                                <p className="text-xs text-muted-foreground italic py-2">No questions in this chapter.</p>
+                                            )}
+                                    </CardContent>
+                                )}
+                            </Card>
+                        );
+                    })}
                 </div>
             </div>
 
@@ -770,7 +928,7 @@ export default function FormShow({ form, chapters, all_groups, vessel_types }: P
                                     <SelectValue placeholder="Select destination group" />
                                 </SelectTrigger>
                                 <SelectContent className="max-h-60">
-                                    {all_groups.map((g) => (
+                                    {groupsList.map((g) => (
                                         <SelectItem key={g.id} value={String(g.id)}>
                                             {g.parent_id ? `↳ ${g.title}` : g.title}
                                         </SelectItem>
@@ -839,9 +997,17 @@ export default function FormShow({ form, chapters, all_groups, vessel_types }: P
                     </DialogFooter>
                 </DialogContent>
             </Dialog>
-        </AppLayout>
+        </>
     );
 }
+
+FormShow.layout = {
+    breadcrumbs: [
+        { title: 'Dashboard', href: '/dashboard' },
+        { title: 'Form Templates', href: '/admin/forms' },
+        { title: 'Template Editor', href: '/admin/forms' },
+    ],
+};
 
 function QuestionRow({
     question,
@@ -894,9 +1060,9 @@ function QuestionRow({
                                     Ice Class
                                 </Badge>
                             )}
-                            {question.vessel_type_ids.length > 0 && (
+                            {(question.vessel_type_ids || []).length > 0 && (
                                 <Badge variant="outline" className="text-[10px] px-1.5 py-0">
-                                    {vesselTypes.filter((vt) => question.vessel_type_ids.includes(vt.id)).map((vt) => vt.name).join('/')}
+                                    {(vesselTypes || []).filter((vt) => (question.vessel_type_ids || []).includes(vt.id)).map((vt) => vt.name).join('/')}
                                 </Badge>
                             )}
                             {question.guidance && (
@@ -924,31 +1090,41 @@ function QuestionRow({
                     </div>
                 </div>
 
-                <div className="flex items-center gap-0.5 shrink-0">
-                    <Button size="sm" variant="ghost" className="h-7 w-7 p-0" title="Move Up" onClick={() => onReorder('up')}>
-                        <ArrowUp className="size-3" />
-                    </Button>
-                    <Button size="sm" variant="ghost" className="h-7 w-7 p-0" title="Move Down" onClick={() => onReorder('down')}>
-                        <ArrowDown className="size-3" />
-                    </Button>
+                <div className="flex items-center gap-1 shrink-0">
                     <Button size="sm" variant="ghost" className="h-7 w-7 p-0" title={question.is_enabled ? 'Disable' : 'Enable'} onClick={onToggle}>
-                        {question.is_enabled ? <Eye className="size-3" /> : <EyeOff className="size-3 text-muted-foreground" />}
-                    </Button>
-                    <Button size="sm" variant="ghost" className="h-7 w-7 p-0" title="Edit Applicability (FM-4)" onClick={onApplicability}>
-                        <Filter className="size-3" />
-                    </Button>
-                    <Button size="sm" variant="ghost" className="h-7 w-7 p-0" title="Change History (FM-7)" onClick={onHistory}>
-                        <History className="size-3" />
-                    </Button>
-                    <Button size="sm" variant="ghost" className="h-7 w-7 p-0" title="Duplicate" onClick={onDuplicate}>
-                        <Copy className="size-3" />
+                        {question.is_enabled ? <Eye className="size-3.5" /> : <EyeOff className="size-3.5 text-muted-foreground" />}
                     </Button>
                     <Button size="sm" variant="ghost" className="h-7 w-7 p-0" title="Edit" onClick={onEdit}>
-                        <Edit2 className="size-3" />
+                        <Edit2 className="size-3.5" />
                     </Button>
-                    <Button size="sm" variant="ghost" className="h-7 w-7 p-0 text-destructive hover:bg-destructive/10" title="Delete / Archive" onClick={onDelete}>
-                        <Trash2 className="size-3" />
-                    </Button>
+                    <DropdownMenu>
+                        <DropdownMenuTrigger asChild>
+                            <Button size="sm" variant="ghost" className="h-7 w-7 p-0" title="More Actions">
+                                <MoreHorizontal className="size-3.5" />
+                            </Button>
+                        </DropdownMenuTrigger>
+                        <DropdownMenuContent align="end" className="w-44">
+                            <DropdownMenuItem onClick={() => onReorder('up')}>
+                                <ArrowUp className="size-3.5 mr-2" /> Move Up
+                            </DropdownMenuItem>
+                            <DropdownMenuItem onClick={() => onReorder('down')}>
+                                <ArrowDown className="size-3.5 mr-2" /> Move Down
+                            </DropdownMenuItem>
+                            <DropdownMenuItem onClick={onApplicability}>
+                                <Filter className="size-3.5 mr-2" /> Applicability
+                            </DropdownMenuItem>
+                            <DropdownMenuItem onClick={onDuplicate}>
+                                <Copy className="size-3.5 mr-2" /> Duplicate
+                            </DropdownMenuItem>
+                            <DropdownMenuItem onClick={onHistory}>
+                                <History className="size-3.5 mr-2" /> Change History
+                            </DropdownMenuItem>
+                            <DropdownMenuSeparator />
+                            <DropdownMenuItem className="text-destructive focus:text-destructive" onClick={onDelete}>
+                                <Trash2 className="size-3.5 mr-2" /> Delete
+                            </DropdownMenuItem>
+                        </DropdownMenuContent>
+                    </DropdownMenu>
                 </div>
             </div>
         </div>

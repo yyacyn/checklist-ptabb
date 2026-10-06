@@ -175,16 +175,23 @@ class FormSeeder extends Seeder
 
             $groupId = $chapterGroups[$topKey]->id;
 
-            // Optional subgroup inside the chapter.
-            if ($subgroupTitle !== '') {
-                $key = $topKey.'||'.$subgroupTitle;
+            // Subgroup inside the chapter. For D-062, every question belongs strictly to a subgroup.
+            $effectiveSubgroup = $subgroupTitle;
+            if ($code === 'D-062' && $effectiveSubgroup === '') {
+                $effectiveSubgroup = ($groupTitle !== '' && $groupTitle !== $topKey)
+                    ? $groupTitle
+                    : $topKey.' - General';
+            }
+
+            if ($effectiveSubgroup !== '') {
+                $key = $topKey.'||'.$effectiveSubgroup;
                 if (! isset($groups[$key])) {
                     $groups[$key] = $this->group($form, $code, [
-                        'title' => $subgroupTitle,
-                        'parent_id' => $groupId,
-                        'chapter_no' => null,
-                        'sort_order' => count($groups) + 1,
-                        'applicability' => [],
+                        'title' => $effectiveSubgroup,
+                        'parent_id' => $chapterGroups[$topKey]->id,
+                        'chapter_no' => $chapterNo !== '' ? $chapterNo : null,
+                        'sort_order' => FormGroup::query()->where('parent_id', $chapterGroups[$topKey]->id)->count() + 1,
+                        'applicability' => $this->applicabilityFor($code, null, $effectiveSubgroup),
                     ]);
                     $summary['groups']++;
                 }
@@ -273,11 +280,11 @@ class FormSeeder extends Seeder
         return $group;
     }
 
-    private function applicabilityFor(string $code, string $chapterNo, string $groupTitle): array
+    private function applicabilityFor(string $code, ?string $chapterNo, string $groupTitle): array
     {
         $map = self::APPLICABILITY[$code] ?? [];
 
-        if (isset($map['chapter'][$chapterNo])) {
+        if ($chapterNo !== null && isset($map['chapter'][$chapterNo])) {
             return [$map['chapter'][$chapterNo]];
         }
 

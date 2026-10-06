@@ -125,14 +125,16 @@ function isSeparatorRow(array $cells): bool
 
 function isCheckbox(string $cell): bool
 {
-    $c = preg_replace('/\s+/u', '', $cell);
+    $c = cleanCell($cell);
+    $c = preg_replace('/\s+/u', '', $c);
 
     return (bool) preg_match('/^[\x{2610}\x{2611}\x{2612}\x{25A1}\x{2717}\x{274C}]+$/u', (string) $c);
 }
 
 function isTickedBox(string $cell): bool
 {
-    $c = preg_replace('/\s+/u', '', $cell);
+    $c = cleanCell($cell);
+    $c = preg_replace('/\s+/u', '', $c);
 
     return (bool) preg_match('/^[\x{2611}\x{2612}\x{274C}]+$/u', (string) $c);
 }
@@ -170,12 +172,35 @@ function checkboxCount(array $cells): int
     return $n;
 }
 
-/** Is this cell entirely bold markdown, i.e. a standalone heading inside a table? */
+/** Is this cell entirely bold or emphasized markdown, i.e. a standalone heading inside a table? */
 function isBoldOnly(string $cell): bool
 {
     $t = trim($cell);
+    if ($t === '') {
+        return false;
+    }
 
-    return $t !== '' && preg_match('/^\*\*.*\*\*$/', $t) === 1;
+    $clean = cleanCell($t);
+    if ($clean === '' || preg_match('/^comments?\b|^remarks\b/i', $clean)) {
+        return false;
+    }
+
+    // A question starts with a number like "1.", "12.", "~~***9.", etc.
+    if (preg_match('/^(\~\~)?(\*{1,3})?\s*\d+\.\s/u', $t)) {
+        return false;
+    }
+
+    // Bold or strikethrough heading, e.g. **Heading** or ~~***Heading**
+    if (preg_match('/^(\~\~)?\*{2,3}.+\*{2,3}(\~\~)?$/u', $t)) {
+        return true;
+    }
+
+    // Compound bold heading, e.g. **LIFE SAVING EQUIPMENT** **Life Boats and Davits**
+    if (preg_match('/^\*\*.*\*\*\s+\*\*.*\*\*$/u', $t)) {
+        return true;
+    }
+
+    return false;
 }
 
 // ---------------------------------------------------------------------------------------
@@ -312,6 +337,7 @@ function normaliseForKey(string $text): string
 function parseForm(string $path, string $formCode): array
 {
     $tables = readTables($path);
+    $lines = file($path, FILE_IGNORE_NEW_LINES);
     $rows = [];
     $warnings = [];
     $skipped = [];
@@ -324,6 +350,80 @@ function parseForm(string $path, string $formCode): array
     $bump = function (array &$bag, string $key): void {
         $bag[$key] = ($bag[$key] ?? 0) + 1;
     };
+
+    if ($formCode === 'D-062') {
+        $chapter1Title = 'General Information';
+
+        // 1. General Particulars & Operations
+        $sg1 = 'General Particulars & Operations';
+        $particulars = [
+            ['Ship Name', 'text', null, basename($path) . ':9'],
+            ['Built', 'text', null, basename($path) . ':11'],
+            ['Type', 'text', null, basename($path) . ':12'],
+            ['Inspected by', 'text', null, basename($path) . ':13'],
+            ['Date of Inspection', 'date', null, basename($path) . ':14'],
+            ['Port', 'text', null, basename($path) . ':15'],
+            ['Report Reference Number', 'text', null, basename($path) . ':16'],
+            ['Sailing with vessel (If Yes, from / to)', 'text', null, basename($path) . ':17'],
+            ['Master', 'text', null, basename($path) . ':18'],
+            ['Chief Engineer', 'text', null, basename($path) . ':19'],
+            ['Chief Officer', 'text', null, basename($path) . ':20'],
+            ['Operations at the time of inspection (Loading, Discharging, Bunkering, Deballasting, Ballasting, River transit, IGS, Major repairs, COW, Repairs underway, STS, Idle, At anchor, At sea, Other)', 'text', null, basename($path) . ':23'],
+            ['Port of last PSC inspection (If the vessel was detained or if deficiencies were identified check/verify close out)', 'text', null, basename($path) . ':29'],
+            ['Date of last Dry Dock', 'date', null, basename($path) . ':30'],
+            ['Next Dry Dock', 'date', null, basename($path) . ':30'],
+            ['Open items, memoranda, Conditions of Class, recommendations, notations, etc.', 'text', 'Where class records address structural issues of concern i.e. bottom pitting, etc. record details as to extent and measures taken. If records indicate that measures have been taken to address or restore loss of longitudinal or transverse strength, record details & repairs undertaken', basename($path) . ':33'],
+        ];
+
+        foreach ($particulars as $p) {
+            $rows[] = [
+                'form' => 'D-062',
+                'chapter_no' => '1',
+                'chapter' => $chapter1Title,
+                'group' => $chapter1Title,
+                'subgroup' => $sg1,
+                'question_text' => $p[0],
+                'guidance' => $p[2] ?? '',
+                'input_type' => $p[1],
+                'input_hint' => '',
+                'suggested_applicability' => 'All vessel types',
+                'warnings' => '',
+                'source_ref' => $p[3],
+                'source_key' => sourceKey('D-062', '1', $p[0]),
+            ];
+        }
+
+        // 2. Attendance-related activities
+        $sg2 = 'Other Attendance-Related Activities';
+        for ($i = 161; $i < 213; $i++) {
+            $trimmed = trim($lines[$i] ?? '');
+            if (!str_starts_with($trimmed, '|')) {
+                continue;
+            }
+            $parts = preg_split('/(?<!\\\\)\|/', trim(preg_replace('/^\||\|$/', '', $trimmed)));
+            $cells = array_map(fn ($p) => trim(str_replace('\|', '|', $p)), $parts);
+            if (count($cells) >= 3 && preg_match('/yes/i', $cells[1]) && preg_match('/no/i', $cells[2])) {
+                $qText = cleanCell($cells[0]);
+                $hint = cleanCell($cells[3] ?? '');
+                [$qTextClean, $guidance] = splitGuidance($qText);
+                $rows[] = [
+                    'form' => 'D-062',
+                    'chapter_no' => '1',
+                    'chapter' => $chapter1Title,
+                    'group' => $chapter1Title,
+                    'subgroup' => $sg2,
+                    'question_text' => $qTextClean,
+                    'guidance' => $guidance,
+                    'input_type' => 'text',
+                    'input_hint' => $hint,
+                    'suggested_applicability' => 'All vessel types',
+                    'warnings' => '',
+                    'source_ref' => basename($path) . ':' . ($i + 1),
+                    'source_key' => sourceKey('D-062', '1', $qTextClean),
+                ];
+            }
+        }
+    }
 
     foreach ($tables as $table) {
         $tableIsChecklist = false;
@@ -349,8 +449,13 @@ function parseForm(string $path, string $formCode): array
                     fn ($c) => strtolower(rtrim(cleanCell($c), '.')),
                     array_values(array_filter($cells, 'isLabel'))
                 ));
-                $group = $firstClean;
-                $subgroup = '';
+                if ($firstClean !== '') {
+                    $group = $firstClean;
+                    $subgroup = $firstClean;
+                } elseif ($formCode === 'D-062' && $chapter['no'] === '8') {
+                    $group = 'Cargo And Ballast System - General';
+                    $subgroup = 'Cargo And Ballast System - General';
+                }
 
                 continue;
             }
@@ -359,9 +464,12 @@ function parseForm(string $path, string $formCode): array
             // table stays in the chapter it continues (SRS 5.2).
             if (! $tableIsChecklist && count(array_filter($cells, fn ($c) => cleanCell($c) !== '')) === 1) {
                 if (preg_match('/^\*\*\s*(\d+)\.?\s*(.+?)\s*\*\*$/u', trim($firstCell), $m)) {
+                    $chNo = (int) $m[1];
                     $isContinuing = (bool) preg_match('/\(continuing\)/i', $m[2]);
                     if (! $isContinuing || $chapter['no'] === '') {
                         $chapter = ['no' => $m[1], 'title' => cleanCell($m[2])];
+                        $group = '';
+                        $subgroup = '';
                     }
                     if ($isContinuing) {
                         $bump($skipped, 'continuing_table_merged_into_chapter');
@@ -371,11 +479,34 @@ function parseForm(string $path, string $formCode): array
                 continue;
             }
 
+            // Continuing table in D-062 with questions but without label header (e.g. Chapter 11 lines 1112-1116)
+            if (! $tableIsChecklist && $formCode === 'D-062' && (int)$chapter['no'] >= 2 && $boxes >= 2) {
+                $tableIsChecklist = true;
+            }
+
             if (! $tableIsChecklist) {
                 continue;
             }
 
+            // In D-062, skip chapter 1 tables here as they were parsed above
+            if ($formCode === 'D-062' && (int)$chapter['no'] < 2) {
+                continue;
+            }
+
             // ---- inside a checklist table -------------------------------------------
+
+            // Subgroup heading, or COMMENTS (checked before $boxes so headings with stray checkboxes are not questions)
+            if (isBoldOnly($firstCell)) {
+                if (preg_match('/^comments?\b|^remarks\b/i', $firstClean)) {
+                    $bump($skipped, 'comments_row_ignored');
+
+                    continue;
+                }
+                $subgroup = $firstClean;
+
+                continue;
+            }
+
             if ($boxes >= 2) {
                 // Rows whose answer columns do not match the form are not questions:
                 // the D-062 Report Summary ratings table (3 boxes) and the B-008
@@ -418,10 +549,15 @@ function parseForm(string $path, string $formCode): array
                     $rowWarnings[] = 'escaped_comparison_operator';
                 }
 
-                // A table with no group header of its own belongs to the chapter.
-                $effectiveGroup = $group !== '' ? $group : ($chapter['title'] ?: '(chapter '.$chapter['no'].')');
-                if ($group === '' && $chapter['title'] !== '') {
-                    $rowWarnings[] = 'group_inferred_from_chapter';
+                if ($formCode === 'D-062') {
+                    $effectiveGroup = $chapter['title'];
+                    $effectiveSubgroup = $subgroup !== '' ? $subgroup : ($chapter['title'] . ' - General');
+                } else {
+                    $effectiveGroup = $group !== '' ? $group : ($chapter['title'] ?: '(chapter '.$chapter['no'].')');
+                    $effectiveSubgroup = $subgroup;
+                    if ($group === '' && $chapter['title'] !== '') {
+                        $rowWarnings[] = 'group_inferred_from_chapter';
+                    }
                 }
 
                 foreach ($rowWarnings as $w) {
@@ -433,28 +569,16 @@ function parseForm(string $path, string $formCode): array
                     'chapter_no' => $chapter['no'],
                     'chapter' => $chapter['title'],
                     'group' => $effectiveGroup,
-                    'subgroup' => $subgroup,
+                    'subgroup' => $effectiveSubgroup,
                     'question_text' => $text,
                     'guidance' => $guidance,
                     'input_type' => $inputType ?? '',
                     'input_hint' => $inputHint ?? '',
-                    'suggested_applicability' => suggestApplicability($formCode, $chapter, $effectiveGroup, $subgroup),
+                    'suggested_applicability' => suggestApplicability($formCode, $chapter, $effectiveGroup, $effectiveSubgroup),
                     'warnings' => implode(';', array_unique($rowWarnings)),
                     'source_ref' => basename($path).':'.$num,
                     'source_key' => sourceKey($formCode, $chapter['no'], $text),
                 ];
-
-                continue;
-            }
-
-            // Single bold cell inside a checklist table: a subgroup heading, or COMMENTS.
-            if (isBoldOnly($firstCell) && $firstClean !== '') {
-                if (preg_match('/^comments?\b|^remarks\b/i', $firstClean)) {
-                    $bump($skipped, 'comments_row_ignored');
-
-                    continue;
-                }
-                $subgroup = $firstClean;
 
                 continue;
             }
@@ -586,7 +710,9 @@ function summarise(array $result, string $dupNote): array
         $ch = $row['chapter_no'] !== '' ? $row['chapter_no'].' '.$row['chapter'] : '(no chapter)';
         $byChapter[$ch] = ($byChapter[$ch] ?? 0) + 1;
 
-        $g = $row['group'].($row['subgroup'] !== '' ? ' / '.$row['subgroup'] : '');
+        $g = $row['chapter_no'] !== ''
+            ? 'Ch. ' . $row['chapter_no'] . ' ' . $row['chapter'] . ' > ' . $row['subgroup']
+            : $row['group'];
         $byGroup[$g] = ($byGroup[$g] ?? 0) + 1;
 
         $byApplicability[$row['suggested_applicability']] = ($byApplicability[$row['suggested_applicability']] ?? 0) + 1;
@@ -612,8 +738,8 @@ $report[] = 'the company source documents. Output: the review file described in 
 $report[] = '';
 
 $expectations = [
-    'B-008' => ['sections' => 17, 'questions' => 430, 'note' => 'B-008 has flat sections, not numbered chapters'],
-    'D-062' => ['chapters' => 12, 'questions' => 600, 'note' => 'numbered chapters 2 to 13'],
+    'B-008' => ['sections' => 17, 'questions' => 428, 'note' => 'B-008 has flat sections, not numbered chapters'],
+    'D-062' => ['chapters' => 13, 'questions' => 647, 'note' => 'numbered chapters 1 to 13, 59 subgroups'],
 ];
 
 foreach ($inputs as $code => $path) {
@@ -631,6 +757,10 @@ foreach ($inputs as $code => $path) {
     $csvName = 'review-'.str_replace('-', '', $code).'.csv';
     if (! $dry) {
         writeCsv($outDir.'/'.$csvName, $rows);
+        $storageDir = $root.'/storage/app/spike';
+        if (is_dir($storageDir)) {
+            writeCsv($storageDir.'/'.$csvName, $rows);
+        }
     }
 
     $report[] = "## {$code}";

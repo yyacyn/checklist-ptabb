@@ -6,7 +6,7 @@ the company source documents. Output: the review file described in SRS 5.1.
 ## B-008
 
 - Answer set detected: `yes/no/n/s` (width 3)
-- Questions extracted: **428** (expected about 430)
+- Questions extracted: **428** (expected about 428)
 - Sections (groups) with questions: **17** (expected about 17), B-008 has flat sections, not numbered chapters
 - Groups: 17
 - Review file: `storage/app/spike/review-B008.csv`
@@ -58,22 +58,20 @@ the company source documents. Output: the review file described in SRS 5.1.
 
 ### Skipped (deliberately not questions)
 
-| Reason | Count |
-| --- | ---: |
-| `comments_row_ignored` | 14 |
+None.
 
 ### Possible duplicates
 
 | Kind | Similarity | Where | Rows |
 | --- | ---: | --- | --- |
-| near | 91% | GENERAL – MASTER – CREW<br>vs<br>ENGINE ROOM | Form B-008-Vessel Internal Audit checklist (3).md:25<br>Form B-008-Vessel Internal Audit checklist (3).md:379 |
-| near | 96% | GENERAL – MASTER – CREW<br>vs<br>ENVIRONMENTAL PROTECTION & ENERGY MANAGEMENT | Form B-008-Vessel Internal Audit checklist (3).md:29<br>Form B-008-Vessel Internal Audit checklist (3).md:505 |
-| near | 96% | GENERAL – MASTER – CREW<br>vs<br>ENVIRONMENTAL PROTECTION & ENERGY MANAGEMENT | Form B-008-Vessel Internal Audit checklist (3).md:29<br>Form B-008-Vessel Internal Audit checklist (3).md:550 |
-| near | 98% | GENERAL – MASTER – CREW<br>vs<br>ENVIRONMENTAL PROTECTION & ENERGY MANAGEMENT | Form B-008-Vessel Internal Audit checklist (3).md:30<br>Form B-008-Vessel Internal Audit checklist (3).md:551 |
-| near | 95% | GENERAL – MASTER – CREW<br>vs<br>ENVIRONMENTAL PROTECTION & ENERGY MANAGEMENT | Form B-008-Vessel Internal Audit checklist (3).md:32<br>Form B-008-Vessel Internal Audit checklist (3).md:553 |
-| near | 96% | DECK – DECK OFFICERS AND CREW<br>vs<br>DECK – DECK OFFICERS AND CREW | Form B-008-Vessel Internal Audit checklist (3).md:259<br>Form B-008-Vessel Internal Audit checklist (3).md:280 |
-| near | 92% | ENGINE ROOM<br>vs<br>ENGINE ROOM | Form B-008-Vessel Internal Audit checklist (3).md:386<br>Form B-008-Vessel Internal Audit checklist (3).md:435 |
-| near | 94% | ENVIRONMENTAL PROTECTION & ENERGY MANAGEMENT<br>vs<br>ENVIRONMENTAL PROTECTION & ENERGY MANAGEMENT | Form B-008-Vessel Internal Audit checklist (3).md:505<br>Form B-008-Vessel Internal Audit checklist (3).md:550 |
+| near | 91% | GENERAL – MASTER – CREW / GENERAL – MASTER – CREW<br>vs<br>ENGINE ROOM / ENGINE ROOM | Form B-008-Vessel Internal Audit checklist (3).md:25<br>Form B-008-Vessel Internal Audit checklist (3).md:379 |
+| near | 96% | GENERAL – MASTER – CREW / GENERAL – MASTER – CREW<br>vs<br>ENVIRONMENTAL PROTECTION & ENERGY MANAGEMENT / ENVIRONMENTAL PROTECTION & ENERGY MANAGEMENT | Form B-008-Vessel Internal Audit checklist (3).md:29<br>Form B-008-Vessel Internal Audit checklist (3).md:505 |
+| near | 96% | GENERAL – MASTER – CREW / GENERAL – MASTER – CREW<br>vs<br>ENVIRONMENTAL PROTECTION & ENERGY MANAGEMENT / ENVIRONMENTAL PROTECTION & ENERGY MANAGEMENT | Form B-008-Vessel Internal Audit checklist (3).md:29<br>Form B-008-Vessel Internal Audit checklist (3).md:550 |
+| near | 98% | GENERAL – MASTER – CREW / GENERAL – MASTER – CREW<br>vs<br>ENVIRONMENTAL PROTECTION & ENERGY MANAGEMENT / ENVIRONMENTAL PROTECTION & ENERGY MANAGEMENT | Form B-008-Vessel Internal Audit checklist (3).md:30<br>Form B-008-Vessel Internal Audit checklist (3).md:551 |
+| near | 95% | GENERAL – MASTER – CREW / GENERAL – MASTER – CREW<br>vs<br>ENVIRONMENTAL PROTECTION & ENERGY MANAGEMENT / ENVIRONMENTAL PROTECTION & ENERGY MANAGEMENT | Form B-008-Vessel Internal Audit checklist (3).md:32<br>Form B-008-Vessel Internal Audit checklist (3).md:553 |
+| near | 96% | DECK – DECK OFFICERS AND CREW / DECK – DECK OFFICERS AND CREW<br>vs<br>DECK – DECK OFFICERS AND CREW / DECK – DECK OFFICERS AND CREW | Form B-008-Vessel Internal Audit checklist (3).md:259<br>Form B-008-Vessel Internal Audit checklist (3).md:280 |
+| near | 92% | ENGINE ROOM / ENGINE ROOM<br>vs<br>ENGINE ROOM / ENGINE ROOM | Form B-008-Vessel Internal Audit checklist (3).md:386<br>Form B-008-Vessel Internal Audit checklist (3).md:435 |
+| near | 94% | ENVIRONMENTAL PROTECTION & ENERGY MANAGEMENT / ENVIRONMENTAL PROTECTION & ENERGY MANAGEMENT<br>vs<br>ENVIRONMENTAL PROTECTION & ENERGY MANAGEMENT / ENVIRONMENTAL PROTECTION & ENERGY MANAGEMENT | Form B-008-Vessel Internal Audit checklist (3).md:505<br>Form B-008-Vessel Internal Audit checklist (3).md:550 |
 
 ### Acceptance (SRS 5.5)
 
@@ -86,15 +84,16 @@ the company source documents. Output: the review file described in SRS 5.1.
 ## D-062
 
 - Answer set detected: `yes/no/ns/na` (width 4)
-- Questions extracted: **616** (expected about 600)
-- Chapters with questions: **12** (expected about 12), numbered chapters 2 to 13
-- Groups: 39
+- Questions extracted: **647** (expected about 647)
+- Chapters with questions: **13** (expected about 13), numbered chapters 1 to 13, 59 subgroups
+- Groups: 59
 - Review file: `storage/app/spike/review-D062.csv`
 
 ### By chapter
 
 | Chapter | Questions |
 | --- | ---: |
+| 1 General Information | 27 |
 | 2 Certification & Documentation | 12 |
 | 3 Crew Management | 17 |
 | 4 Navigation | 35 |
@@ -104,7 +103,7 @@ the company source documents. Output: the review file described in SRS 5.1.
 | 8 Cargo And Ballast System (petroleum) | 116 |
 | 9 Mooring | 26 |
 | 10 Communications | 12 |
-| 11 Engine & Steering Compartments | 181 |
+| 11 Engine & Steering Compartments | 185 |
 | 12 General Appearance & Condition | 48 |
 | 13 ICE OPERATIONS (Only applicable to vessels with respective Class Notation) | 12 |
 
@@ -112,71 +111,89 @@ the company source documents. Output: the review file described in SRS 5.1.
 
 | Group | Questions |
 | --- | ---: |
-| Certification & Documentation | 12 |
-| Crew Management Welfare & Living Conditions | 17 |
-| Navigation - General | 13 |
-| Navigation - General / Bridge/Navigation Equipment | 17 |
-| Navigation | 5 |
-| Safety Management - General | 17 |
-| Safety Management - General / Safety Management - Security | 6 |
-| Safety Management - General / LIFE SAVING EQUIPMENT Life Boats and Davits | 1 |
-| Safety Management | 64 |
-| Fire Suppression Arrangements | 13 |
-| Oil Record Book Part I & II, SOPEP, VRP | 9 |
-| Oil Record Book Part I & II, SOPEP, VRP / Deck Spill Prevention Arrangements | 7 |
-| Oil Record Book Part I & II, SOPEP, VRP / Cargo Piping & Sea Suction Piping Arrangements | 2 |
-| Pollution Prevention & Environmental Protection | 1 |
-| Pollution Prevention & Environmental Protection / Water Ballast Management | 3 |
-| Pollution Prevention & Environmental Protection / Garbage Management | 2 |
-| Pollution Prevention & Environmental Protection / Pollution Prevention Equipment | 10 |
-| Hull Structural Condition - General | 7 |
-| Hull Structural Condition - General / Weather Decks | 6 |
-| Hull Structural Condition - General / Cargo and/or ballast tanks and their condition & findings. | 9 |
-| Cargo And Ballast System (petroleum) | 50 |
-| Cargo And Ballast System (petroleum) / Cargo Piping and Related Equipment | 12 |
-| Cargo And Ballast System (petroleum) / Cargo Pump Room and Associated Equipment | 14 |
-| Cargo And Ballast System (petroleum) / Cargo Tank Venting Arrangement | 5 |
-| Inert Gas System | 12 |
-| Inert Gas System / Tank Cleaning System and Crude Oil Washing | 4 |
-| Cargo And Ballast System (petroleum) / Cargo Tank Heating System | 5 |
-| Cargo And Ballast System (petroleum) / Cargo Gear Equipment and Documentation | 14 |
-| Mooring & Anchoring Equipment | 13 |
-| Mooring | 13 |
-| Communication Equipment | 12 |
-| E/R Administration, PMS / Documentation System | 29 |
-| Engine & Steering Compartments | 126 |
-| E/R Electrical and Electronic Equipment | 26 |
-| Hull Condition - General | 23 |
-| Superstructure Condition | 6 |
-| Superstructure Condition / Service Pipework Deck/Accommodation | 19 |
-| Ice Operations - General | 4 |
-| Ice Operations - General / Specific Means –Procedures for Ice navigation | 8 |
+| Ch. 1 General Information > General Particulars & Operations | 16 |
+| Ch. 1 General Information > Other Attendance-Related Activities | 11 |
+| Ch. 2 Certification & Documentation > Certification & Documentation | 12 |
+| Ch. 3 Crew Management > Crew Management Welfare & Living Conditions | 17 |
+| Ch. 4 Navigation > Navigation - General | 13 |
+| Ch. 4 Navigation > Bridge/Navigation Equipment | 22 |
+| Ch. 5 Safety Management > Safety Management - General | 17 |
+| Ch. 5 Safety Management > Safety Management - Security | 6 |
+| Ch. 5 Safety Management > LIFE SAVING EQUIPMENT Life Boats and Davits | 14 |
+| Ch. 5 Safety Management > Life Rafts | 3 |
+| Ch. 5 Safety Management > Other Lifesaving & Safety Equipment | 15 |
+| Ch. 5 Safety Management > Safe Access | 4 |
+| Ch. 5 Safety Management > FIRE FIGHTING EQUIPMENT Fixed Firefighting & Detection / Fire Alarm | 8 |
+| Ch. 5 Safety Management > Fixed Water Firefighting System | 7 |
+| Ch. 5 Safety Management > Portable and Wheeled Fire Extinguishers | 8 |
+| Ch. 5 Safety Management > Fireman’s Outfit | 6 |
+| Ch. 5 Safety Management > Fire Suppression Arrangements | 10 |
+| Ch. 5 Safety Management > Material Safety Data Sheet | 3 |
+| Ch. 6 Pollution Prevention & Environmental Protection > Oil Record Book Part I & II, SOPEP, VRP | 9 |
+| Ch. 6 Pollution Prevention & Environmental Protection > Deck Spill Prevention Arrangements | 7 |
+| Ch. 6 Pollution Prevention & Environmental Protection > Cargo Piping & Sea Suction Piping Arrangements | 3 |
+| Ch. 6 Pollution Prevention & Environmental Protection > Water Ballast Management | 3 |
+| Ch. 6 Pollution Prevention & Environmental Protection > Garbage Management | 2 |
+| Ch. 6 Pollution Prevention & Environmental Protection > Pollution Prevention Equipment | 10 |
+| Ch. 7 Structural Condition > Hull Structural Condition - General | 7 |
+| Ch. 7 Structural Condition > Weather Decks | 6 |
+| Ch. 7 Structural Condition > Cargo and/or ballast tanks and their condition & findings. | 9 |
+| Ch. 8 Cargo And Ballast System (petroleum) > Cargo And Ballast System - General | 50 |
+| Ch. 8 Cargo And Ballast System (petroleum) > Cargo Piping and Related Equipment | 12 |
+| Ch. 8 Cargo And Ballast System (petroleum) > Cargo Pump Room and Associated Equipment | 14 |
+| Ch. 8 Cargo And Ballast System (petroleum) > Cargo Tank Venting Arrangement | 5 |
+| Ch. 8 Cargo And Ballast System (petroleum) > Inert Gas System | 12 |
+| Ch. 8 Cargo And Ballast System (petroleum) > Tank Cleaning System and Crude Oil Washing | 4 |
+| Ch. 8 Cargo And Ballast System (petroleum) > Cargo Tank Heating System | 5 |
+| Ch. 8 Cargo And Ballast System (petroleum) > Cargo Gear Equipment and Documentation | 14 |
+| Ch. 9 Mooring > Mooring & Anchoring Equipment | 26 |
+| Ch. 10 Communications > Communication Equipment | 12 |
+| Ch. 11 Engine & Steering Compartments > E/R Administration, PMS / Documentation System | 21 |
+| Ch. 11 Engine & Steering Compartments > E/R Condition, Main Engine & Auxiliary D/Gs | 35 |
+| Ch. 11 Engine & Steering Compartments > Auxiliary Oil-Fired Boilers & Exhaust Gas Boiler | 17 |
+| Ch. 11 Engine & Steering Compartments > Engine Spare Parts Room & Workshop | 5 |
+| Ch. 11 Engine & Steering Compartments > Sea Water & Fresh Water Cooling Systems | 13 |
+| Ch. 11 Engine & Steering Compartments > Fuel Oil Diesel Oil & Lubricating Oil Systems. | 19 |
+| Ch. 11 Engine & Steering Compartments > Compressed Air, Steam & Condensate System | 11 |
+| Ch. 11 Engine & Steering Compartments > M/E Bilge & Sludge System | 13 |
+| Ch. 11 Engine & Steering Compartments > Propeller, Intermediate Shaft And Stern tube Equipment | 5 |
+| Ch. 11 Engine & Steering Compartments > Refrigeration and Air Conditioning Plant | 6 |
+| Ch. 11 Engine & Steering Compartments > Steering Gear Compartment | 10 |
+| Ch. 11 Engine & Steering Compartments > E/R Electrical and Electronic Equipment | 11 |
+| Ch. 11 Engine & Steering Compartments > Inert Gas Plant | 6 |
+| Ch. 11 Engine & Steering Compartments > Hydraulic Aggregators Plant (Clean, No Oil Leakages). | 5 |
+| Ch. 11 Engine & Steering Compartments > Other Auxiliary Machinery & Items | 8 |
+| Ch. 12 General Appearance & Condition > Hull Condition - General | 11 |
+| Ch. 12 General Appearance & Condition > Main Deck Condition | 12 |
+| Ch. 12 General Appearance & Condition > Superstructure Condition | 6 |
+| Ch. 12 General Appearance & Condition > Service Pipework Deck/Accommodation | 8 |
+| Ch. 12 General Appearance & Condition > Accommodation Spaces Condition | 11 |
+| Ch. 13 ICE OPERATIONS (Only applicable to vessels with respective Class Notation) > Ice Operations - General | 4 |
+| Ch. 13 ICE OPERATIONS (Only applicable to vessels with respective Class Notation) > Specific Means –Procedures for Ice navigation | 8 |
 
 ### Suggested applicability
 
 | Rule | Questions |
 | --- | ---: |
-| All vessel types | 488 |
-| Tanker only | 116 |
+| All vessel types | 513 |
+| Tanker only | 122 |
 | Ice class only | 12 |
 
 ### Warnings on rows (human review needed)
 
 | Warning | Rows |
 | --- | ---: |
-| `group_inferred_from_chapter` | 324 |
-| `markdown_emphasis_artifact` | 97 |
-| `parenthetical_not_trailing` | 20 |
+| `markdown_emphasis_artifact` | 98 |
+| `parenthetical_not_trailing` | 21 |
 | `escaped_comparison_operator` | 19 |
 | `unbalanced_parenthesis` | 6 |
-| `struck_through_partial_review` | 6 |
+| `struck_through_partial_review` | 5 |
 | `dotted_blank_without_label` | 1 |
 
 ### Skipped (deliberately not questions)
 
 | Reason | Count |
 | --- | ---: |
-| `comments_row_ignored` | 11 |
 | `continuing_table_merged_into_chapter` | 17 |
 | `answer_width_mismatch` | 4 |
 
@@ -184,20 +201,20 @@ the company source documents. Output: the review file described in SRS 5.1.
 
 | Kind | Similarity | Where | Rows |
 | --- | ---: | --- | --- |
-| near | 98% | ch4 Navigation - General<br>vs<br>ch4 Navigation - General / Bridge/Navigation Equipment | Form D 062 Vessel Inspection Report (2).md:271<br>Form D 062 Vessel Inspection Report (2).md:300 |
-| near | 98% | ch5 Safety Management - General<br>vs<br>ch11 E/R Administration, PMS / Documentation System | Form D 062 Vessel Inspection Report (2).md:336<br>Form D 062 Vessel Inspection Report (2).md:869 |
-| near | 92% | ch6 Oil Record Book Part I & II, SOPEP, VRP / Deck Spill Prevention Arrangements<br>vs<br>ch6 Pollution Prevention & Environmental Protection / Pollution Prevention Equipment | Form D 062 Vessel Inspection Report (2).md:509<br>Form D 062 Vessel Inspection Report (2).md:544 |
-| near | 95% | ch7 Hull Structural Condition - General<br>vs<br>ch7 Hull Structural Condition - General / Weather Decks | Form D 062 Vessel Inspection Report (2).md:562<br>Form D 062 Vessel Inspection Report (2).md:572 |
-| near | 92% | ch11 Engine & Steering Compartments<br>vs<br>ch11 Engine & Steering Compartments | Form D 062 Vessel Inspection Report (2).md:903<br>Form D 062 Vessel Inspection Report (2).md:933 |
-| near | 95% | ch11 Engine & Steering Compartments<br>vs<br>ch11 Engine & Steering Compartments | Form D 062 Vessel Inspection Report (2).md:927<br>Form D 062 Vessel Inspection Report (2).md:937 |
-| near | 98% | ch11 Engine & Steering Compartments<br>vs<br>ch11 Engine & Steering Compartments | Form D 062 Vessel Inspection Report (2).md:964<br>Form D 062 Vessel Inspection Report (2).md:969 |
-| near | 94% | ch11 Engine & Steering Compartments<br>vs<br>ch11 Engine & Steering Compartments | Form D 062 Vessel Inspection Report (2).md:977<br>Form D 062 Vessel Inspection Report (2).md:986 |
+| near | 98% | ch4 Navigation / Navigation - General<br>vs<br>ch4 Navigation / Bridge/Navigation Equipment | Form D 062 Vessel Inspection Report (2).md:271<br>Form D 062 Vessel Inspection Report (2).md:300 |
+| near | 98% | ch5 Safety Management / Safety Management - General<br>vs<br>ch11 Engine & Steering Compartments / E/R Administration, PMS / Documentation System | Form D 062 Vessel Inspection Report (2).md:336<br>Form D 062 Vessel Inspection Report (2).md:869 |
+| near | 92% | ch6 Pollution Prevention & Environmental Protection / Deck Spill Prevention Arrangements<br>vs<br>ch6 Pollution Prevention & Environmental Protection / Pollution Prevention Equipment | Form D 062 Vessel Inspection Report (2).md:509<br>Form D 062 Vessel Inspection Report (2).md:544 |
+| near | 95% | ch7 Structural Condition / Hull Structural Condition - General<br>vs<br>ch7 Structural Condition / Weather Decks | Form D 062 Vessel Inspection Report (2).md:562<br>Form D 062 Vessel Inspection Report (2).md:572 |
+| near | 92% | ch11 Engine & Steering Compartments / E/R Condition, Main Engine & Auxiliary D/Gs<br>vs<br>ch11 Engine & Steering Compartments / Auxiliary Oil-Fired Boilers & Exhaust Gas Boiler | Form D 062 Vessel Inspection Report (2).md:903<br>Form D 062 Vessel Inspection Report (2).md:933 |
+| near | 95% | ch11 Engine & Steering Compartments / Auxiliary Oil-Fired Boilers & Exhaust Gas Boiler<br>vs<br>ch11 Engine & Steering Compartments / Auxiliary Oil-Fired Boilers & Exhaust Gas Boiler | Form D 062 Vessel Inspection Report (2).md:927<br>Form D 062 Vessel Inspection Report (2).md:937 |
+| near | 98% | ch11 Engine & Steering Compartments / Sea Water & Fresh Water Cooling Systems<br>vs<br>ch11 Engine & Steering Compartments / Sea Water & Fresh Water Cooling Systems | Form D 062 Vessel Inspection Report (2).md:964<br>Form D 062 Vessel Inspection Report (2).md:969 |
+| near | 94% | ch11 Engine & Steering Compartments / Fuel Oil Diesel Oil & Lubricating Oil Systems.<br>vs<br>ch11 Engine & Steering Compartments / Fuel Oil Diesel Oil & Lubricating Oil Systems. | Form D 062 Vessel Inspection Report (2).md:977<br>Form D 062 Vessel Inspection Report (2).md:986 |
 
 ### Acceptance (SRS 5.5)
 
 - Questions with empty text: 0 (must be 0)
-- Questions carrying guidance text: 280
-- Questions needing a typed input (date or text): 10
+- Questions carrying guidance text: 286
+- Questions needing a typed input (date or text): 37
 - Every row carries a source_key and a source reference: yes
 - Re-running the parser produces identical output: deterministic by construction (no timestamps, no randomness)
 

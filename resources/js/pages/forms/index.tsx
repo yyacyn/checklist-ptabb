@@ -3,7 +3,6 @@ import Heading from '@/components/heading';
 import { Badge } from '@/components/ui/badge';
 import { Button } from '@/components/ui/button';
 import { Card, CardContent, CardDescription, CardFooter, CardHeader, CardTitle } from '@/components/ui/card';
-import AppLayout from '@/layouts/app-layout';
 
 interface FormSummary {
     id: number;
@@ -21,13 +20,8 @@ interface Props {
 }
 
 export default function FormsIndex({ forms }: Props) {
-    const breadcrumbs = [
-        { title: 'Dashboard', href: '/dashboard' },
-        { title: 'Form Templates', href: '/admin/forms' },
-    ];
-
     return (
-        <AppLayout breadcrumbs={breadcrumbs}>
+        <>
             <Head title="Form Templates" />
 
             <div className="flex h-full flex-1 flex-col gap-6 p-6">
@@ -79,6 +73,13 @@ export default function FormsIndex({ forms }: Props) {
                     ))}
                 </div>
             </div>
-        </AppLayout>
+        </>
     );
 }
+
+FormsIndex.layout = {
+    breadcrumbs: [
+        { title: 'Dashboard', href: '/dashboard' },
+        { title: 'Form Templates', href: '/admin/forms' },
+    ],
+};

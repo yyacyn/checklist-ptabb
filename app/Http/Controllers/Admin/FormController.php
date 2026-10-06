@@ -164,6 +164,7 @@ class FormController extends Controller
                 'answer_set' => $form->answer_set,
             ],
             'chapters' => $chapters,
+            'all_groups' => $flatGroups,
             'flat_groups' => $flatGroups,
             'vessel_types' => $vesselTypes,
         ]);

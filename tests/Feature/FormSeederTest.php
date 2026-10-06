@@ -37,13 +37,13 @@ class FormSeederTest extends TestCase
     {
         $this->seedForms();
 
-        // Measured by spike S1: 428 in 17 sections, 616 across chapters 2 to 13.
+        // Measured by spike S1: 428 in 17 sections for B-008, 647 across chapters 1 to 13 for D-062.
         $this->assertSame(428, FormQuestion::query()->whereHas(
             'group',
             fn ($q) => $q->whereHas('form', fn ($f) => $f->where('code', 'B-008'))
         )->count());
 
-        $this->assertSame(616, FormQuestion::query()->whereHas(
+        $this->assertSame(647, FormQuestion::query()->whereHas(
             'group',
             fn ($q) => $q->whereHas('form', fn ($f) => $f->where('code', 'D-062'))
         )->count());
@@ -54,7 +54,7 @@ class FormSeederTest extends TestCase
             ->count());
     }
 
-    public function test_it_loads_d062_chapters_two_to_thirteen_only(): void
+    public function test_it_loads_d062_chapters_one_to_thirteen(): void
     {
         $this->seedForms();
 
@@ -68,8 +68,20 @@ class FormSeederTest extends TestCase
             ->values()
             ->all();
 
-        // Chapter 1 (general information) and 14 to 16 are not checklists.
-        $this->assertSame(['2', '3', '4', '5', '6', '7', '8', '9', '10', '11', '12', '13'], $chapters);
+        // Numbered chapters 1 to 13
+        $this->assertSame(['1', '2', '3', '4', '5', '6', '7', '8', '9', '10', '11', '12', '13'], $chapters);
+    }
+
+    public function test_d062_has_strict_three_level_hierarchy_with_no_loose_questions(): void
+    {
+        $this->seedForms();
+
+        // In D-062, all questions must belong to a subgroup (parent_id is not null)
+        $looseQuestionsCount = FormQuestion::query()
+            ->whereHas('group', fn ($g) => $g->whereHas('form', fn ($f) => $f->where('code', 'D-062'))->whereNull('parent_id'))
+            ->count();
+
+        $this->assertSame(0, $looseQuestionsCount, 'D-062 questions must belong to subgroups, never loose on chapters');
     }
 
     public function test_running_it_twice_changes_nothing(): void
