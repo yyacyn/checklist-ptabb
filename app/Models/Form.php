@@ -39,11 +39,24 @@ class Form extends Model
 
     public function questions(): HasManyThrough
     {
-        return $this->hasManyThrough(FormQuestion::class, FormGroup::class);
+        return $this->hasManyThrough(FormQuestion::class, FormGroup::class, 'form_id', 'group_id');
     }
 
     public function evaluationCriteria(): HasMany
     {
         return $this->hasMany(EvaluationCriterion::class)->orderBy('sort_order');
+    }
+
+    /**
+     * Increment the template version on structural changes (SRS FM-12, PLAN 1.3).
+     *
+     * Bumped only on structural changes (question added, removed, or regrouped),
+     * never on wording typos.
+     */
+    public function bumpTemplateVersion(): int
+    {
+        $this->increment('template_version');
+
+        return (int) $this->template_version;
     }
 }

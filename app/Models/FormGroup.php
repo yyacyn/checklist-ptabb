@@ -45,7 +45,7 @@ class FormGroup extends Model
 
     public function questions(): HasMany
     {
-        return $this->hasMany(FormQuestion::class)->orderBy('sort_order');
+        return $this->hasMany(FormQuestion::class, 'group_id')->orderBy('sort_order');
     }
 
     public function applicability(): HasMany

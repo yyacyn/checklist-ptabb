@@ -64,10 +64,10 @@ The point of this phase is the correctness rule, not the tables.
 | --- | --- | --- |
 | 1.1 | Migrations group 1: reference and templates | ERD §2. `users` role/vessel_name/is_active, `vessel_types`, `forms`, `form_groups`, `form_questions`, `form_applicability`, `evaluation_criteria` — **done** |
 | 1.2 | Models, factories, seeders | **done**: 6 models, 6 factories, `FormSeeder` loads 1,044 questions in 47 groups, 11 tests |
-| 1.3 | `forms.template_version` bump rule | Bumped only on structural change (question added, removed, regrouped), never on a wording typo |
-| 1.4 | Migrations group 2: reports, groups, questions, answers | ERD §3, including `client_save_id` and `row_version` |
-| 1.5 | **`ReportSnapshot` service** | On creation: copy enabled groups and questions, resolve applicability from the typed vessel type and ice class, stamp `template_version`, insert group comment boxes (FM-7a) |
-| 1.6 | **The critical test** | Edit, disable and archive a question in the template, then assert an existing report's text, order and applicability are byte-identical afterwards (FM-8, FM-9) |
+| 1.3 | `forms.template_version` bump rule | **done**: `Form::bumpTemplateVersion()`, bumped only on structural change (question added, removed, regrouped), never on a wording typo |
+| 1.4 | Migrations group 2: reports, groups, questions, answers | **done**: ERD §3, including `client_save_id` and `row_version`, 4 models, 4 factories |
+| 1.5 | **`ReportSnapshot` service** | **done**: On creation: copy enabled groups and questions, resolve applicability from the typed vessel type and ice class, stamp `template_version`, insert group comment boxes (FM-7a) |
+| 1.6 | **The critical test** | **done**: `ReportSnapshotTest`, asserts existing report's text, order and applicability are byte-identical after template edits, disables, archives, reordering, and additions (FM-8, FM-9) |
 | 1.7 | `ReportStatus` + policy | Section 10 state machine, server-side transition validation, flush-before-transition guard (RLS-3) |
 | 1.8 | `ReportNumberService` | Transactional sequence, unique index, year rollover (RLS-7) |
 | 1.9 | Vessel name normalisation + `KnownVesselNames` lookup | SRS 2.1: normalise on write, distinct-name lookup for autocomplete |
