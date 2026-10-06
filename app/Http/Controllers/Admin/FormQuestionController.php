@@ -3,15 +3,17 @@
 namespace App\Http\Controllers\Admin;
 
 use App\Http\Controllers\Controller;
+use App\Models\ActivityLog;
 use App\Models\FormApplicability;
 use App\Models\FormGroup;
 use App\Models\FormQuestion;
+use Illuminate\Http\JsonResponse;
 use Illuminate\Http\RedirectResponse;
 use Illuminate\Http\Request;
 use Illuminate\Support\Facades\DB;
 
 /**
- * Task 2.2: Question editor (FM-1, FM-3, FM-6, FM-9).
+ * Task 2.2, 2.3, 2.4, 2.5, 2.6: Question editor & bulk actions.
  */
 class FormQuestionController extends Controller
 {
@@ -32,7 +34,7 @@ class FormQuestionController extends Controller
                 ->whereNull('archived_at')
                 ->max('sort_order') ?? -1) + 1;
 
-            FormQuestion::create([
+            $question = FormQuestion::create([
                 'group_id' => $group->id,
                 'question_text' => $validated['question_text'],
                 'guidance' => $validated['guidance'] ?? null,
@@ -40,6 +42,8 @@ class FormQuestionController extends Controller
                 'sort_order' => $nextOrder,
                 'is_enabled' => true,
             ]);
+
+            ActivityLog::record($question, 'created', 'question_text', null, $question->question_text);
 
             $group->form->bumpTemplateVersion();
         });
@@ -59,11 +63,19 @@ class FormQuestionController extends Controller
             'input_type' => ['required', 'in:none,date,text,number'],
         ]);
 
+        $before = [
+            'question_text' => $question->question_text,
+            'guidance' => $question->guidance,
+            'input_type' => $question->input_type,
+        ];
+
         $question->update([
             'question_text' => $validated['question_text'],
             'guidance' => $validated['guidance'] ?? null,
             'input_type' => $validated['input_type'],
         ]);
+
+        ActivityLog::record($question, 'updated', 'text_fields', $before, $validated);
 
         return back()->with('success', 'Question updated.');
     }
@@ -73,7 +85,10 @@ class FormQuestionController extends Controller
      */
     public function toggle(FormQuestion $question): RedirectResponse
     {
+        $before = $question->is_enabled;
         $question->update(['is_enabled' => ! $question->is_enabled]);
+
+        ActivityLog::record($question, 'toggled', 'is_enabled', $before, $question->is_enabled);
 
         return back()->with('success', $question->is_enabled ? 'Question enabled.' : 'Question disabled.');
     }
@@ -90,7 +105,7 @@ class FormQuestionController extends Controller
                 ->where('sort_order', '>', $question->sort_order)
                 ->increment('sort_order');
 
-            FormQuestion::create([
+            $copy = FormQuestion::create([
                 'group_id' => $question->group_id,
                 'question_text' => $question->question_text.' (Copy)',
                 'guidance' => $question->guidance,
@@ -99,10 +114,96 @@ class FormQuestionController extends Controller
                 'is_enabled' => true,
             ]);
 
+            ActivityLog::record($copy, 'duplicated', 'source_question_id', $question->id, $copy->id);
+
             $question->group->form->bumpTemplateVersion();
         });
 
         return back()->with('success', 'Question duplicated.');
+    }
+
+    /**
+     * Move questions between groups (Task 2.3, FM-6).
+     */
+    public function bulkMove(Request $request): RedirectResponse
+    {
+        $validated = $request->validate([
+            'question_ids' => ['required', 'array', 'min:1'],
+            'question_ids.*' => ['exists:form_questions,id'],
+            'target_group_id' => ['required', 'exists:form_groups,id'],
+        ]);
+
+        $targetGroup = FormGroup::findOrFail($validated['target_group_id']);
+        $questionIds = $validated['question_ids'];
+
+        DB::transaction(function () use ($targetGroup, $questionIds) {
+            $maxOrder = (FormQuestion::query()
+                ->where('group_id', $targetGroup->id)
+                ->whereNull('archived_at')
+                ->max('sort_order') ?? -1);
+
+            $questions = FormQuestion::whereIn('id', $questionIds)->get();
+
+            foreach ($questions as $question) {
+                $oldGroupId = $question->group_id;
+                $maxOrder++;
+
+                $question->update([
+                    'group_id' => $targetGroup->id,
+                    'sort_order' => $maxOrder,
+                ]);
+
+                ActivityLog::record($question, 'moved', 'group_id', $oldGroupId, $targetGroup->id);
+            }
+
+            $targetGroup->form->bumpTemplateVersion();
+        });
+
+        return back()->with('success', sprintf('Moved %d question(s) to %s.', count($questionIds), $targetGroup->title));
+    }
+
+    /**
+     * Update applicability rules for a question (FM-4).
+     */
+    public function updateApplicability(Request $request, FormQuestion $question): RedirectResponse
+    {
+        $validated = $request->validate([
+            'vessel_type_ids' => ['array'],
+            'vessel_type_ids.*' => ['exists:vessel_types,id'],
+            'ice_class_only' => ['boolean'],
+        ]);
+
+        $vesselTypeIds = $validated['vessel_type_ids'] ?? [];
+        $iceClassOnly = (bool) ($validated['ice_class_only'] ?? false);
+
+        DB::transaction(function () use ($question, $vesselTypeIds, $iceClassOnly) {
+            $beforeRules = FormApplicability::where('form_question_id', $question->id)->get()->toArray();
+
+            FormApplicability::where('form_question_id', $question->id)->delete();
+
+            foreach ($vesselTypeIds as $vtId) {
+                FormApplicability::create([
+                    'form_question_id' => $question->id,
+                    'vessel_type_id' => $vtId,
+                    'ice_class_only' => false,
+                ]);
+            }
+
+            if ($iceClassOnly) {
+                FormApplicability::create([
+                    'form_question_id' => $question->id,
+                    'vessel_type_id' => null,
+                    'ice_class_only' => true,
+                ]);
+            }
+
+            $afterRules = FormApplicability::where('form_question_id', $question->id)->get()->toArray();
+            ActivityLog::record($question, 'applicability_updated', 'rules', $beforeRules, $afterRules);
+
+            $question->group->form->bumpTemplateVersion();
+        });
+
+        return back()->with('success', 'Question applicability updated.');
     }
 
     /**
@@ -138,6 +239,8 @@ class FormQuestionController extends Controller
                 $question->update(['sort_order' => $target->sort_order]);
                 $target->update(['sort_order' => $tempOrder]);
 
+                ActivityLog::record($question, 'reordered', 'sort_order', $tempOrder, $question->sort_order);
+
                 $question->group->form->bumpTemplateVersion();
             }
         });
@@ -146,74 +249,18 @@ class FormQuestionController extends Controller
     }
 
     /**
-     * Bulk move selected questions to a target group (FM-6).
+     * Change history for this question (FM-7).
      */
-    public function bulkMove(Request $request): RedirectResponse
+    public function history(FormQuestion $question): JsonResponse
     {
-        $validated = $request->validate([
-            'question_ids' => ['required', 'array', 'min:1'],
-            'question_ids.*' => ['integer', 'exists:form_questions,id'],
-            'target_group_id' => ['required', 'integer', 'exists:form_groups,id'],
-        ]);
+        $logs = ActivityLog::query()
+            ->where('entity_type', $question->getMorphClass())
+            ->where('entity_id', $question->id)
+            ->with('user:id,name,role')
+            ->orderByDesc('created_at')
+            ->get();
 
-        $targetGroup = FormGroup::with('form')->findOrFail($validated['target_group_id']);
-
-        DB::transaction(function () use ($validated, $targetGroup) {
-            $maxOrder = (int) $targetGroup->questions()->max('sort_order');
-            $questions = FormQuestion::whereIn('id', $validated['question_ids'])->get();
-
-            foreach ($questions as $question) {
-                $maxOrder++;
-                $question->update([
-                    'group_id' => $targetGroup->id,
-                    'sort_order' => $maxOrder,
-                ]);
-            }
-
-            // Structural change bumps template_version
-            $targetGroup->form->bumpTemplateVersion();
-        });
-
-        return back()->with('success', count($validated['question_ids']).' question(s) moved to '.$targetGroup->title);
-    }
-
-    /**
-     * Update applicability rules for a question (FM-4).
-     */
-    public function updateApplicability(Request $request, FormQuestion $question): RedirectResponse
-    {
-        $validated = $request->validate([
-            'vessel_type_ids' => ['array'],
-            'vessel_type_ids.*' => ['exists:vessel_types,id'],
-            'ice_class_only' => ['boolean'],
-        ]);
-
-        $vesselTypeIds = $validated['vessel_type_ids'] ?? [];
-        $iceClassOnly = (bool) ($validated['ice_class_only'] ?? false);
-
-        DB::transaction(function () use ($question, $vesselTypeIds, $iceClassOnly) {
-            FormApplicability::where('form_question_id', $question->id)->delete();
-
-            foreach ($vesselTypeIds as $vtId) {
-                FormApplicability::create([
-                    'form_question_id' => $question->id,
-                    'vessel_type_id' => $vtId,
-                    'ice_class_only' => false,
-                ]);
-            }
-
-            if ($iceClassOnly) {
-                FormApplicability::create([
-                    'form_question_id' => $question->id,
-                    'vessel_type_id' => null,
-                    'ice_class_only' => true,
-                ]);
-            }
-
-            $question->group->form->bumpTemplateVersion();
-        });
-
-        return back()->with('success', 'Question applicability updated.');
+        return response()->json($logs);
     }
 
     /**
@@ -226,8 +273,10 @@ class FormQuestionController extends Controller
 
         if ($question->isUsedInReports()) {
             $question->update(['archived_at' => now()]);
+            ActivityLog::record($question, 'archived', 'archived_at', null, now()->toDateTimeString());
             $message = 'Question archived (kept for historical reports).';
         } else {
+            ActivityLog::record($question, 'deleted', 'id', $question->id, null);
             $question->delete();
             $message = 'Question deleted.';
         }

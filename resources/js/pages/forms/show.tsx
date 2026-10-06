@@ -11,6 +11,7 @@ import {
     Filter,
     FolderPlus,
     HelpCircle,
+    History,
     Plus,
     Square,
     Trash2,
@@ -28,25 +29,26 @@ import AppLayout from '@/layouts/app-layout';
 
 interface QuestionData {
     id: number;
-    group_id?: number;
+    group_id: number;
     question_text: string;
     guidance: string | null;
     input_type: string;
     sort_order: number;
     is_enabled: boolean;
-    ice_class_only?: boolean;
-    vessel_type_ids?: number[];
+    ice_class_only: boolean;
+    vessel_type_ids: number[];
     reports_count: number;
 }
 
 interface GroupData {
     id: number;
+    parent_id?: number | null;
     title: string;
     chapter_no: string | null;
     sort_order: number;
     is_enabled: boolean;
     ice_class_only: boolean;
-    vessel_type_ids?: number[];
+    vessel_type_ids: number[];
     reports_count: number;
     questions: QuestionData[];
     subgroups?: GroupData[];
@@ -61,28 +63,39 @@ interface FormData {
     answer_set: string;
 }
 
-interface FlatGroup {
-    id: number;
-    title: string;
-    chapter_no: string | null;
-    parent_id: number | null;
-}
-
 interface VesselTypeItem {
     id: number;
     name: string;
 }
 
+interface GroupOption {
+    id: number;
+    title: string;
+    parent_id: number | null;
+}
+
+interface HistoryItem {
+    id: number;
+    action: string;
+    field: string | null;
+    before_value: string | null;
+    after_value: string | null;
+    created_at: string;
+    user?: {
+        id: number;
+        name: string;
+        role: string;
+    } | null;
+}
+
 interface Props {
     form: FormData;
     chapters: GroupData[];
-    flat_groups?: FlatGroup[];
-    all_groups?: FlatGroup[];
-    vessel_types?: VesselTypeItem[];
+    all_groups: GroupOption[];
+    vessel_types: VesselTypeItem[];
 }
 
-export default function FormShow({ form, chapters, flat_groups = [], all_groups = [], vessel_types = [] }: Props) {
-    const groupsList = flat_groups.length > 0 ? flat_groups : all_groups;
+export default function FormShow({ form, chapters, all_groups, vessel_types }: Props) {
     const breadcrumbs = [
         { title: 'Dashboard', href: '/dashboard' },
         { title: 'Form Templates', href: '/admin/forms' },
@@ -105,20 +118,22 @@ export default function FormShow({ form, chapters, flat_groups = [], all_groups 
     const [questionGuidance, setQuestionGuidance] = useState('');
     const [questionInputType, setQuestionInputType] = useState('none');
 
+    // Applicability Modal State (Task 2.4)
+    const [applicabilityModalOpen, setApplicabilityModalOpen] = useState(false);
+    const [applicabilityTarget, setApplicabilityTarget] = useState<{ type: 'group' | 'question'; id: number; title: string } | null>(null);
+    const [selectedVesselTypes, setSelectedVesselTypes] = useState<number[]>([]);
+    const [selectedIceClassOnly, setSelectedIceClassOnly] = useState(false);
+
     // Bulk Move State (Task 2.3)
     const [bulkMoveModalOpen, setBulkMoveModalOpen] = useState(false);
     const [selectedQuestionIds, setSelectedQuestionIds] = useState<number[]>([]);
     const [targetGroupId, setTargetGroupId] = useState<string>('');
 
-    // Applicability State (Task 2.4)
-    const [applicabilityModalOpen, setApplicabilityModalOpen] = useState(false);
-    const [applicabilityTarget, setApplicabilityTarget] = useState<{
-        type: 'group' | 'question';
-        id: number;
-        title: string;
-    } | null>(null);
-    const [selectedVesselTypes, setSelectedVesselTypes] = useState<number[]>([]);
-    const [selectedIceClassOnly, setSelectedIceClassOnly] = useState(false);
+    // History Modal State (Task 2.6)
+    const [historyModalOpen, setHistoryModalOpen] = useState(false);
+    const [historyLoading, setHistoryLoading] = useState(false);
+    const [historyTitle, setHistoryTitle] = useState('');
+    const [historyItems, setHistoryItems] = useState<HistoryItem[]>([]);
 
     // Expanded guidance state
     const [expandedGuidance, setExpandedGuidance] = useState<Record<number, boolean>>({});
@@ -234,6 +249,76 @@ export default function FormShow({ form, chapters, flat_groups = [], all_groups 
         }
     };
 
+    // Applicability Modal (Task 2.4)
+    const openGroupApplicability = (group: GroupData) => {
+        setApplicabilityTarget({ type: 'group', id: group.id, title: group.title });
+        setSelectedVesselTypes(group.vessel_type_ids || []);
+        setSelectedIceClassOnly(group.ice_class_only);
+        setApplicabilityModalOpen(true);
+    };
+
+    const openQuestionApplicability = (question: QuestionData) => {
+        setApplicabilityTarget({ type: 'question', id: question.id, title: question.question_text });
+        setSelectedVesselTypes(question.vessel_type_ids || []);
+        setSelectedIceClassOnly(question.ice_class_only);
+        setApplicabilityModalOpen(true);
+    };
+
+    const handleSaveApplicability = (e: React.FormEvent) => {
+        e.preventDefault();
+        if (!applicabilityTarget) return;
+
+        const url = applicabilityTarget.type === 'group'
+            ? `/admin/groups/${applicabilityTarget.id}/applicability`
+            : `/admin/questions/${applicabilityTarget.id}/applicability`;
+
+        router.put(url, {
+            vessel_type_ids: selectedVesselTypes,
+            ice_class_only: selectedIceClassOnly,
+        }, {
+            onSuccess: () => setApplicabilityModalOpen(false),
+        });
+    };
+
+    // Bulk Move (Task 2.3)
+    const handleBulkMove = (e: React.FormEvent) => {
+        e.preventDefault();
+        if (selectedQuestionIds.length === 0 || !targetGroupId) return;
+
+        router.post('/admin/questions/bulk-move', {
+            question_ids: selectedQuestionIds,
+            target_group_id: Number(targetGroupId),
+        }, {
+            onSuccess: () => {
+                setBulkMoveModalOpen(false);
+                setSelectedQuestionIds([]);
+                setTargetGroupId('');
+            },
+        });
+    };
+
+    // Bulk Toggle Group (Task 2.3)
+    const handleBulkToggleGroup = (group: GroupData, enable: boolean) => {
+        router.post(`/admin/groups/${group.id}/bulk-toggle`, { enable });
+    };
+
+    // History View (Task 2.6)
+    const openHistory = async (type: 'group' | 'question', id: number, title: string) => {
+        setHistoryTitle(`${type === 'group' ? 'Group' : 'Question'}: ${title}`);
+        setHistoryLoading(true);
+        setHistoryModalOpen(true);
+
+        try {
+            const res = await fetch(`/admin/${type === 'group' ? 'groups' : 'questions'}/${id}/history`);
+            const data = await res.json();
+            setHistoryItems(data);
+        } catch {
+            setHistoryItems([]);
+        } finally {
+            setHistoryLoading(false);
+        }
+    };
+
     // Action Helpers
     const handleReorderGroup = (id: number, direction: 'up' | 'down') => {
         router.post(`/admin/groups/${id}/reorder`, { direction });
@@ -275,64 +360,6 @@ export default function FormShow({ form, chapters, flat_groups = [], all_groups 
         if (confirm(msg)) {
             router.delete(`/admin/questions/${question.id}`);
         }
-    };
-
-    // Bulk Move (Task 2.3)
-    const handleBulkMove = (e: React.FormEvent) => {
-        e.preventDefault();
-        if (selectedQuestionIds.length === 0 || !targetGroupId) return;
-
-        router.post('/admin/questions/bulk-move', {
-            question_ids: selectedQuestionIds,
-            target_group_id: Number(targetGroupId),
-        }, {
-            onSuccess: () => {
-                setBulkMoveModalOpen(false);
-                setSelectedQuestionIds([]);
-                setTargetGroupId('');
-            },
-        });
-    };
-
-    // Bulk Toggle Group (Task 2.3)
-    const handleBulkToggleGroup = (group: GroupData, enable: boolean) => {
-        router.post(`/admin/groups/${group.id}/bulk-toggle`, { enable });
-    };
-
-    // Applicability Handlers (Task 2.4)
-    const openGroupApplicability = (group: GroupData) => {
-        setApplicabilityTarget({ type: 'group', id: group.id, title: group.title });
-        setSelectedVesselTypes(group.vessel_type_ids || []);
-        setSelectedIceClassOnly(group.ice_class_only);
-        setApplicabilityModalOpen(true);
-    };
-
-    const openQuestionApplicability = (question: QuestionData) => {
-        setApplicabilityTarget({ type: 'question', id: question.id, title: question.question_text });
-        setSelectedVesselTypes(question.vessel_type_ids || []);
-        setSelectedIceClassOnly(Boolean(question.ice_class_only));
-        setApplicabilityModalOpen(true);
-    };
-
-    const handleSaveApplicability = (e: React.FormEvent) => {
-        e.preventDefault();
-        if (!applicabilityTarget) return;
-
-        const url =
-            applicabilityTarget.type === 'group'
-                ? `/admin/groups/${applicabilityTarget.id}/applicability`
-                : `/admin/questions/${applicabilityTarget.id}/applicability`;
-
-        router.put(
-            url,
-            {
-                vessel_type_ids: selectedVesselTypes,
-                ice_class_only: selectedIceClassOnly,
-            },
-            {
-                onSuccess: () => setApplicabilityModalOpen(false),
-            }
-        );
     };
 
     return (
@@ -394,9 +421,9 @@ export default function FormShow({ form, chapters, flat_groups = [], all_groups 
                                         <h3 className="font-semibold text-lg">{chapter.title}</h3>
                                         {!chapter.is_enabled && <Badge variant="destructive">Disabled</Badge>}
                                         {chapter.ice_class_only && <Badge variant="outline">Ice Class Only</Badge>}
-                                        {chapter.vessel_type_ids && chapter.vessel_type_ids.length > 0 && (
+                                        {chapter.vessel_type_ids.length > 0 && (
                                             <Badge variant="outline" className="text-xs">
-                                                {vessel_types.filter((vt) => chapter.vessel_type_ids?.includes(vt.id)).map((vt) => vt.name).join('/')} only
+                                                {vessel_types.filter((vt) => chapter.vessel_type_ids.includes(vt.id)).map((vt) => vt.name).join('/')} only
                                             </Badge>
                                         )}
                                         {chapter.reports_count > 0 && (
@@ -406,7 +433,7 @@ export default function FormShow({ form, chapters, flat_groups = [], all_groups 
                                         )}
                                     </div>
 
-                                    <div className="flex items-center gap-1">
+                                    <div className="flex items-center gap-1 flex-wrap">
                                         <Button size="sm" variant="ghost" title="Move Up" onClick={() => handleReorderGroup(chapter.id, 'up')}>
                                             <ArrowUp className="size-3.5" />
                                         </Button>
@@ -421,6 +448,9 @@ export default function FormShow({ form, chapters, flat_groups = [], all_groups 
                                         </Button>
                                         <Button size="sm" variant="outline" onClick={() => openGroupApplicability(chapter)} title="Edit Applicability (FM-4)">
                                             <Filter className="size-3.5 mr-1" /> Applicability
+                                        </Button>
+                                        <Button size="sm" variant="outline" onClick={() => openHistory('group', chapter.id, chapter.title)} title="View Change History (FM-7)">
+                                            <History className="size-3.5 mr-1" /> History
                                         </Button>
                                         <Button size="sm" variant="outline" onClick={() => openEditGroup(chapter)}>
                                             <Edit2 className="size-3.5 mr-1" /> Edit
@@ -445,32 +475,30 @@ export default function FormShow({ form, chapters, flat_groups = [], all_groups 
                                         {chapter.subgroups.map((subgroup) => (
                                             <div key={subgroup.id} className="rounded-lg border bg-card p-3 shadow-xs">
                                                 <div className="flex flex-col gap-2 md:flex-row md:items-center md:justify-between pb-2 mb-2 border-b">
-                                                    <div className="flex items-center gap-2">
+                                                    <div className="flex items-center gap-2 flex-wrap">
                                                         <button
                                                             type="button"
                                                             onClick={() => selectAllInGroup(subgroup)}
                                                             className="text-muted-foreground hover:text-foreground mr-1"
-                                                            title="Select all questions in this subgroup"
                                                         >
                                                             {subgroup.questions.length > 0 && subgroup.questions.every((q) => selectedQuestionIds.includes(q.id)) ? (
-                                                                <CheckSquare className="size-4 text-primary" />
+                                                                <CheckSquare className="size-3.5 text-primary" />
                                                             ) : (
-                                                                <Square className="size-4" />
+                                                                <Square className="size-3.5" />
                                                             )}
                                                         </button>
                                                         <h4 className="font-medium text-sm text-foreground">{subgroup.title}</h4>
                                                         {!subgroup.is_enabled && <Badge variant="destructive" className="text-xs">Disabled</Badge>}
-                                                        {subgroup.ice_class_only && <Badge variant="outline" className="text-xs">Ice Class Only</Badge>}
-                                                        {subgroup.vessel_type_ids && subgroup.vessel_type_ids.length > 0 && (
+                                                        {subgroup.vessel_type_ids.length > 0 && (
                                                             <Badge variant="outline" className="text-[10px]">
-                                                                {vessel_types.filter((vt) => subgroup.vessel_type_ids?.includes(vt.id)).map((vt) => vt.name).join('/')} only
+                                                                {vessel_types.filter((vt) => subgroup.vessel_type_ids.includes(vt.id)).map((vt) => vt.name).join('/')} only
                                                             </Badge>
                                                         )}
                                                         {subgroup.reports_count > 0 && (
                                                             <span className="text-xs text-muted-foreground">({subgroup.reports_count} reports)</span>
                                                         )}
                                                     </div>
-                                                    <div className="flex items-center gap-1">
+                                                    <div className="flex items-center gap-1 flex-wrap">
                                                         <Button size="sm" variant="ghost" onClick={() => handleReorderGroup(subgroup.id, 'up')}>
                                                             <ArrowUp className="size-3" />
                                                         </Button>
@@ -480,11 +508,11 @@ export default function FormShow({ form, chapters, flat_groups = [], all_groups 
                                                         <Button size="sm" variant="ghost" onClick={() => handleToggleGroup(subgroup.id)}>
                                                             {subgroup.is_enabled ? <Eye className="size-3" /> : <EyeOff className="size-3 text-muted-foreground" />}
                                                         </Button>
-                                                        <Button size="sm" variant="outline" title="Bulk toggle all questions in subgroup" onClick={() => handleBulkToggleGroup(subgroup, !subgroup.is_enabled)}>
-                                                            {subgroup.is_enabled ? 'Disable All' : 'Enable All'}
+                                                        <Button size="sm" variant="outline" onClick={() => openGroupApplicability(subgroup)} title="Applicability">
+                                                            <Filter className="size-3 mr-1" /> Scope
                                                         </Button>
-                                                        <Button size="sm" variant="outline" onClick={() => openGroupApplicability(subgroup)} title="Edit Applicability (FM-4)">
-                                                            <Filter className="size-3 mr-1" /> Applicability
+                                                        <Button size="sm" variant="outline" onClick={() => openHistory('group', subgroup.id, subgroup.title)}>
+                                                            <History className="size-3 mr-1" /> Log
                                                         </Button>
                                                         <Button size="sm" variant="outline" onClick={() => openEditGroup(subgroup)}>
                                                             <Edit2 className="size-3 mr-1" /> Rename
@@ -506,11 +534,12 @@ export default function FormShow({ form, chapters, flat_groups = [], all_groups 
                                                             question={q}
                                                             vesselTypes={vessel_types}
                                                             isSelected={selectedQuestionIds.includes(q.id)}
-                                                            onSelect={() => toggleSelectQuestion(q.id)}
                                                             isExpanded={Boolean(expandedGuidance[q.id])}
+                                                            onSelect={() => toggleSelectQuestion(q.id)}
                                                             onToggleGuidance={() => toggleGuidance(q.id)}
                                                             onEdit={() => openEditQuestion(q)}
                                                             onApplicability={() => openQuestionApplicability(q)}
+                                                            onHistory={() => openHistory('question', q.id, q.question_text)}
                                                             onReorder={(dir) => handleReorderQuestion(q.id, dir)}
                                                             onToggle={() => handleToggleQuestion(q.id)}
                                                             onDuplicate={() => handleDuplicateQuestion(q.id)}
@@ -534,11 +563,12 @@ export default function FormShow({ form, chapters, flat_groups = [], all_groups 
                                             question={q}
                                             vesselTypes={vessel_types}
                                             isSelected={selectedQuestionIds.includes(q.id)}
-                                            onSelect={() => toggleSelectQuestion(q.id)}
                                             isExpanded={Boolean(expandedGuidance[q.id])}
+                                            onSelect={() => toggleSelectQuestion(q.id)}
                                             onToggleGuidance={() => toggleGuidance(q.id)}
                                             onEdit={() => openEditQuestion(q)}
                                             onApplicability={() => openQuestionApplicability(q)}
+                                            onHistory={() => openHistory('question', q.id, q.question_text)}
                                             onReorder={(dir) => handleReorderQuestion(q.id, dir)}
                                             onToggle={() => handleToggleQuestion(q.id)}
                                             onDuplicate={() => handleDuplicateQuestion(q.id)}
@@ -661,41 +691,6 @@ export default function FormShow({ form, chapters, flat_groups = [], all_groups 
                 </DialogContent>
             </Dialog>
 
-            {/* Bulk Move Dialog (Task 2.3) */}
-            <Dialog open={bulkMoveModalOpen} onOpenChange={setBulkMoveModalOpen}>
-                <DialogContent>
-                    <DialogHeader>
-                        <DialogTitle>Move {selectedQuestionIds.length} Question(s) (FM-6)</DialogTitle>
-                    </DialogHeader>
-                    <form onSubmit={handleBulkMove} className="space-y-4">
-                        <div className="space-y-2">
-                            <Label htmlFor="target_group">Destination Group / Subgroup</Label>
-                            <Select value={targetGroupId} onValueChange={setTargetGroupId}>
-                                <SelectTrigger>
-                                    <SelectValue placeholder="Select destination group" />
-                                </SelectTrigger>
-                                <SelectContent className="max-h-60">
-                                    {groupsList.map((g) => (
-                                        <SelectItem key={g.id} value={String(g.id)}>
-                                            {g.chapter_no ? `Ch. ${g.chapter_no}: ` : ''}{g.title}
-                                        </SelectItem>
-                                    ))}
-                                </SelectContent>
-                            </Select>
-                        </div>
-
-                        <DialogFooter className="pt-4">
-                            <Button type="button" variant="outline" onClick={() => setBulkMoveModalOpen(false)}>
-                                Cancel
-                            </Button>
-                            <Button type="submit" disabled={!targetGroupId}>
-                                Move Questions
-                            </Button>
-                        </DialogFooter>
-                    </form>
-                </DialogContent>
-            </Dialog>
-
             {/* Applicability Dialog (Task 2.4) */}
             <Dialog open={applicabilityModalOpen} onOpenChange={setApplicabilityModalOpen}>
                 <DialogContent>
@@ -760,32 +755,118 @@ export default function FormShow({ form, chapters, flat_groups = [], all_groups 
                     )}
                 </DialogContent>
             </Dialog>
+
+            {/* Bulk Move Dialog (Task 2.3) */}
+            <Dialog open={bulkMoveModalOpen} onOpenChange={setBulkMoveModalOpen}>
+                <DialogContent>
+                    <DialogHeader>
+                        <DialogTitle>Move {selectedQuestionIds.length} Question(s) (FM-6)</DialogTitle>
+                    </DialogHeader>
+                    <form onSubmit={handleBulkMove} className="space-y-4">
+                        <div className="space-y-2">
+                            <Label htmlFor="target_group">Destination Group / Subgroup</Label>
+                            <Select value={targetGroupId} onValueChange={setTargetGroupId}>
+                                <SelectTrigger>
+                                    <SelectValue placeholder="Select destination group" />
+                                </SelectTrigger>
+                                <SelectContent className="max-h-60">
+                                    {all_groups.map((g) => (
+                                        <SelectItem key={g.id} value={String(g.id)}>
+                                            {g.parent_id ? `↳ ${g.title}` : g.title}
+                                        </SelectItem>
+                                    ))}
+                                </SelectContent>
+                            </Select>
+                        </div>
+
+                        <DialogFooter className="pt-4">
+                            <Button type="button" variant="outline" onClick={() => setBulkMoveModalOpen(false)}>
+                                Cancel
+                            </Button>
+                            <Button type="submit" disabled={!targetGroupId}>
+                                Move Questions
+                            </Button>
+                        </DialogFooter>
+                    </form>
+                </DialogContent>
+            </Dialog>
+
+            {/* History Modal (Task 2.6) */}
+            <Dialog open={historyModalOpen} onOpenChange={setHistoryModalOpen}>
+                <DialogContent className="max-w-xl max-h-[80vh] flex flex-col">
+                    <DialogHeader>
+                        <DialogTitle>Change History (FM-7)</DialogTitle>
+                    </DialogHeader>
+                    <p className="text-xs text-muted-foreground line-clamp-1 mb-2 font-medium">{historyTitle}</p>
+
+                    <div className="overflow-y-auto flex-1 space-y-3 pr-2">
+                        {historyLoading && <p className="text-sm text-muted-foreground">Loading history log...</p>}
+                        {!historyLoading && historyItems.length === 0 && (
+                            <p className="text-sm text-muted-foreground italic py-4 text-center">No change history recorded yet.</p>
+                        )}
+                        {!historyLoading && historyItems.map((item) => (
+                            <div key={item.id} className="rounded border bg-muted/20 p-2.5 text-xs space-y-1">
+                                <div className="flex items-center justify-between text-muted-foreground">
+                                    <span className="font-semibold text-foreground uppercase tracking-wider">{item.action}</span>
+                                    <span>{new Date(item.created_at).toLocaleString()}</span>
+                                </div>
+                                <div className="text-muted-foreground">
+                                    By: <span className="text-foreground font-medium">{item.user?.name || 'System'}</span> ({item.user?.role || 'admin'})
+                                </div>
+                                {item.field && (
+                                    <div className="text-muted-foreground">
+                                        Field: <span className="font-mono">{item.field}</span>
+                                    </div>
+                                )}
+                                {item.before_value !== null && (
+                                    <div className="rounded bg-destructive/10 p-1 font-mono text-[11px] text-destructive">
+                                        - {item.before_value}
+                                    </div>
+                                )}
+                                {item.after_value !== null && (
+                                    <div className="rounded bg-emerald-500/10 p-1 font-mono text-[11px] text-emerald-600 dark:text-emerald-400">
+                                        + {item.after_value}
+                                    </div>
+                                )}
+                            </div>
+                        ))}
+                    </div>
+
+                    <DialogFooter className="pt-2">
+                        <Button type="button" variant="outline" onClick={() => setHistoryModalOpen(false)}>
+                            Close
+                        </Button>
+                    </DialogFooter>
+                </DialogContent>
+            </Dialog>
         </AppLayout>
     );
 }
 
 function QuestionRow({
     question,
-    vesselTypes = [],
+    vesselTypes,
     isSelected,
-    onSelect,
     isExpanded,
+    onSelect,
     onToggleGuidance,
     onEdit,
     onApplicability,
+    onHistory,
     onReorder,
     onToggle,
     onDuplicate,
     onDelete,
 }: {
     question: QuestionData;
-    vesselTypes?: VesselTypeItem[];
+    vesselTypes: VesselTypeItem[];
     isSelected: boolean;
-    onSelect: () => void;
     isExpanded: boolean;
+    onSelect: () => void;
     onToggleGuidance: () => void;
     onEdit: () => void;
     onApplicability: () => void;
+    onHistory: () => void;
     onReorder: (dir: 'up' | 'down') => void;
     onToggle: () => void;
     onDuplicate: () => void;
@@ -794,18 +875,13 @@ function QuestionRow({
     return (
         <div className={`flex flex-col gap-1 rounded border p-2.5 transition-colors ${!question.is_enabled ? 'opacity-50 bg-muted/30' : 'bg-background hover:bg-muted/10'} ${isSelected ? 'ring-2 ring-primary' : ''}`}>
             <div className="flex items-start justify-between gap-3">
-                <div className="flex items-start gap-2 flex-1">
-                    <button
-                        type="button"
-                        onClick={onSelect}
-                        className="text-muted-foreground hover:text-foreground mt-0.5 shrink-0"
-                        title={isSelected ? 'Deselect question' : 'Select question for bulk actions'}
-                    >
+                <div className="flex items-start gap-2.5 flex-1">
+                    <button type="button" onClick={onSelect} className="mt-0.5 text-muted-foreground hover:text-foreground">
                         {isSelected ? <CheckSquare className="size-4 text-primary" /> : <Square className="size-4" />}
                     </button>
 
                     <div className="flex-1">
-                        <div className="flex items-center gap-2 flex-wrap">
+                        <div className="flex items-center gap-1.5 flex-wrap">
                             <span className="text-sm text-foreground">{question.question_text}</span>
                             {!question.is_enabled && <Badge variant="destructive" className="text-[10px] px-1 py-0">Disabled</Badge>}
                             {question.input_type !== 'none' && (
@@ -814,13 +890,13 @@ function QuestionRow({
                                 </Badge>
                             )}
                             {question.ice_class_only && (
-                                <Badge variant="outline" className="text-[10px] px-1.5 py-0 border-blue-400 text-blue-600">
+                                <Badge variant="outline" className="text-[10px] px-1.5 py-0">
                                     Ice Class
                                 </Badge>
                             )}
-                            {question.vessel_type_ids && question.vessel_type_ids.length > 0 && (
+                            {question.vessel_type_ids.length > 0 && (
                                 <Badge variant="outline" className="text-[10px] px-1.5 py-0">
-                                    {vesselTypes.filter((vt) => question.vessel_type_ids?.includes(vt.id)).map((vt) => vt.name).join('/')}
+                                    {vesselTypes.filter((vt) => question.vessel_type_ids.includes(vt.id)).map((vt) => vt.name).join('/')}
                                 </Badge>
                             )}
                             {question.guidance && (
@@ -860,6 +936,9 @@ function QuestionRow({
                     </Button>
                     <Button size="sm" variant="ghost" className="h-7 w-7 p-0" title="Edit Applicability (FM-4)" onClick={onApplicability}>
                         <Filter className="size-3" />
+                    </Button>
+                    <Button size="sm" variant="ghost" className="h-7 w-7 p-0" title="Change History (FM-7)" onClick={onHistory}>
+                        <History className="size-3" />
                     </Button>
                     <Button size="sm" variant="ghost" className="h-7 w-7 p-0" title="Duplicate" onClick={onDuplicate}>
                         <Copy className="size-3" />

@@ -14,16 +14,17 @@ Route::middleware(['auth', 'verified'])->group(function () {
         Route::get('forms', [FormController::class, 'index'])->name('forms.index');
         Route::get('forms/{form}', [FormController::class, 'show'])->name('forms.show');
 
-        // Groups (Task 2.1, 2.3, 2.4)
+        // Groups (Task 2.1, 2.3, 2.4, 2.6)
         Route::post('forms/{form}/groups', [FormGroupController::class, 'store'])->name('groups.store');
         Route::put('groups/{group}', [FormGroupController::class, 'update'])->name('groups.update');
         Route::post('groups/{group}/toggle', [FormGroupController::class, 'toggle'])->name('groups.toggle');
         Route::post('groups/{group}/bulk-toggle', [FormGroupController::class, 'bulkToggle'])->name('groups.bulk-toggle');
         Route::put('groups/{group}/applicability', [FormGroupController::class, 'updateApplicability'])->name('groups.applicability');
+        Route::get('groups/{group}/history', [FormGroupController::class, 'history'])->name('groups.history');
         Route::post('groups/{group}/reorder', [FormGroupController::class, 'reorder'])->name('groups.reorder');
         Route::delete('groups/{group}', [FormGroupController::class, 'destroy'])->name('groups.destroy');
 
-        // Questions (Task 2.2, 2.3, 2.4)
+        // Questions (Task 2.2, 2.3, 2.4, 2.6)
         Route::post('groups/{group}/questions', [FormQuestionController::class, 'store'])->name('questions.store');
         Route::put('questions/{question}', [FormQuestionController::class, 'update'])->name('questions.update');
         Route::post('questions/{question}/toggle', [FormQuestionController::class, 'toggle'])->name('questions.toggle');
@@ -31,6 +32,7 @@ Route::middleware(['auth', 'verified'])->group(function () {
         Route::post('questions/{question}/reorder', [FormQuestionController::class, 'reorder'])->name('questions.reorder');
         Route::post('questions/bulk-move', [FormQuestionController::class, 'bulkMove'])->name('questions.bulk-move');
         Route::put('questions/{question}/applicability', [FormQuestionController::class, 'updateApplicability'])->name('questions.applicability');
+        Route::get('questions/{question}/history', [FormQuestionController::class, 'history'])->name('questions.history');
         Route::delete('questions/{question}', [FormQuestionController::class, 'destroy'])->name('questions.destroy');
     });
 });

@@ -87,7 +87,7 @@ reopened and closed through the console with complete transition validation and 
 | 2.3 | Bulk actions: disable a whole group, move questions between groups | **done**: bulk-toggle group/subgroups/questions, bulk-move questions between groups with order append and template version bump (FM-6) |
 | 2.4 | Applicability editor: vessel types, ice class, at group and question level | **done**: vessel types and ice class rules on groups and questions with live filter dialog and template bump (FM-4) |
 | 2.5 | "Used in N reports" warning on delete, archive instead of delete | **done**: "Used in N reports" warning dialog on deletion, soft-archive if used in historical reports vs hard-delete if never used (FM-9) |
-| 2.6 | Change history per group and question | FM-7, FM-12 |
+| 2.6 | Change history per group and question | **done**: append-only `activity_log` audit trail, recording group & question mutations, history modal viewer (FM-7, FM-12) |
 | 2.7 | Template catalogue seeded from the reviewed CSV | `FormSeeder`, dry run via `FORMS_SEED_DRY=1`. Already built in Phase 1 |
 | 2.8 | Tests: seed idempotency, archive rules, reorder stability | §5.5, done for the seed; the rest lands with the editor |
 

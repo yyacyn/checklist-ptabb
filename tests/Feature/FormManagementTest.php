@@ -371,4 +371,28 @@ class FormManagementTest extends TestCase
             'ice_class_only' => false,
         ]);
     }
+
+    public function test_activity_log_records_changes_and_history_endpoint(): void
+    {
+        $this->seedCatalogue();
+        $superadmin = User::factory()->create(['role' => 'superadmin']);
+        $question = FormQuestion::query()->firstOrFail();
+
+        // Edit question
+        $this->actingAs($superadmin)->put(route('admin.questions.update', $question), [
+            'question_text' => 'New audited text for activity log test',
+            'guidance' => 'Updated guidance',
+            'input_type' => 'none',
+        ])->assertRedirect();
+
+        // Query history endpoint
+        $response = $this->actingAs($superadmin)->get(route('admin.questions.history', $question));
+        $response->assertOk();
+
+        $data = $response->json();
+        $this->assertIsArray($data);
+        $this->assertNotEmpty($data);
+        $this->assertSame('updated', $data[0]['action']);
+        $this->assertSame($superadmin->id, $data[0]['user_id']);
+    }
 }

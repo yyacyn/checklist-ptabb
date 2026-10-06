@@ -3,15 +3,17 @@
 namespace App\Http\Controllers\Admin;
 
 use App\Http\Controllers\Controller;
+use App\Models\ActivityLog;
 use App\Models\Form;
 use App\Models\FormApplicability;
 use App\Models\FormGroup;
+use Illuminate\Http\JsonResponse;
 use Illuminate\Http\RedirectResponse;
 use Illuminate\Http\Request;
 use Illuminate\Support\Facades\DB;
 
 /**
- * Task 2.1: Group and subgroup tree management (FM-1, FM-2, FM-9).
+ * Task 2.1, 2.3, 2.4, 2.5, 2.6: Group & subgroup management.
  */
 class FormGroupController extends Controller
 {
@@ -36,7 +38,7 @@ class FormGroupController extends Controller
                 ->whereNull('archived_at')
                 ->max('sort_order') ?? -1) + 1;
 
-            FormGroup::create([
+            $group = FormGroup::create([
                 'form_id' => $form->id,
                 'parent_id' => $parentId,
                 'title' => $validated['title'],
@@ -45,6 +47,8 @@ class FormGroupController extends Controller
                 'is_enabled' => true,
                 'ice_class_only' => (bool) ($validated['ice_class_only'] ?? false),
             ]);
+
+            ActivityLog::record($group, 'created', 'title', null, $group->title);
 
             $form->bumpTemplateVersion();
         });
@@ -63,11 +67,15 @@ class FormGroupController extends Controller
             'ice_class_only' => ['boolean'],
         ]);
 
+        $before = ['title' => $group->title, 'chapter_no' => $group->chapter_no, 'ice_class_only' => $group->ice_class_only];
+
         $group->update([
             'title' => $validated['title'],
             'chapter_no' => $validated['chapter_no'] ?? null,
             'ice_class_only' => (bool) ($validated['ice_class_only'] ?? false),
         ]);
+
+        ActivityLog::record($group, 'updated', 'attributes', $before, $validated);
 
         return back()->with('success', 'Group updated successfully.');
     }
@@ -77,13 +85,16 @@ class FormGroupController extends Controller
      */
     public function toggle(FormGroup $group): RedirectResponse
     {
+        $before = $group->is_enabled;
         $group->update(['is_enabled' => ! $group->is_enabled]);
+
+        ActivityLog::record($group, 'toggled', 'is_enabled', $before, $group->is_enabled);
 
         return back()->with('success', $group->is_enabled ? 'Group enabled.' : 'Group disabled.');
     }
 
     /**
-     * Bulk enable or disable all questions within a group (FM-6).
+     * Bulk toggle all questions in a group (FM-6).
      */
     public function bulkToggle(Request $request, FormGroup $group): RedirectResponse
     {
@@ -95,15 +106,18 @@ class FormGroupController extends Controller
 
         DB::transaction(function () use ($group, $enable) {
             $group->update(['is_enabled' => $enable]);
-            $group->questions()->update(['is_enabled' => $enable]);
+            $group->questions()->whereNull('archived_at')->update(['is_enabled' => $enable]);
 
             foreach ($group->subgroups as $subgroup) {
                 $subgroup->update(['is_enabled' => $enable]);
-                $subgroup->questions()->update(['is_enabled' => $enable]);
+                $subgroup->questions()->whereNull('archived_at')->update(['is_enabled' => $enable]);
             }
+
+            ActivityLog::record($group, 'bulk_toggled', 'questions_enabled', null, $enable);
+            $group->form->bumpTemplateVersion();
         });
 
-        return back()->with('success', $enable ? 'All questions in group enabled.' : 'All questions in group disabled.');
+        return back()->with('success', $enable ? 'Group and all questions enabled.' : 'Group and all questions disabled.');
     }
 
     /**
@@ -121,6 +135,8 @@ class FormGroupController extends Controller
         $iceClassOnly = (bool) ($validated['ice_class_only'] ?? false);
 
         DB::transaction(function () use ($group, $vesselTypeIds, $iceClassOnly) {
+            $beforeRules = FormApplicability::where('form_group_id', $group->id)->get()->toArray();
+
             FormApplicability::where('form_group_id', $group->id)->delete();
 
             $group->update(['ice_class_only' => $iceClassOnly]);
@@ -140,6 +156,9 @@ class FormGroupController extends Controller
                     'ice_class_only' => true,
                 ]);
             }
+
+            $afterRules = FormApplicability::where('form_group_id', $group->id)->get()->toArray();
+            ActivityLog::record($group, 'applicability_updated', 'rules', $beforeRules, $afterRules);
 
             $group->form->bumpTemplateVersion();
         });
@@ -181,11 +200,28 @@ class FormGroupController extends Controller
                 $group->update(['sort_order' => $target->sort_order]);
                 $target->update(['sort_order' => $tempOrder]);
 
+                ActivityLog::record($group, 'reordered', 'sort_order', $tempOrder, $group->sort_order);
+
                 $group->form->bumpTemplateVersion();
             }
         });
 
         return back()->with('success', 'Group reordered.');
+    }
+
+    /**
+     * Change history for this group (FM-7).
+     */
+    public function history(FormGroup $group): JsonResponse
+    {
+        $logs = ActivityLog::query()
+            ->where('entity_type', $group->getMorphClass())
+            ->where('entity_id', $group->id)
+            ->with('user:id,name,role')
+            ->orderByDesc('created_at')
+            ->get();
+
+        return response()->json($logs);
     }
 
     /**
@@ -198,8 +234,10 @@ class FormGroupController extends Controller
 
         if ($group->isUsedInReports()) {
             $group->update(['archived_at' => now()]);
+            ActivityLog::record($group, 'archived', 'archived_at', null, now()->toDateTimeString());
             $message = 'Group archived (kept for historical reports).';
         } else {
+            ActivityLog::record($group, 'deleted', 'id', $group->id, null);
             $group->delete();
             $message = 'Group deleted.';
         }
