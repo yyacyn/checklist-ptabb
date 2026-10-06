@@ -4,8 +4,10 @@ namespace App\Http\Controllers\Admin;
 
 use App\Http\Controllers\Controller;
 use App\Models\Form;
+use App\Models\FormApplicability;
 use App\Models\ReportGroup;
 use App\Models\ReportQuestion;
+use App\Models\VesselType;
 use Illuminate\Http\Request;
 use Inertia\Inertia;
 use Inertia\Response;
@@ -59,6 +61,21 @@ class FormController extends Controller
             ->pluck('count', 'source_question_id')
             ->all();
 
+        // Load applicability rules
+        $groupApplicabilities = FormApplicability::query()
+            ->whereNotNull('form_group_id')
+            ->get()
+            ->groupBy('form_group_id');
+
+        $questionApplicabilities = FormApplicability::query()
+            ->whereNotNull('form_question_id')
+            ->get()
+            ->groupBy('form_question_id');
+
+        $vesselTypes = VesselType::query()
+            ->where('is_active', true)
+            ->get(['id', 'name']);
+
         // Load chapters (top-level groups)
         $chapters = $form->groups()
             ->whereNull('parent_id')
@@ -70,42 +87,65 @@ class FormController extends Controller
             ])
             ->orderBy('sort_order')
             ->get()
-            ->map(function ($chapter) use ($usedGroupIds, $usedQuestionIds) {
+            ->map(function ($chapter) use ($usedGroupIds, $usedQuestionIds, $groupApplicabilities, $questionApplicabilities) {
+                $groupRules = $groupApplicabilities->get($chapter->id, collect());
+
                 return [
                     'id' => $chapter->id,
                     'title' => $chapter->title,
                     'chapter_no' => $chapter->chapter_no,
                     'sort_order' => $chapter->sort_order,
                     'is_enabled' => (bool) $chapter->is_enabled,
-                    'ice_class_only' => (bool) $chapter->ice_class_only,
+                    'ice_class_only' => (bool) $chapter->ice_class_only || $groupRules->contains('ice_class_only', true),
+                    'vessel_type_ids' => $groupRules->pluck('vessel_type_id')->filter()->values()->all(),
                     'reports_count' => $usedGroupIds[$chapter->id] ?? 0,
-                    'questions' => $chapter->questions->map(fn ($q) => [
-                        'id' => $q->id,
-                        'question_text' => $q->question_text,
-                        'guidance' => $q->guidance,
-                        'input_type' => $q->input_type,
-                        'sort_order' => $q->sort_order,
-                        'is_enabled' => (bool) $q->is_enabled,
-                        'reports_count' => $usedQuestionIds[$q->id] ?? 0,
-                    ]),
-                    'subgroups' => $chapter->subgroups->map(fn ($sub) => [
-                        'id' => $sub->id,
-                        'title' => $sub->title,
-                        'chapter_no' => $sub->chapter_no,
-                        'sort_order' => $sub->sort_order,
-                        'is_enabled' => (bool) $sub->is_enabled,
-                        'ice_class_only' => (bool) $sub->ice_class_only,
-                        'reports_count' => $usedGroupIds[$sub->id] ?? 0,
-                        'questions' => $sub->questions->map(fn ($q) => [
+                    'questions' => $chapter->questions->map(function ($q) use ($usedQuestionIds, $questionApplicabilities) {
+                        $qRules = $questionApplicabilities->get($q->id, collect());
+
+                        return [
                             'id' => $q->id,
+                            'group_id' => $q->group_id,
                             'question_text' => $q->question_text,
                             'guidance' => $q->guidance,
                             'input_type' => $q->input_type,
                             'sort_order' => $q->sort_order,
                             'is_enabled' => (bool) $q->is_enabled,
+                            'ice_class_only' => $qRules->contains('ice_class_only', true),
+                            'vessel_type_ids' => $qRules->pluck('vessel_type_id')->filter()->values()->all(),
                             'reports_count' => $usedQuestionIds[$q->id] ?? 0,
-                        ]),
-                    ]),
+                        ];
+                    }),
+                    'subgroups' => $chapter->subgroups->map(function ($sub) use ($usedGroupIds, $usedQuestionIds, $groupApplicabilities, $questionApplicabilities) {
+                        $subRules = $groupApplicabilities->get($sub->id, collect());
+
+                        return [
+                            'id' => $sub->id,
+                            'parent_id' => $sub->parent_id,
+                            'title' => $sub->title,
+                            'chapter_no' => $sub->chapter_no,
+                            'sort_order' => $sub->sort_order,
+                            'is_enabled' => (bool) $sub->is_enabled,
+                            'ice_class_only' => (bool) $sub->ice_class_only || $subRules->contains('ice_class_only', true),
+                            'vessel_type_ids' => $subRules->pluck('vessel_type_id')->filter()->values()->all(),
+                            'reports_count' => $usedGroupIds[$sub->id] ?? 0,
+                            'questions' => $sub->questions->map(function ($q) use ($usedQuestionIds, $questionApplicabilities) {
+                                $qRules = $questionApplicabilities->get($q->id, collect());
+
+                                return [
+                                    'id' => $q->id,
+                                    'group_id' => $q->group_id,
+                                    'question_text' => $q->question_text,
+                                    'guidance' => $q->guidance,
+                                    'input_type' => $q->input_type,
+                                    'sort_order' => $q->sort_order,
+                                    'is_enabled' => (bool) $q->is_enabled,
+                                    'ice_class_only' => $qRules->contains('ice_class_only', true),
+                                    'vessel_type_ids' => $qRules->pluck('vessel_type_id')->filter()->values()->all(),
+                                    'reports_count' => $usedQuestionIds[$q->id] ?? 0,
+                                ];
+                            }),
+                        ];
+                    }),
                 ];
             });
 
@@ -125,6 +165,7 @@ class FormController extends Controller
             ],
             'chapters' => $chapters,
             'flat_groups' => $flatGroups,
+            'vessel_types' => $vesselTypes,
         ]);
     }
 }

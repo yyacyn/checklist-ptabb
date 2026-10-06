@@ -4,6 +4,7 @@ namespace App\Http\Controllers\Admin;
 
 use App\Http\Controllers\Controller;
 use App\Models\Form;
+use App\Models\FormApplicability;
 use App\Models\FormGroup;
 use Illuminate\Http\RedirectResponse;
 use Illuminate\Http\Request;
@@ -103,6 +104,47 @@ class FormGroupController extends Controller
         });
 
         return back()->with('success', $enable ? 'All questions in group enabled.' : 'All questions in group disabled.');
+    }
+
+    /**
+     * Update applicability rules for a group (FM-4).
+     */
+    public function updateApplicability(Request $request, FormGroup $group): RedirectResponse
+    {
+        $validated = $request->validate([
+            'vessel_type_ids' => ['array'],
+            'vessel_type_ids.*' => ['exists:vessel_types,id'],
+            'ice_class_only' => ['boolean'],
+        ]);
+
+        $vesselTypeIds = $validated['vessel_type_ids'] ?? [];
+        $iceClassOnly = (bool) ($validated['ice_class_only'] ?? false);
+
+        DB::transaction(function () use ($group, $vesselTypeIds, $iceClassOnly) {
+            FormApplicability::where('form_group_id', $group->id)->delete();
+
+            $group->update(['ice_class_only' => $iceClassOnly]);
+
+            foreach ($vesselTypeIds as $vtId) {
+                FormApplicability::create([
+                    'form_group_id' => $group->id,
+                    'vessel_type_id' => $vtId,
+                    'ice_class_only' => false,
+                ]);
+            }
+
+            if ($iceClassOnly) {
+                FormApplicability::create([
+                    'form_group_id' => $group->id,
+                    'vessel_type_id' => null,
+                    'ice_class_only' => true,
+                ]);
+            }
+
+            $group->form->bumpTemplateVersion();
+        });
+
+        return back()->with('success', 'Group applicability updated.');
     }
 
     /**

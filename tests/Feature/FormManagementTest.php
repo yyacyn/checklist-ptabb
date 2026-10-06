@@ -9,6 +9,7 @@ use App\Models\Report;
 use App\Models\ReportGroup;
 use App\Models\ReportQuestion;
 use App\Models\User;
+use App\Models\VesselType;
 use Database\Seeders\FormSeeder;
 use Illuminate\Foundation\Testing\RefreshDatabase;
 use Tests\TestCase;
@@ -291,5 +292,48 @@ class FormManagementTest extends TestCase
             $this->assertSame($targetGroup->id, FormQuestion::find($qid)->group_id);
         }
         $this->assertSame($versionBefore + 1, $form->fresh()->template_version);
+    }
+
+    public function test_group_applicability_update(): void
+    {
+        $this->seedCatalogue();
+        $superadmin = User::factory()->create(['role' => 'superadmin']);
+        $group = FormGroup::query()->firstOrFail();
+        $tanker = VesselType::query()->where('name', 'Tanker')->firstOrFail();
+
+        $this->actingAs($superadmin)->put(route('admin.groups.applicability', $group), [
+            'vessel_type_ids' => [$tanker->id],
+            'ice_class_only' => true,
+        ])->assertRedirect();
+
+        $this->assertDatabaseHas('form_applicability', [
+            'form_group_id' => $group->id,
+            'vessel_type_id' => $tanker->id,
+            'ice_class_only' => false,
+        ]);
+        $this->assertDatabaseHas('form_applicability', [
+            'form_group_id' => $group->id,
+            'vessel_type_id' => null,
+            'ice_class_only' => true,
+        ]);
+    }
+
+    public function test_question_applicability_update(): void
+    {
+        $this->seedCatalogue();
+        $superadmin = User::factory()->create(['role' => 'superadmin']);
+        $question = FormQuestion::query()->firstOrFail();
+        $cement = VesselType::query()->where('name', 'Cement Carrier')->firstOrFail();
+
+        $this->actingAs($superadmin)->put(route('admin.questions.applicability', $question), [
+            'vessel_type_ids' => [$cement->id],
+            'ice_class_only' => false,
+        ])->assertRedirect();
+
+        $this->assertDatabaseHas('form_applicability', [
+            'form_question_id' => $question->id,
+            'vessel_type_id' => $cement->id,
+            'ice_class_only' => false,
+        ]);
     }
 }

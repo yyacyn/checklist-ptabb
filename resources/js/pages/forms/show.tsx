@@ -8,6 +8,7 @@ import {
     Edit2,
     Eye,
     EyeOff,
+    Filter,
     FolderPlus,
     HelpCircle,
     Plus,
@@ -27,11 +28,14 @@ import AppLayout from '@/layouts/app-layout';
 
 interface QuestionData {
     id: number;
+    group_id?: number;
     question_text: string;
     guidance: string | null;
     input_type: string;
     sort_order: number;
     is_enabled: boolean;
+    ice_class_only?: boolean;
+    vessel_type_ids?: number[];
     reports_count: number;
 }
 
@@ -42,6 +46,7 @@ interface GroupData {
     sort_order: number;
     is_enabled: boolean;
     ice_class_only: boolean;
+    vessel_type_ids?: number[];
     reports_count: number;
     questions: QuestionData[];
     subgroups?: GroupData[];
@@ -63,13 +68,21 @@ interface FlatGroup {
     parent_id: number | null;
 }
 
+interface VesselTypeItem {
+    id: number;
+    name: string;
+}
+
 interface Props {
     form: FormData;
     chapters: GroupData[];
-    flat_groups: FlatGroup[];
+    flat_groups?: FlatGroup[];
+    all_groups?: FlatGroup[];
+    vessel_types?: VesselTypeItem[];
 }
 
-export default function FormShow({ form, chapters, flat_groups }: Props) {
+export default function FormShow({ form, chapters, flat_groups = [], all_groups = [], vessel_types = [] }: Props) {
+    const groupsList = flat_groups.length > 0 ? flat_groups : all_groups;
     const breadcrumbs = [
         { title: 'Dashboard', href: '/dashboard' },
         { title: 'Form Templates', href: '/admin/forms' },
@@ -96,6 +109,16 @@ export default function FormShow({ form, chapters, flat_groups }: Props) {
     const [bulkMoveModalOpen, setBulkMoveModalOpen] = useState(false);
     const [selectedQuestionIds, setSelectedQuestionIds] = useState<number[]>([]);
     const [targetGroupId, setTargetGroupId] = useState<string>('');
+
+    // Applicability State (Task 2.4)
+    const [applicabilityModalOpen, setApplicabilityModalOpen] = useState(false);
+    const [applicabilityTarget, setApplicabilityTarget] = useState<{
+        type: 'group' | 'question';
+        id: number;
+        title: string;
+    } | null>(null);
+    const [selectedVesselTypes, setSelectedVesselTypes] = useState<number[]>([]);
+    const [selectedIceClassOnly, setSelectedIceClassOnly] = useState(false);
 
     // Expanded guidance state
     const [expandedGuidance, setExpandedGuidance] = useState<Record<number, boolean>>({});
@@ -276,6 +299,42 @@ export default function FormShow({ form, chapters, flat_groups }: Props) {
         router.post(`/admin/groups/${group.id}/bulk-toggle`, { enable });
     };
 
+    // Applicability Handlers (Task 2.4)
+    const openGroupApplicability = (group: GroupData) => {
+        setApplicabilityTarget({ type: 'group', id: group.id, title: group.title });
+        setSelectedVesselTypes(group.vessel_type_ids || []);
+        setSelectedIceClassOnly(group.ice_class_only);
+        setApplicabilityModalOpen(true);
+    };
+
+    const openQuestionApplicability = (question: QuestionData) => {
+        setApplicabilityTarget({ type: 'question', id: question.id, title: question.question_text });
+        setSelectedVesselTypes(question.vessel_type_ids || []);
+        setSelectedIceClassOnly(Boolean(question.ice_class_only));
+        setApplicabilityModalOpen(true);
+    };
+
+    const handleSaveApplicability = (e: React.FormEvent) => {
+        e.preventDefault();
+        if (!applicabilityTarget) return;
+
+        const url =
+            applicabilityTarget.type === 'group'
+                ? `/admin/groups/${applicabilityTarget.id}/applicability`
+                : `/admin/questions/${applicabilityTarget.id}/applicability`;
+
+        router.put(
+            url,
+            {
+                vessel_type_ids: selectedVesselTypes,
+                ice_class_only: selectedIceClassOnly,
+            },
+            {
+                onSuccess: () => setApplicabilityModalOpen(false),
+            }
+        );
+    };
+
     return (
         <AppLayout breadcrumbs={breadcrumbs}>
             <Head title={`Template Editor: ${form.code}`} />
@@ -335,6 +394,11 @@ export default function FormShow({ form, chapters, flat_groups }: Props) {
                                         <h3 className="font-semibold text-lg">{chapter.title}</h3>
                                         {!chapter.is_enabled && <Badge variant="destructive">Disabled</Badge>}
                                         {chapter.ice_class_only && <Badge variant="outline">Ice Class Only</Badge>}
+                                        {chapter.vessel_type_ids && chapter.vessel_type_ids.length > 0 && (
+                                            <Badge variant="outline" className="text-xs">
+                                                {vessel_types.filter((vt) => chapter.vessel_type_ids?.includes(vt.id)).map((vt) => vt.name).join('/')} only
+                                            </Badge>
+                                        )}
                                         {chapter.reports_count > 0 && (
                                             <Badge variant="outline" className="text-xs text-muted-foreground">
                                                 Used in {chapter.reports_count} reports
@@ -354,6 +418,9 @@ export default function FormShow({ form, chapters, flat_groups }: Props) {
                                         </Button>
                                         <Button size="sm" variant="outline" title="Bulk toggle all questions in group" onClick={() => handleBulkToggleGroup(chapter, !chapter.is_enabled)}>
                                             {chapter.is_enabled ? 'Disable All' : 'Enable All'}
+                                        </Button>
+                                        <Button size="sm" variant="outline" onClick={() => openGroupApplicability(chapter)} title="Edit Applicability (FM-4)">
+                                            <Filter className="size-3.5 mr-1" /> Applicability
                                         </Button>
                                         <Button size="sm" variant="outline" onClick={() => openEditGroup(chapter)}>
                                             <Edit2 className="size-3.5 mr-1" /> Edit
@@ -393,6 +460,12 @@ export default function FormShow({ form, chapters, flat_groups }: Props) {
                                                         </button>
                                                         <h4 className="font-medium text-sm text-foreground">{subgroup.title}</h4>
                                                         {!subgroup.is_enabled && <Badge variant="destructive" className="text-xs">Disabled</Badge>}
+                                                        {subgroup.ice_class_only && <Badge variant="outline" className="text-xs">Ice Class Only</Badge>}
+                                                        {subgroup.vessel_type_ids && subgroup.vessel_type_ids.length > 0 && (
+                                                            <Badge variant="outline" className="text-[10px]">
+                                                                {vessel_types.filter((vt) => subgroup.vessel_type_ids?.includes(vt.id)).map((vt) => vt.name).join('/')} only
+                                                            </Badge>
+                                                        )}
                                                         {subgroup.reports_count > 0 && (
                                                             <span className="text-xs text-muted-foreground">({subgroup.reports_count} reports)</span>
                                                         )}
@@ -409,6 +482,9 @@ export default function FormShow({ form, chapters, flat_groups }: Props) {
                                                         </Button>
                                                         <Button size="sm" variant="outline" title="Bulk toggle all questions in subgroup" onClick={() => handleBulkToggleGroup(subgroup, !subgroup.is_enabled)}>
                                                             {subgroup.is_enabled ? 'Disable All' : 'Enable All'}
+                                                        </Button>
+                                                        <Button size="sm" variant="outline" onClick={() => openGroupApplicability(subgroup)} title="Edit Applicability (FM-4)">
+                                                            <Filter className="size-3 mr-1" /> Applicability
                                                         </Button>
                                                         <Button size="sm" variant="outline" onClick={() => openEditGroup(subgroup)}>
                                                             <Edit2 className="size-3 mr-1" /> Rename
@@ -428,11 +504,13 @@ export default function FormShow({ form, chapters, flat_groups }: Props) {
                                                         <QuestionRow
                                                             key={q.id}
                                                             question={q}
+                                                            vesselTypes={vessel_types}
                                                             isSelected={selectedQuestionIds.includes(q.id)}
                                                             onSelect={() => toggleSelectQuestion(q.id)}
                                                             isExpanded={Boolean(expandedGuidance[q.id])}
                                                             onToggleGuidance={() => toggleGuidance(q.id)}
                                                             onEdit={() => openEditQuestion(q)}
+                                                            onApplicability={() => openQuestionApplicability(q)}
                                                             onReorder={(dir) => handleReorderQuestion(q.id, dir)}
                                                             onToggle={() => handleToggleQuestion(q.id)}
                                                             onDuplicate={() => handleDuplicateQuestion(q.id)}
@@ -454,11 +532,13 @@ export default function FormShow({ form, chapters, flat_groups }: Props) {
                                         <QuestionRow
                                             key={q.id}
                                             question={q}
+                                            vesselTypes={vessel_types}
                                             isSelected={selectedQuestionIds.includes(q.id)}
                                             onSelect={() => toggleSelectQuestion(q.id)}
                                             isExpanded={Boolean(expandedGuidance[q.id])}
                                             onToggleGuidance={() => toggleGuidance(q.id)}
                                             onEdit={() => openEditQuestion(q)}
+                                            onApplicability={() => openQuestionApplicability(q)}
                                             onReorder={(dir) => handleReorderQuestion(q.id, dir)}
                                             onToggle={() => handleToggleQuestion(q.id)}
                                             onDuplicate={() => handleDuplicateQuestion(q.id)}
@@ -595,7 +675,7 @@ export default function FormShow({ form, chapters, flat_groups }: Props) {
                                     <SelectValue placeholder="Select destination group" />
                                 </SelectTrigger>
                                 <SelectContent className="max-h-60">
-                                    {flat_groups.map((g) => (
+                                    {groupsList.map((g) => (
                                         <SelectItem key={g.id} value={String(g.id)}>
                                             {g.chapter_no ? `Ch. ${g.chapter_no}: ` : ''}{g.title}
                                         </SelectItem>
@@ -615,35 +695,104 @@ export default function FormShow({ form, chapters, flat_groups }: Props) {
                     </form>
                 </DialogContent>
             </Dialog>
+
+            {/* Applicability Dialog (Task 2.4) */}
+            <Dialog open={applicabilityModalOpen} onOpenChange={setApplicabilityModalOpen}>
+                <DialogContent>
+                    <DialogHeader>
+                        <DialogTitle>Edit Applicability (FM-4)</DialogTitle>
+                    </DialogHeader>
+                    {applicabilityTarget && (
+                        <form onSubmit={handleSaveApplicability} className="space-y-4">
+                            <p className="text-sm text-muted-foreground line-clamp-2">
+                                <strong>Target:</strong> {applicabilityTarget.title}
+                            </p>
+
+                            <div className="space-y-2">
+                                <Label>Applicable Vessel Types</Label>
+                                <p className="text-xs text-muted-foreground">
+                                    Leave all unselected to apply to all vessel types.
+                                </p>
+                                <div className="space-y-1.5 rounded border p-3">
+                                    {vessel_types.map((vt) => (
+                                        <div key={vt.id} className="flex items-center gap-2">
+                                            <input
+                                                type="checkbox"
+                                                id={`vt_${vt.id}`}
+                                                checked={selectedVesselTypes.includes(vt.id)}
+                                                onChange={(e) => {
+                                                    if (e.target.checked) {
+                                                        setSelectedVesselTypes((prev) => [...prev, vt.id]);
+                                                    } else {
+                                                        setSelectedVesselTypes((prev) => prev.filter((id) => id !== vt.id));
+                                                    }
+                                                }}
+                                                className="rounded border-gray-300"
+                                            />
+                                            <Label htmlFor={`vt_${vt.id}`} className="cursor-pointer text-sm font-normal">
+                                                {vt.name}
+                                            </Label>
+                                        </div>
+                                    ))}
+                                </div>
+                            </div>
+
+                            <div className="flex items-center gap-2 pt-2">
+                                <input
+                                    type="checkbox"
+                                    id="app_ice_class"
+                                    checked={selectedIceClassOnly}
+                                    onChange={(e) => setSelectedIceClassOnly(e.target.checked)}
+                                    className="rounded border-gray-300"
+                                />
+                                <Label htmlFor="app_ice_class" className="cursor-pointer">
+                                    Ice Class Vessels Only
+                                </Label>
+                            </div>
+
+                            <DialogFooter className="pt-4">
+                                <Button type="button" variant="outline" onClick={() => setApplicabilityModalOpen(false)}>
+                                    Cancel
+                                </Button>
+                                <Button type="submit">Save Applicability</Button>
+                            </DialogFooter>
+                        </form>
+                    )}
+                </DialogContent>
+            </Dialog>
         </AppLayout>
     );
 }
 
 function QuestionRow({
     question,
+    vesselTypes = [],
     isSelected,
     onSelect,
     isExpanded,
     onToggleGuidance,
     onEdit,
+    onApplicability,
     onReorder,
     onToggle,
     onDuplicate,
     onDelete,
 }: {
     question: QuestionData;
+    vesselTypes?: VesselTypeItem[];
     isSelected: boolean;
     onSelect: () => void;
     isExpanded: boolean;
     onToggleGuidance: () => void;
     onEdit: () => void;
+    onApplicability: () => void;
     onReorder: (dir: 'up' | 'down') => void;
     onToggle: () => void;
     onDuplicate: () => void;
     onDelete: () => void;
 }) {
     return (
-        <div className={`flex flex-col gap-1 rounded border p-2.5 transition-colors ${!question.is_enabled ? 'opacity-50 bg-muted/30' : 'bg-background hover:bg-muted/10'}`}>
+        <div className={`flex flex-col gap-1 rounded border p-2.5 transition-colors ${!question.is_enabled ? 'opacity-50 bg-muted/30' : 'bg-background hover:bg-muted/10'} ${isSelected ? 'ring-2 ring-primary' : ''}`}>
             <div className="flex items-start justify-between gap-3">
                 <div className="flex items-start gap-2 flex-1">
                     <button
@@ -662,6 +811,16 @@ function QuestionRow({
                             {question.input_type !== 'none' && (
                                 <Badge variant="secondary" className="text-[10px] font-mono uppercase px-1.5 py-0">
                                     {question.input_type}
+                                </Badge>
+                            )}
+                            {question.ice_class_only && (
+                                <Badge variant="outline" className="text-[10px] px-1.5 py-0 border-blue-400 text-blue-600">
+                                    Ice Class
+                                </Badge>
+                            )}
+                            {question.vessel_type_ids && question.vessel_type_ids.length > 0 && (
+                                <Badge variant="outline" className="text-[10px] px-1.5 py-0">
+                                    {vesselTypes.filter((vt) => question.vessel_type_ids?.includes(vt.id)).map((vt) => vt.name).join('/')}
                                 </Badge>
                             )}
                             {question.guidance && (
@@ -698,6 +857,9 @@ function QuestionRow({
                     </Button>
                     <Button size="sm" variant="ghost" className="h-7 w-7 p-0" title={question.is_enabled ? 'Disable' : 'Enable'} onClick={onToggle}>
                         {question.is_enabled ? <Eye className="size-3" /> : <EyeOff className="size-3 text-muted-foreground" />}
+                    </Button>
+                    <Button size="sm" variant="ghost" className="h-7 w-7 p-0" title="Edit Applicability (FM-4)" onClick={onApplicability}>
+                        <Filter className="size-3" />
                     </Button>
                     <Button size="sm" variant="ghost" className="h-7 w-7 p-0" title="Duplicate" onClick={onDuplicate}>
                         <Copy className="size-3" />

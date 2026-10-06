@@ -3,6 +3,7 @@
 namespace App\Http\Controllers\Admin;
 
 use App\Http\Controllers\Controller;
+use App\Models\FormApplicability;
 use App\Models\FormGroup;
 use App\Models\FormQuestion;
 use Illuminate\Http\RedirectResponse;
@@ -174,6 +175,45 @@ class FormQuestionController extends Controller
         });
 
         return back()->with('success', count($validated['question_ids']).' question(s) moved to '.$targetGroup->title);
+    }
+
+    /**
+     * Update applicability rules for a question (FM-4).
+     */
+    public function updateApplicability(Request $request, FormQuestion $question): RedirectResponse
+    {
+        $validated = $request->validate([
+            'vessel_type_ids' => ['array'],
+            'vessel_type_ids.*' => ['exists:vessel_types,id'],
+            'ice_class_only' => ['boolean'],
+        ]);
+
+        $vesselTypeIds = $validated['vessel_type_ids'] ?? [];
+        $iceClassOnly = (bool) ($validated['ice_class_only'] ?? false);
+
+        DB::transaction(function () use ($question, $vesselTypeIds, $iceClassOnly) {
+            FormApplicability::where('form_question_id', $question->id)->delete();
+
+            foreach ($vesselTypeIds as $vtId) {
+                FormApplicability::create([
+                    'form_question_id' => $question->id,
+                    'vessel_type_id' => $vtId,
+                    'ice_class_only' => false,
+                ]);
+            }
+
+            if ($iceClassOnly) {
+                FormApplicability::create([
+                    'form_question_id' => $question->id,
+                    'vessel_type_id' => null,
+                    'ice_class_only' => true,
+                ]);
+            }
+
+            $question->group->form->bumpTemplateVersion();
+        });
+
+        return back()->with('success', 'Question applicability updated.');
     }
 
     /**
