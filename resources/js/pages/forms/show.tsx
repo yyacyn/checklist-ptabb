@@ -1,5 +1,19 @@
 import { Head, router } from '@inertiajs/react';
-import { ArrowDown, ArrowUp, Copy, Edit2, Eye, EyeOff, FolderPlus, HelpCircle, Plus, Trash2 } from 'lucide-react';
+import {
+    ArrowDown,
+    ArrowRightLeft,
+    ArrowUp,
+    CheckSquare,
+    Copy,
+    Edit2,
+    Eye,
+    EyeOff,
+    FolderPlus,
+    HelpCircle,
+    Plus,
+    Square,
+    Trash2,
+} from 'lucide-react';
 import React, { useState } from 'react';
 import Heading from '@/components/heading';
 import { Badge } from '@/components/ui/badge';
@@ -42,12 +56,20 @@ interface FormData {
     answer_set: string;
 }
 
+interface FlatGroup {
+    id: number;
+    title: string;
+    chapter_no: string | null;
+    parent_id: number | null;
+}
+
 interface Props {
     form: FormData;
     chapters: GroupData[];
+    flat_groups: FlatGroup[];
 }
 
-export default function FormShow({ form, chapters }: Props) {
+export default function FormShow({ form, chapters, flat_groups }: Props) {
     const breadcrumbs = [
         { title: 'Dashboard', href: '/dashboard' },
         { title: 'Form Templates', href: '/admin/forms' },
@@ -70,11 +92,33 @@ export default function FormShow({ form, chapters }: Props) {
     const [questionGuidance, setQuestionGuidance] = useState('');
     const [questionInputType, setQuestionInputType] = useState('none');
 
+    // Bulk Move State (Task 2.3)
+    const [bulkMoveModalOpen, setBulkMoveModalOpen] = useState(false);
+    const [selectedQuestionIds, setSelectedQuestionIds] = useState<number[]>([]);
+    const [targetGroupId, setTargetGroupId] = useState<string>('');
+
     // Expanded guidance state
     const [expandedGuidance, setExpandedGuidance] = useState<Record<number, boolean>>({});
 
     const toggleGuidance = (id: number) => {
         setExpandedGuidance((prev) => ({ ...prev, [id]: !prev[id] }));
+    };
+
+    // Selection toggle for bulk operations
+    const toggleSelectQuestion = (id: number) => {
+        setSelectedQuestionIds((prev) =>
+            prev.includes(id) ? prev.filter((item) => item !== id) : [...prev, id]
+        );
+    };
+
+    const selectAllInGroup = (group: GroupData) => {
+        const ids = group.questions.map((q) => q.id);
+        const allSelected = ids.every((id) => selectedQuestionIds.includes(id));
+        if (allSelected) {
+            setSelectedQuestionIds((prev) => prev.filter((id) => !ids.includes(id)));
+        } else {
+            setSelectedQuestionIds((prev) => Array.from(new Set([...prev, ...ids])));
+        }
     };
 
     // Open Group Modal
@@ -210,6 +254,28 @@ export default function FormShow({ form, chapters }: Props) {
         }
     };
 
+    // Bulk Move (Task 2.3)
+    const handleBulkMove = (e: React.FormEvent) => {
+        e.preventDefault();
+        if (selectedQuestionIds.length === 0 || !targetGroupId) return;
+
+        router.post('/admin/questions/bulk-move', {
+            question_ids: selectedQuestionIds,
+            target_group_id: Number(targetGroupId),
+        }, {
+            onSuccess: () => {
+                setBulkMoveModalOpen(false);
+                setSelectedQuestionIds([]);
+                setTargetGroupId('');
+            },
+        });
+    };
+
+    // Bulk Toggle Group (Task 2.3)
+    const handleBulkToggleGroup = (group: GroupData, enable: boolean) => {
+        router.post(`/admin/groups/${group.id}/bulk-toggle`, { enable });
+    };
+
     return (
         <AppLayout breadcrumbs={breadcrumbs}>
             <Head title={`Template Editor: ${form.code}`} />
@@ -228,10 +294,18 @@ export default function FormShow({ form, chapters }: Props) {
                         <Heading title={form.name} description="Superadmin template editor: live changes update future reports immediately (FM-11)." />
                     </div>
 
-                    <Button onClick={openAddChapter} className="flex items-center gap-1.5 self-start">
-                        <Plus className="size-4" />
-                        <span>Add Chapter / Section</span>
-                    </Button>
+                    <div className="flex items-center gap-2 self-start">
+                        {selectedQuestionIds.length > 0 && (
+                            <Button variant="secondary" onClick={() => setBulkMoveModalOpen(true)} className="flex items-center gap-1.5">
+                                <ArrowRightLeft className="size-4" />
+                                <span>Move {selectedQuestionIds.length} Selected Question(s)</span>
+                            </Button>
+                        )}
+                        <Button onClick={openAddChapter} className="flex items-center gap-1.5">
+                            <Plus className="size-4" />
+                            <span>Add Chapter / Section</span>
+                        </Button>
+                    </div>
                 </div>
 
                 {/* Chapter Tree */}
@@ -240,7 +314,19 @@ export default function FormShow({ form, chapters }: Props) {
                         <Card key={chapter.id} className={`border-2 ${!chapter.is_enabled ? 'opacity-60 bg-muted/20' : ''}`}>
                             <CardHeader className="bg-muted/40 p-4">
                                 <div className="flex flex-col gap-2 md:flex-row md:items-center md:justify-between">
-                                    <div className="flex items-center gap-2">
+                                    <div className="flex items-center gap-2 flex-wrap">
+                                        <button
+                                            type="button"
+                                            onClick={() => selectAllInGroup(chapter)}
+                                            className="text-muted-foreground hover:text-foreground mr-1"
+                                            title="Select all questions in this group"
+                                        >
+                                            {chapter.questions.length > 0 && chapter.questions.every((q) => selectedQuestionIds.includes(q.id)) ? (
+                                                <CheckSquare className="size-4 text-primary" />
+                                            ) : (
+                                                <Square className="size-4" />
+                                            )}
+                                        </button>
                                         {chapter.chapter_no && (
                                             <Badge variant="secondary" className="font-mono">
                                                 Ch. {chapter.chapter_no}
@@ -266,6 +352,9 @@ export default function FormShow({ form, chapters }: Props) {
                                         <Button size="sm" variant="ghost" title={chapter.is_enabled ? 'Disable' : 'Enable'} onClick={() => handleToggleGroup(chapter.id)}>
                                             {chapter.is_enabled ? <Eye className="size-3.5" /> : <EyeOff className="size-3.5 text-muted-foreground" />}
                                         </Button>
+                                        <Button size="sm" variant="outline" title="Bulk toggle all questions in group" onClick={() => handleBulkToggleGroup(chapter, !chapter.is_enabled)}>
+                                            {chapter.is_enabled ? 'Disable All' : 'Enable All'}
+                                        </Button>
                                         <Button size="sm" variant="outline" onClick={() => openEditGroup(chapter)}>
                                             <Edit2 className="size-3.5 mr-1" /> Edit
                                         </Button>
@@ -290,6 +379,18 @@ export default function FormShow({ form, chapters }: Props) {
                                             <div key={subgroup.id} className="rounded-lg border bg-card p-3 shadow-xs">
                                                 <div className="flex flex-col gap-2 md:flex-row md:items-center md:justify-between pb-2 mb-2 border-b">
                                                     <div className="flex items-center gap-2">
+                                                        <button
+                                                            type="button"
+                                                            onClick={() => selectAllInGroup(subgroup)}
+                                                            className="text-muted-foreground hover:text-foreground mr-1"
+                                                            title="Select all questions in this subgroup"
+                                                        >
+                                                            {subgroup.questions.length > 0 && subgroup.questions.every((q) => selectedQuestionIds.includes(q.id)) ? (
+                                                                <CheckSquare className="size-4 text-primary" />
+                                                            ) : (
+                                                                <Square className="size-4" />
+                                                            )}
+                                                        </button>
                                                         <h4 className="font-medium text-sm text-foreground">{subgroup.title}</h4>
                                                         {!subgroup.is_enabled && <Badge variant="destructive" className="text-xs">Disabled</Badge>}
                                                         {subgroup.reports_count > 0 && (
@@ -305,6 +406,9 @@ export default function FormShow({ form, chapters }: Props) {
                                                         </Button>
                                                         <Button size="sm" variant="ghost" onClick={() => handleToggleGroup(subgroup.id)}>
                                                             {subgroup.is_enabled ? <Eye className="size-3" /> : <EyeOff className="size-3 text-muted-foreground" />}
+                                                        </Button>
+                                                        <Button size="sm" variant="outline" title="Bulk toggle all questions in subgroup" onClick={() => handleBulkToggleGroup(subgroup, !subgroup.is_enabled)}>
+                                                            {subgroup.is_enabled ? 'Disable All' : 'Enable All'}
                                                         </Button>
                                                         <Button size="sm" variant="outline" onClick={() => openEditGroup(subgroup)}>
                                                             <Edit2 className="size-3 mr-1" /> Rename
@@ -324,6 +428,8 @@ export default function FormShow({ form, chapters }: Props) {
                                                         <QuestionRow
                                                             key={q.id}
                                                             question={q}
+                                                            isSelected={selectedQuestionIds.includes(q.id)}
+                                                            onSelect={() => toggleSelectQuestion(q.id)}
                                                             isExpanded={Boolean(expandedGuidance[q.id])}
                                                             onToggleGuidance={() => toggleGuidance(q.id)}
                                                             onEdit={() => openEditQuestion(q)}
@@ -348,6 +454,8 @@ export default function FormShow({ form, chapters }: Props) {
                                         <QuestionRow
                                             key={q.id}
                                             question={q}
+                                            isSelected={selectedQuestionIds.includes(q.id)}
+                                            onSelect={() => toggleSelectQuestion(q.id)}
                                             isExpanded={Boolean(expandedGuidance[q.id])}
                                             onToggleGuidance={() => toggleGuidance(q.id)}
                                             onEdit={() => openEditQuestion(q)}
@@ -472,12 +580,49 @@ export default function FormShow({ form, chapters }: Props) {
                     </form>
                 </DialogContent>
             </Dialog>
+
+            {/* Bulk Move Dialog (Task 2.3) */}
+            <Dialog open={bulkMoveModalOpen} onOpenChange={setBulkMoveModalOpen}>
+                <DialogContent>
+                    <DialogHeader>
+                        <DialogTitle>Move {selectedQuestionIds.length} Question(s) (FM-6)</DialogTitle>
+                    </DialogHeader>
+                    <form onSubmit={handleBulkMove} className="space-y-4">
+                        <div className="space-y-2">
+                            <Label htmlFor="target_group">Destination Group / Subgroup</Label>
+                            <Select value={targetGroupId} onValueChange={setTargetGroupId}>
+                                <SelectTrigger>
+                                    <SelectValue placeholder="Select destination group" />
+                                </SelectTrigger>
+                                <SelectContent className="max-h-60">
+                                    {flat_groups.map((g) => (
+                                        <SelectItem key={g.id} value={String(g.id)}>
+                                            {g.chapter_no ? `Ch. ${g.chapter_no}: ` : ''}{g.title}
+                                        </SelectItem>
+                                    ))}
+                                </SelectContent>
+                            </Select>
+                        </div>
+
+                        <DialogFooter className="pt-4">
+                            <Button type="button" variant="outline" onClick={() => setBulkMoveModalOpen(false)}>
+                                Cancel
+                            </Button>
+                            <Button type="submit" disabled={!targetGroupId}>
+                                Move Questions
+                            </Button>
+                        </DialogFooter>
+                    </form>
+                </DialogContent>
+            </Dialog>
         </AppLayout>
     );
 }
 
 function QuestionRow({
     question,
+    isSelected,
+    onSelect,
     isExpanded,
     onToggleGuidance,
     onEdit,
@@ -487,6 +632,8 @@ function QuestionRow({
     onDelete,
 }: {
     question: QuestionData;
+    isSelected: boolean;
+    onSelect: () => void;
     isExpanded: boolean;
     onToggleGuidance: () => void;
     onEdit: () => void;
@@ -498,37 +645,48 @@ function QuestionRow({
     return (
         <div className={`flex flex-col gap-1 rounded border p-2.5 transition-colors ${!question.is_enabled ? 'opacity-50 bg-muted/30' : 'bg-background hover:bg-muted/10'}`}>
             <div className="flex items-start justify-between gap-3">
-                <div className="flex-1">
-                    <div className="flex items-center gap-2">
-                        <span className="text-sm text-foreground">{question.question_text}</span>
-                        {!question.is_enabled && <Badge variant="destructive" className="text-[10px] px-1 py-0">Disabled</Badge>}
-                        {question.input_type !== 'none' && (
-                            <Badge variant="secondary" className="text-[10px] font-mono uppercase px-1.5 py-0">
-                                {question.input_type}
-                            </Badge>
-                        )}
-                        {question.guidance && (
-                            <button
-                                type="button"
-                                onClick={onToggleGuidance}
-                                className="text-muted-foreground hover:text-foreground inline-flex items-center"
-                                title="Toggle Guidance"
-                            >
-                                <HelpCircle className="size-3.5" />
-                            </button>
-                        )}
-                        {question.reports_count > 0 && (
-                            <span className="text-[10px] text-muted-foreground" title="Reports using this question">
-                                ({question.reports_count} reports)
-                            </span>
+                <div className="flex items-start gap-2 flex-1">
+                    <button
+                        type="button"
+                        onClick={onSelect}
+                        className="text-muted-foreground hover:text-foreground mt-0.5 shrink-0"
+                        title={isSelected ? 'Deselect question' : 'Select question for bulk actions'}
+                    >
+                        {isSelected ? <CheckSquare className="size-4 text-primary" /> : <Square className="size-4" />}
+                    </button>
+
+                    <div className="flex-1">
+                        <div className="flex items-center gap-2 flex-wrap">
+                            <span className="text-sm text-foreground">{question.question_text}</span>
+                            {!question.is_enabled && <Badge variant="destructive" className="text-[10px] px-1 py-0">Disabled</Badge>}
+                            {question.input_type !== 'none' && (
+                                <Badge variant="secondary" className="text-[10px] font-mono uppercase px-1.5 py-0">
+                                    {question.input_type}
+                                </Badge>
+                            )}
+                            {question.guidance && (
+                                <button
+                                    type="button"
+                                    onClick={onToggleGuidance}
+                                    className="text-muted-foreground hover:text-foreground inline-flex items-center"
+                                    title="Toggle Guidance"
+                                >
+                                    <HelpCircle className="size-3.5" />
+                                </button>
+                            )}
+                            {question.reports_count > 0 && (
+                                <span className="text-[10px] text-muted-foreground" title="Reports using this question">
+                                    ({question.reports_count} reports)
+                                </span>
+                            )}
+                        </div>
+
+                        {isExpanded && question.guidance && (
+                            <div className="mt-1.5 rounded bg-muted/60 p-2 text-xs text-muted-foreground">
+                                <strong>Guidance:</strong> {question.guidance}
+                            </div>
                         )}
                     </div>
-
-                    {isExpanded && question.guidance && (
-                        <div className="mt-1.5 rounded bg-muted/60 p-2 text-xs text-muted-foreground">
-                            <strong>Guidance:</strong> {question.guidance}
-                        </div>
-                    )}
                 </div>
 
                 <div className="flex items-center gap-0.5 shrink-0">

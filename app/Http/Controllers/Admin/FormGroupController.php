@@ -82,6 +82,30 @@ class FormGroupController extends Controller
     }
 
     /**
+     * Bulk enable or disable all questions within a group (FM-6).
+     */
+    public function bulkToggle(Request $request, FormGroup $group): RedirectResponse
+    {
+        $validated = $request->validate([
+            'enable' => ['required', 'boolean'],
+        ]);
+
+        $enable = (bool) $validated['enable'];
+
+        DB::transaction(function () use ($group, $enable) {
+            $group->update(['is_enabled' => $enable]);
+            $group->questions()->update(['is_enabled' => $enable]);
+
+            foreach ($group->subgroups as $subgroup) {
+                $subgroup->update(['is_enabled' => $enable]);
+                $subgroup->questions()->update(['is_enabled' => $enable]);
+            }
+        });
+
+        return back()->with('success', $enable ? 'All questions in group enabled.' : 'All questions in group disabled.');
+    }
+
+    /**
      * Reorder group up or down among siblings.
      */
     public function reorder(Request $request, FormGroup $group): RedirectResponse

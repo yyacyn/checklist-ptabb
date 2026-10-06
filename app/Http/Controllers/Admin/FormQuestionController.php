@@ -145,6 +145,38 @@ class FormQuestionController extends Controller
     }
 
     /**
+     * Bulk move selected questions to a target group (FM-6).
+     */
+    public function bulkMove(Request $request): RedirectResponse
+    {
+        $validated = $request->validate([
+            'question_ids' => ['required', 'array', 'min:1'],
+            'question_ids.*' => ['integer', 'exists:form_questions,id'],
+            'target_group_id' => ['required', 'integer', 'exists:form_groups,id'],
+        ]);
+
+        $targetGroup = FormGroup::with('form')->findOrFail($validated['target_group_id']);
+
+        DB::transaction(function () use ($validated, $targetGroup) {
+            $maxOrder = (int) $targetGroup->questions()->max('sort_order');
+            $questions = FormQuestion::whereIn('id', $validated['question_ids'])->get();
+
+            foreach ($questions as $question) {
+                $maxOrder++;
+                $question->update([
+                    'group_id' => $targetGroup->id,
+                    'sort_order' => $maxOrder,
+                ]);
+            }
+
+            // Structural change bumps template_version
+            $targetGroup->form->bumpTemplateVersion();
+        });
+
+        return back()->with('success', count($validated['question_ids']).' question(s) moved to '.$targetGroup->title);
+    }
+
+    /**
      * Archive or delete a question (FM-9).
      * If used in any report, it is archived. If never used, it can be deleted.
      */

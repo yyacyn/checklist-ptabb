@@ -246,4 +246,50 @@ class FormManagementTest extends TestCase
         $this->assertNotNull($question->fresh()->archived_at);
         $this->assertDatabaseHas('form_questions', ['id' => $question->id]);
     }
+
+    public function test_bulk_toggle_questions_in_group(): void
+    {
+        $this->seedCatalogue();
+        $superadmin = User::factory()->create(['role' => 'superadmin']);
+        $group = FormGroup::query()->has('questions', '>=', 3)->firstOrFail();
+
+        // Disable all
+        $this->actingAs($superadmin)->post(route('admin.groups.bulk-toggle', $group), ['enable' => false])
+            ->assertRedirect();
+
+        $this->assertFalse((bool) $group->fresh()->is_enabled);
+        $this->assertSame(0, $group->questions()->where('is_enabled', true)->count());
+
+        // Enable all
+        $this->actingAs($superadmin)->post(route('admin.groups.bulk-toggle', $group), ['enable' => true])
+            ->assertRedirect();
+
+        $this->assertTrue((bool) $group->fresh()->is_enabled);
+        $this->assertGreaterThan(0, $group->questions()->where('is_enabled', true)->count());
+    }
+
+    public function test_bulk_move_questions_between_groups(): void
+    {
+        $this->seedCatalogue();
+        $superadmin = User::factory()->create(['role' => 'superadmin']);
+        $sourceGroup = FormGroup::query()->where('chapter_no', '2')->whereNull('parent_id')->firstOrFail();
+        $targetGroup = FormGroup::query()->where('chapter_no', '3')->whereNull('parent_id')->firstOrFail();
+
+        $questionsToMove = $sourceGroup->questions()->take(2)->get();
+        $questionIds = $questionsToMove->pluck('id')->all();
+        $targetCountBefore = $targetGroup->questions()->count();
+        $form = $sourceGroup->form;
+        $versionBefore = $form->template_version;
+
+        $this->actingAs($superadmin)->post(route('admin.questions.bulk-move'), [
+            'question_ids' => $questionIds,
+            'target_group_id' => $targetGroup->id,
+        ])->assertRedirect();
+
+        $this->assertSame($targetCountBefore + 2, $targetGroup->fresh()->questions()->count());
+        foreach ($questionIds as $qid) {
+            $this->assertSame($targetGroup->id, FormQuestion::find($qid)->group_id);
+        }
+        $this->assertSame($versionBefore + 1, $form->fresh()->template_version);
+    }
 }

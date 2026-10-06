@@ -109,6 +109,11 @@ class FormController extends Controller
                 ];
             });
 
+        $flatGroups = $form->groups()
+            ->whereNull('archived_at')
+            ->orderBy('sort_order')
+            ->get(['id', 'title', 'chapter_no', 'parent_id']);
+
         return Inertia::render('forms/show', [
             'form' => [
                 'id' => $form->id,
@@ -119,6 +124,7 @@ class FormController extends Controller
                 'answer_set' => $form->answer_set,
             ],
             'chapters' => $chapters,
+            'flat_groups' => $flatGroups,
         ]);
     }
 }
