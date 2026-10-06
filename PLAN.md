@@ -68,13 +68,13 @@ The point of this phase is the correctness rule, not the tables.
 | 1.4 | Migrations group 2: reports, groups, questions, answers | **done**: ERD §3, including `client_save_id` and `row_version`, 4 models, 4 factories |
 | 1.5 | **`ReportSnapshot` service** | **done**: On creation: copy enabled groups and questions, resolve applicability from the typed vessel type and ice class, stamp `template_version`, insert group comment boxes (FM-7a) |
 | 1.6 | **The critical test** | **done**: `ReportSnapshotTest`, asserts existing report's text, order and applicability are byte-identical after template edits, disables, archives, reordering, and additions (FM-8, FM-9) |
-| 1.7 | `ReportStatus` + policy | Section 10 state machine, server-side transition validation, flush-before-transition guard (RLS-3) |
-| 1.8 | `ReportNumberService` | Transactional sequence, unique index, year rollover (RLS-7) |
-| 1.9 | Vessel name normalisation + `KnownVesselNames` lookup | SRS 2.1: normalise on write, distinct-name lookup for autocomplete |
-| 1.10 | Policies and access matrix | Role × module × action, including vessel-name scoping and the evaluation-scores restriction |
+| 1.7 | `ReportStatus` + policy | **done**: Section 10 state machine, server-side transition validation, flush-before-transition & RLS-2 missing answer guards |
+| 1.8 | `ReportNumberService` | **done**: Transactional sequence, unique index, daily & form rollover (`FORMCODE-YYYYMMDD-NN`, RLS-7) |
+| 1.9 | Vessel name normalisation + `KnownVesselNames` lookup | **done**: SRS 2.1: normalise on write, distinct-name lookup for autocomplete |
+| 1.10 | Policies and access matrix | **done**: `ReportPolicy` (Role × module × action, vessel-name scoping, auditee evaluation & appraisal privacy) |
 
-**GATE 2** — the snapshot test passes, and a report can be created, answered, submitted,
-reopened and closed through the console with no UI.
+**GATE 2 PASSED** — the snapshot test passes, and reports can be created, answered, submitted,
+reopened and closed through the console with complete transition validation and access control.
 
 ---
 

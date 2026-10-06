@@ -9,7 +9,6 @@ use App\Models\Report;
 use App\Models\ReportGroup;
 use App\Models\ReportQuestion;
 use Illuminate\Support\Facades\DB;
-use Illuminate\Support\Str;
 
 class ReportSnapshot
 {
@@ -30,16 +29,8 @@ class ReportSnapshot
             $vesselTypeIds = $vesselTypeId !== null ? [$vesselTypeId] : [];
             $iceClass = (bool) ($attributes['vessel_ice_class'] ?? false);
 
-            $datePart = isset($attributes['report_date'])
-                ? str_replace('-', '', substr((string) $attributes['report_date'], 0, 10))
-                : now()->format('Ymd');
-
-            $referenceNumber = $attributes['reference_number'] ?? sprintf(
-                '%s-%s-%s',
-                str_replace('-', '', $form->code),
-                $datePart,
-                strtoupper(Str::random(4))
-            );
+            $reportDate = $attributes['report_date'] ?? now()->toDateString();
+            $referenceNumber = $attributes['reference_number'] ?? ReportNumberService::nextReferenceNumber($form, $reportDate);
 
             // Report record
             $reportData = array_merge($attributes, [

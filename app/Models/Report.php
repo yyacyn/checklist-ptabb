@@ -2,6 +2,7 @@
 
 namespace App\Models;
 
+use App\Services\VesselName;
 use Carbon\Carbon;
 use Database\Factories\ReportFactory;
 use Illuminate\Database\Eloquent\Attributes\Fillable;
@@ -70,6 +71,15 @@ class Report extends Model
 {
     /** @use HasFactory<ReportFactory> */
     use HasFactory, SoftDeletes;
+
+    protected static function booted(): void
+    {
+        static::saving(function (self $report) {
+            if ($report->vessel_name !== null) {
+                $report->vessel_name = VesselName::normalize($report->vessel_name);
+            }
+        });
+    }
 
     protected function casts(): array
     {
