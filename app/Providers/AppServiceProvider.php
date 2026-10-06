@@ -3,6 +3,7 @@
 namespace App\Providers;
 
 use App\Models\Report;
+use App\Models\User;
 use App\Policies\ReportPolicy;
 use Carbon\CarbonImmutable;
 use Illuminate\Support\Facades\Date;
@@ -29,6 +30,7 @@ class AppServiceProvider extends ServiceProvider
         $this->configureDefaults();
 
         Gate::policy(Report::class, ReportPolicy::class);
+        Gate::define('manage-forms', fn (User $user) => $user->role === 'superadmin');
     }
 
     /**

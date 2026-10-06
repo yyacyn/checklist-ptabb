@@ -1,0 +1,124 @@
+<?php
+
+namespace App\Http\Controllers\Admin;
+
+use App\Http\Controllers\Controller;
+use App\Models\Form;
+use App\Models\ReportGroup;
+use App\Models\ReportQuestion;
+use Illuminate\Http\Request;
+use Inertia\Inertia;
+use Inertia\Response;
+
+class FormController extends Controller
+{
+    /**
+     * Display a listing of form templates.
+     */
+    public function index(Request $request): Response
+    {
+        $forms = Form::query()
+            ->withCount([
+                'groups' => fn ($q) => $q->whereNull('archived_at'),
+                'questions' => fn ($q) => $q->whereNull('form_questions.archived_at'),
+            ])
+            ->get()
+            ->map(fn (Form $form) => [
+                'id' => $form->id,
+                'code' => $form->code,
+                'name' => $form->name,
+                'form_version' => $form->form_version,
+                'template_version' => $form->template_version,
+                'answer_set' => $form->answer_set,
+                'groups_count' => $form->groups_count,
+                'questions_count' => $form->questions_count,
+            ]);
+
+        return Inertia::render('forms/index', [
+            'forms' => $forms,
+        ]);
+    }
+
+    /**
+     * Display the full group/question tree editor for a form template (SRS section 4).
+     */
+    public function show(Request $request, Form $form): Response
+    {
+        // Get counts of reports using groups/questions to avoid N+1 queries
+        $usedGroupIds = ReportGroup::query()
+            ->whereNotNull('source_group_id')
+            ->selectRaw('source_group_id, count(*) as count')
+            ->groupBy('source_group_id')
+            ->pluck('count', 'source_group_id')
+            ->all();
+
+        $usedQuestionIds = ReportQuestion::query()
+            ->whereNotNull('source_question_id')
+            ->selectRaw('source_question_id, count(*) as count')
+            ->groupBy('source_question_id')
+            ->pluck('count', 'source_question_id')
+            ->all();
+
+        // Load chapters (top-level groups)
+        $chapters = $form->groups()
+            ->whereNull('parent_id')
+            ->whereNull('archived_at')
+            ->with([
+                'subgroups' => fn ($q) => $q->whereNull('archived_at')->orderBy('sort_order'),
+                'subgroups.questions' => fn ($q) => $q->whereNull('archived_at')->orderBy('sort_order'),
+                'questions' => fn ($q) => $q->whereNull('archived_at')->orderBy('sort_order'),
+            ])
+            ->orderBy('sort_order')
+            ->get()
+            ->map(function ($chapter) use ($usedGroupIds, $usedQuestionIds) {
+                return [
+                    'id' => $chapter->id,
+                    'title' => $chapter->title,
+                    'chapter_no' => $chapter->chapter_no,
+                    'sort_order' => $chapter->sort_order,
+                    'is_enabled' => (bool) $chapter->is_enabled,
+                    'ice_class_only' => (bool) $chapter->ice_class_only,
+                    'reports_count' => $usedGroupIds[$chapter->id] ?? 0,
+                    'questions' => $chapter->questions->map(fn ($q) => [
+                        'id' => $q->id,
+                        'question_text' => $q->question_text,
+                        'guidance' => $q->guidance,
+                        'input_type' => $q->input_type,
+                        'sort_order' => $q->sort_order,
+                        'is_enabled' => (bool) $q->is_enabled,
+                        'reports_count' => $usedQuestionIds[$q->id] ?? 0,
+                    ]),
+                    'subgroups' => $chapter->subgroups->map(fn ($sub) => [
+                        'id' => $sub->id,
+                        'title' => $sub->title,
+                        'chapter_no' => $sub->chapter_no,
+                        'sort_order' => $sub->sort_order,
+                        'is_enabled' => (bool) $sub->is_enabled,
+                        'ice_class_only' => (bool) $sub->ice_class_only,
+                        'reports_count' => $usedGroupIds[$sub->id] ?? 0,
+                        'questions' => $sub->questions->map(fn ($q) => [
+                            'id' => $q->id,
+                            'question_text' => $q->question_text,
+                            'guidance' => $q->guidance,
+                            'input_type' => $q->input_type,
+                            'sort_order' => $q->sort_order,
+                            'is_enabled' => (bool) $q->is_enabled,
+                            'reports_count' => $usedQuestionIds[$q->id] ?? 0,
+                        ]),
+                    ]),
+                ];
+            });
+
+        return Inertia::render('forms/show', [
+            'form' => [
+                'id' => $form->id,
+                'code' => $form->code,
+                'name' => $form->name,
+                'form_version' => $form->form_version,
+                'template_version' => $form->template_version,
+                'answer_set' => $form->answer_set,
+            ],
+            'chapters' => $chapters,
+        ]);
+    }
+}

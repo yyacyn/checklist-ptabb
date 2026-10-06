@@ -48,4 +48,17 @@ class FormQuestion extends Model
     {
         return in_array($this->input_type, ['date', 'text', 'number'], true);
     }
+
+    /**
+     * Whether this question has been used in any report (SRS FM-9).
+     */
+    public function isUsedInReports(): bool
+    {
+        return ReportQuestion::query()->where('source_question_id', $this->id)->exists();
+    }
+
+    public function reportsCount(): int
+    {
+        return ReportQuestion::query()->where('source_question_id', $this->id)->count();
+    }
 }

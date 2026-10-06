@@ -82,8 +82,8 @@ reopened and closed through the console with complete transition validation and 
 
 | # | Task | Ref |
 | --- | --- | --- |
-| 2.1 | Group and subgroup tree: add, rename, reorder (drag and up/down), disable, archive | FM-1, FM-2 |
-| 2.2 | Question editor: text, guidance, input type, enable/disable, duplicate, archive | FM-1, FM-3, FM-6 |
+| 2.1 | Group and subgroup tree: add, rename, reorder (drag and up/down), disable, archive | **done**: `FormGroupController`, tree UI in `forms/show.tsx`, reorder, toggle, archive-if-used (FM-1, FM-2, FM-9) |
+| 2.2 | Question editor: text, guidance, input type, enable/disable, duplicate, archive | **done**: `FormQuestionController`, wording edit vs structural bump rule, duplication, reorder, archive-if-used (FM-1, FM-3, FM-6, FM-9, FM-12) |
 | 2.3 | Bulk actions: disable a whole group, move questions between groups | FM-6 |
 | 2.4 | Applicability editor: vessel types, ice class, at group and question level | FM-4 |
 | 2.5 | "Used in N reports" warning on delete, archive instead of delete | FM-9 |

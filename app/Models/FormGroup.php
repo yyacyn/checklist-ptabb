@@ -78,4 +78,17 @@ class FormGroup extends Model
 
         return $ids;
     }
+
+    /**
+     * Whether this group has been used in any report (SRS FM-9).
+     */
+    public function isUsedInReports(): bool
+    {
+        return ReportGroup::query()->where('source_group_id', $this->id)->exists();
+    }
+
+    public function reportsCount(): int
+    {
+        return ReportGroup::query()->where('source_group_id', $this->id)->count();
+    }
 }
