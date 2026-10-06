@@ -246,8 +246,8 @@ export default function FormShow({ form, chapters, flat_groups = [], all_groups 
     const handleDeleteGroup = (group: GroupData) => {
         const isUsed = group.reports_count > 0;
         const msg = isUsed
-            ? `This group is used in ${group.reports_count} historical report(s). Deleting will archive it from future reports while preserving history (FM-9). Proceed?`
-            : 'Are you sure you want to delete this group?';
+            ? `WARNING (SRS FM-9): This group is used in ${group.reports_count} historical report(s). It cannot be permanently deleted. Proceeding will archive it from future templates while preserving past audit evidence.`
+            : 'Are you sure you want to permanently delete this group?';
 
         if (confirm(msg)) {
             router.delete(`/admin/groups/${group.id}`);
@@ -269,8 +269,8 @@ export default function FormShow({ form, chapters, flat_groups = [], all_groups 
     const handleDeleteQuestion = (question: QuestionData) => {
         const isUsed = question.reports_count > 0;
         const msg = isUsed
-            ? `This question is used in ${question.reports_count} historical report(s). Deleting will archive it from future reports while preserving history (FM-9). Proceed?`
-            : 'Are you sure you want to delete this question?';
+            ? `WARNING (SRS FM-9): This question is used in ${question.reports_count} historical report(s). It cannot be permanently deleted. Proceeding will archive it from future templates while preserving past audit evidence.`
+            : 'Are you sure you want to permanently delete this question?';
 
         if (confirm(msg)) {
             router.delete(`/admin/questions/${question.id}`);

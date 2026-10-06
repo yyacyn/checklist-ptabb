@@ -248,6 +248,41 @@ class FormManagementTest extends TestCase
         $this->assertDatabaseHas('form_questions', ['id' => $question->id]);
     }
 
+    public function test_question_destroy_hard_deletes_if_never_used(): void
+    {
+        $this->seedCatalogue();
+        $superadmin = User::factory()->create(['role' => 'superadmin']);
+        $group = FormGroup::query()->firstOrFail();
+        $question = FormQuestion::create([
+            'group_id' => $group->id,
+            'question_text' => 'Brand new unused question',
+            'input_type' => 'none',
+            'sort_order' => 999,
+        ]);
+
+        $this->actingAs($superadmin)->delete(route('admin.questions.destroy', $question))
+            ->assertRedirect();
+
+        $this->assertDatabaseMissing('form_questions', ['id' => $question->id]);
+    }
+
+    public function test_group_destroy_hard_deletes_if_never_used(): void
+    {
+        $this->seedCatalogue();
+        $superadmin = User::factory()->create(['role' => 'superadmin']);
+        $form = Form::query()->firstOrFail();
+        $group = FormGroup::create([
+            'form_id' => $form->id,
+            'title' => 'Brand new unused group',
+            'sort_order' => 999,
+        ]);
+
+        $this->actingAs($superadmin)->delete(route('admin.groups.destroy', $group))
+            ->assertRedirect();
+
+        $this->assertDatabaseMissing('form_groups', ['id' => $group->id]);
+    }
+
     public function test_bulk_toggle_questions_in_group(): void
     {
         $this->seedCatalogue();
