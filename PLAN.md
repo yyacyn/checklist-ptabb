@@ -102,9 +102,9 @@ This is the phase users feel. Budget it properly.
 | 3.1 | Report creation: typed vessel particulars, known-name autocomplete, type and ice class, reference number | **done**: `ReportController`, `reports/create.tsx`, `reports/index.tsx`, `ReportCreationTest` (INS-1, AUD-1, SRS 2.1) |
 | 3.2 | One group per screen, sticky chapter nav, progress per group, unanswered filter, search-jump | **done**: `reports/show.tsx` single-chapter screen, sticky sidebar, progress counters, unanswered filter, search-jump (NFR-3, INS-8, INS-22) |
 | 3.3 | Answer row: Yes/No/NS/NA (D-062) or Yes/No/N/S (B-008), note, typed extra input, guidance expander | **done**: segmented answer pills, expandable guidance panel, inline note textarea, typed extra inputs (INS-5, AUD-6, AUD-7, FM-3) |
-| 3.4 | **Autosave engine**: debounce, flush on blur / 5s / group exit, saved-saving-retrying indicator | NFR-1, NFR-2 |
-| 3.5 | **Browser retry queue** in IndexedDB, idempotent `client_save_id`, reconcile on reconnect | NFR-2 |
-| 3.6 | Conflict handling: stale `row_version` refused and surfaced, advisory edit lock with "X is editing" | NFR-15 |
+| 3.4 | **Autosave engine**: debounce, flush on blur / 5s / group exit, saved-saving-retrying indicator | **done**: debounced autosave, blur & chapter exit flush, status indicator in `reports/show.tsx` (NFR-1, NFR-2) |
+| 3.5 | **Browser retry queue** in IndexedDB, idempotent `client_save_id`, reconcile on reconnect | **done**: native IndexedDB retry queue in `resources/js/lib/autosave-queue.ts`, idempotent backend in `ReportController.php`, reconnect reconciler (NFR-2) |
+| 3.6 | Conflict handling: stale `row_version` refused and surfaced, advisory edit lock with "X is editing" | **done**: optimistic locking via `row_version` & HTTP 409 conflict UI, report advisory lock endpoints & banner in `reports/show.tsx` (NFR-15) |
 | 3.7 | Inapplicable items shown as locked `NA` with reason, overridable | **done**: frozen snapshot flags `is_applicable=false`, rendered as locked `NA` with applicability badge (FM-4, FM-4a) |
 | 3.8 | Group comments box with the NS/NA hint | **done**: Chapter remarks textarea with NS/NA explanation prompt and auto-save endpoint (INS-6, FM-7a) |
 | 3.9 | `No` requires a comment and a risk level, with optional VIQ paragraph and job order | INS-9 |

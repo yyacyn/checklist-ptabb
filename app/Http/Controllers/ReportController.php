@@ -8,6 +8,7 @@ use App\Models\Report;
 use App\Models\ReportAnswer;
 use App\Models\ReportGroup;
 use App\Models\ReportQuestion;
+use App\Models\User;
 use App\Models\VesselType;
 use App\Services\ReportSnapshot;
 use App\Services\VesselName;
@@ -152,33 +153,47 @@ class ReportController extends Controller
     }
 
     /**
-     * Display the report filling / viewing screen (Task 3.2 & 3.3).
+     * Display the report filling / viewing screen (Task 3.2, 3.3, 3.6).
      */
-    public function show(Report $report): Response
+    public function show(Request $request, Report $report): Response
     {
         Gate::authorize('view', $report);
 
         $report->load([
             'form:id,code,name,answer_set',
             'vesselType:id,name',
+            'lockOwner:id,name',
             'groups' => fn ($q) => $q->whereNull('parent_id')->orderBy('sort_order'),
             'groups.subgroups' => fn ($q) => $q->orderBy('sort_order'),
             'groups.questions' => fn ($q) => $q->orderBy('sort_order'),
-            'groups.questions.answer',
+            'groups.questions.answer.answeredBy:id,name',
             'groups.subgroups.questions' => fn ($q) => $q->orderBy('sort_order'),
-            'groups.subgroups.questions.answer',
+            'groups.subgroups.questions.answer.answeredBy:id,name',
         ]);
 
         $isEditable = Gate::allows('update', $report);
 
+        $user = $request->user();
+        $activeLock = null;
+        if ($report->lock_owner_id && $report->lock_expires_at && $report->lock_expires_at->isFuture()) {
+            $activeLock = [
+                'is_locked' => true,
+                'is_owner' => $report->lock_owner_id === $user->id,
+                'owner_id' => $report->lock_owner_id,
+                'owner_name' => $report->lockOwner?->name ?? 'Another user',
+                'expires_at' => $report->lock_expires_at->toIso8601String(),
+            ];
+        }
+
         return Inertia::render('reports/show', [
             'report' => $report,
             'is_editable' => $isEditable,
+            'initial_lock' => $activeLock,
         ]);
     }
 
     /**
-     * Save an individual answer granularly (Task 3.3 & 3.4).
+     * Save an individual answer granularly with idempotency and conflict detection (Task 3.3, 3.4, 3.5, 3.6).
      */
     public function saveAnswer(Request $request, Report $report, ReportQuestion $question): JsonResponse
     {
@@ -193,11 +208,57 @@ class ReportController extends Controller
             'note' => ['nullable', 'string'],
             'extra_value' => ['nullable', 'string', 'max:1000'],
             'client_save_id' => ['nullable', 'string', 'max:100'],
+            'base_row_version' => ['nullable', 'integer'],
         ]);
 
-        $answer = DB::transaction(function () use ($report, $question, $validated, $request) {
-            // Find or create answer record
-            $answerRecord = ReportAnswer::firstOrNew([
+        $existing = ReportAnswer::with('answeredBy:id,name')
+            ->where('report_question_id', $question->id)
+            ->first();
+
+        // Idempotent retry check (NFR-2): If request with this client_save_id was already persisted, return it
+        if (! empty($validated['client_save_id'])) {
+            if ($existing && $existing->client_save_id === $validated['client_save_id']) {
+                return response()->json([
+                    'status' => 'saved',
+                    'answer' => [
+                        'id' => $existing->id,
+                        'report_question_id' => $existing->report_question_id,
+                        'answer' => $existing->answer,
+                        'note' => $existing->note,
+                        'extra_value' => $existing->extra_value,
+                        'client_save_id' => $existing->client_save_id,
+                        'row_version' => $existing->row_version,
+                        'answered_at' => $existing->answered_at?->toIso8601String(),
+                    ],
+                ]);
+            }
+        }
+
+        // Stale row_version conflict detection (NFR-15):
+        // If an answer already exists in the database and the client provided base_row_version,
+        // refuse if the client's base_row_version is different from the current row_version on the server.
+        if ($existing && array_key_exists('base_row_version', $validated) && $validated['base_row_version'] !== null) {
+            if ((int) $validated['base_row_version'] !== (int) $existing->row_version) {
+                return response()->json([
+                    'error' => 'conflict',
+                    'message' => 'Conflict detected: this question was modified by another user or session.',
+                    'server_answer' => [
+                        'id' => $existing->id,
+                        'report_question_id' => $existing->report_question_id,
+                        'answer' => $existing->answer,
+                        'note' => $existing->note,
+                        'extra_value' => $existing->extra_value,
+                        'client_save_id' => $existing->client_save_id,
+                        'row_version' => $existing->row_version,
+                        'answered_by_name' => $existing->answeredBy?->name ?? 'Another user',
+                        'answered_at' => $existing->answered_at?->toIso8601String(),
+                    ],
+                ], 409);
+            }
+        }
+
+        $answer = DB::transaction(function () use ($report, $question, $validated, $request, $existing) {
+            $answerRecord = $existing ?? new ReportAnswer([
                 'report_question_id' => $question->id,
                 'report_id' => $report->id,
             ]);
@@ -210,6 +271,14 @@ class ReportController extends Controller
             $answerRecord->answered_at = now();
             $answerRecord->row_version = ($answerRecord->row_version ?? 0) + 1;
             $answerRecord->save();
+
+            // Refresh/extend advisory lock for the user on answer save
+            if (! $report->lock_expires_at || $report->lock_expires_at->isPast() || $report->lock_owner_id === $request->user()->id) {
+                $report->update([
+                    'lock_owner_id' => $request->user()->id,
+                    'lock_expires_at' => now()->addMinutes(5),
+                ]);
+            }
 
             // Automatically transition status from 'draft' to 'in_progress' on first answer
             if ($report->status === 'draft') {
@@ -231,6 +300,76 @@ class ReportController extends Controller
                 'row_version' => $answer->row_version,
                 'answered_at' => $answer->answered_at?->toIso8601String(),
             ],
+        ]);
+    }
+
+    /**
+     * Acquire or refresh an advisory edit lock on the report (NFR-15).
+     */
+    public function acquireLock(Request $request, Report $report): JsonResponse
+    {
+        Gate::authorize('update', $report);
+
+        $user = $request->user();
+        $force = $request->boolean('force');
+
+        $isCurrentlyLocked = $report->lock_owner_id !== null
+            && $report->lock_expires_at !== null
+            && $report->lock_expires_at->isFuture();
+
+        // If locked by someone else and not forced, return advisory status
+        if ($isCurrentlyLocked && $report->lock_owner_id !== $user->id && ! $force) {
+            $owner = User::find($report->lock_owner_id);
+
+            return response()->json([
+                'status' => 'held_by_other',
+                'lock' => [
+                    'is_locked' => true,
+                    'is_owner' => false,
+                    'owner_id' => $report->lock_owner_id,
+                    'owner_name' => $owner?->name ?? 'Another user',
+                    'expires_at' => $report->lock_expires_at->toIso8601String(),
+                ],
+            ]);
+        }
+
+        // Acquire or extend lock for 5 minutes
+        $expiresAt = now()->addMinutes(5);
+        $report->update([
+            'lock_owner_id' => $user->id,
+            'lock_expires_at' => $expiresAt,
+        ]);
+
+        return response()->json([
+            'status' => 'acquired',
+            'lock' => [
+                'is_locked' => true,
+                'is_owner' => true,
+                'owner_id' => $user->id,
+                'owner_name' => $user->name,
+                'expires_at' => $expiresAt->toIso8601String(),
+            ],
+        ]);
+    }
+
+    /**
+     * Release advisory edit lock on the report (NFR-15).
+     */
+    public function releaseLock(Request $request, Report $report): JsonResponse
+    {
+        Gate::authorize('update', $report);
+
+        $user = $request->user();
+
+        if ($report->lock_owner_id === $user->id) {
+            $report->update([
+                'lock_owner_id' => null,
+                'lock_expires_at' => null,
+            ]);
+        }
+
+        return response()->json([
+            'status' => 'released',
         ]);
     }
 

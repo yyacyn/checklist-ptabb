@@ -1,26 +1,64 @@
 import { Head, Link } from '@inertiajs/react';
 import {
     AlertCircle,
+    AlertTriangle,
     ArrowLeft,
     Check,
     CheckCircle2,
     ChevronDown,
     ChevronRight,
+    CloudOff,
     HelpCircle,
     Info,
+    Loader2,
     MessageSquare,
+    RefreshCw,
     Save,
     Search,
     Ship,
     SlidersHorizontal,
+    Users,
+    WifiOff,
 } from 'lucide-react';
-import React, { useMemo, useState } from 'react';
+import React, { useCallback, useEffect, useMemo, useRef, useState } from 'react';
 import Heading from '@/components/heading';
 import { Badge } from '@/components/ui/badge';
 import { Button } from '@/components/ui/button';
 import { Card, CardContent, CardDescription, CardHeader, CardTitle } from '@/components/ui/card';
 import { Input } from '@/components/ui/input';
 import { Label } from '@/components/ui/label';
+import {
+    dequeueSave,
+    enqueueSave,
+    flushSaveQueue,
+    generateClientSaveId,
+    getPendingCount,
+    type QueueSyncState,
+} from '@/lib/autosave-queue';
+
+export interface LockData {
+    is_locked: boolean;
+    is_owner: boolean;
+    owner_id: number;
+    owner_name: string;
+    expires_at: string;
+}
+
+export interface ConflictData {
+    error: string;
+    message: string;
+    server_answer: {
+        id: number;
+        report_question_id: number;
+        answer: string | null;
+        note: string | null;
+        extra_value: string | null;
+        client_save_id?: string | null;
+        row_version: number;
+        answered_by_name?: string;
+        answered_at?: string;
+    };
+}
 
 export interface AnswerData {
     id?: number;
@@ -97,9 +135,16 @@ export interface ReportData {
 interface Props {
     report: ReportData;
     is_editable: boolean;
+    initial_lock?: LockData | null;
 }
 
-export default function ReportDataEntry({ report, is_editable = true }: Props) {
+export default function ReportDataEntry({ report, is_editable = true, initial_lock = null }: Props) {
+    // Advisory edit lock state (NFR-15)
+    const [lockState, setLockState] = useState<LockData | null>(initial_lock);
+
+    // Question edit conflicts state (NFR-15): questionId -> ConflictData
+    const [conflicts, setConflicts] = useState<Record<number, ConflictData>>({});
+
     // Current Active Chapter (Task 3.2: One group per screen)
     const [activeChapterId, setActiveChapterId] = useState<number>(
         report.groups[0]?.id || 0
@@ -200,10 +245,148 @@ export default function ReportDataEntry({ report, is_editable = true }: Props) {
     // Active Chapter object
     const activeChapter = report.groups.find((g) => g.id === activeChapterId) || report.groups[0];
 
-    // Save Answer (Task 3.3 & 3.4 API request)
+    // Task 3.4 & 3.5: IndexedDB Offline Retry Queue & Autosave Engine State
+    const [pendingQueueCount, setPendingQueueCount] = useState<number>(0);
+    const [globalSyncState, setGlobalSyncState] = useState<QueueSyncState>('saved');
+    const [isOffline, setIsOffline] = useState<boolean>(() =>
+        typeof navigator !== 'undefined' ? !navigator.onLine : false
+    );
+    const [isFlushingQueue, setIsFlushingQueue] = useState<boolean>(false);
+
+    const triggerManualQueueFlush = useCallback(async () => {
+        setIsFlushingQueue(true);
+        setGlobalSyncState('saving');
+        try {
+            const { remaining } = await flushSaveQueue(report.id, (count) => {
+                setPendingQueueCount(count);
+            });
+            setPendingQueueCount(remaining);
+            setGlobalSyncState(remaining > 0 ? 'retrying' : 'saved');
+        } catch {
+            setGlobalSyncState('retrying');
+        } finally {
+            setIsFlushingQueue(false);
+        }
+    }, [report.id]);
+
+    useEffect(() => {
+        let mounted = true;
+
+        getPendingCount(report.id).then((count) => {
+            if (!mounted) return;
+            setPendingQueueCount(count);
+            if (count > 0) {
+                setGlobalSyncState('retrying');
+                triggerManualQueueFlush();
+            }
+        });
+
+        const handleOnline = () => {
+            setIsOffline(false);
+            triggerManualQueueFlush();
+        };
+
+        const handleOffline = () => {
+            setIsOffline(true);
+        };
+
+        window.addEventListener('online', handleOnline);
+        window.addEventListener('offline', handleOffline);
+
+        const interval = setInterval(() => {
+            if (navigator.onLine) {
+                getPendingCount(report.id).then((c) => {
+                    if (mounted && c > 0) {
+                        setPendingQueueCount(c);
+                        triggerManualQueueFlush();
+                    }
+                });
+            }
+        }, 10000);
+
+        return () => {
+            mounted = false;
+            window.removeEventListener('online', handleOnline);
+            window.removeEventListener('offline', handleOffline);
+            clearInterval(interval);
+        };
+    }, [report.id, triggerManualQueueFlush]);
+
+    // Advisory Edit Lock management (NFR-15)
+    const acquireLock = useCallback(
+        async (force = false) => {
+            if (!is_editable) return;
+            try {
+                const csrfToken =
+                    (document.querySelector('meta[name="csrf-token"]') as HTMLMetaElement)?.content || '';
+                const res = await fetch(`/reports/${report.id}/lock`, {
+                    method: 'POST',
+                    headers: {
+                        'Content-Type': 'application/json',
+                        Accept: 'application/json',
+                        'X-CSRF-TOKEN': csrfToken,
+                        'X-Requested-With': 'XMLHttpRequest',
+                    },
+                    body: JSON.stringify({ force }),
+                });
+                if (res.ok) {
+                    const data = await res.json();
+                    if (data.lock) {
+                        setLockState(data.lock);
+                    }
+                }
+            } catch {
+                // Ignore transient lock failures over VSAT
+            }
+        },
+        [is_editable, report.id]
+    );
+
+    // Initial lock acquisition on mount
+    useEffect(() => {
+        if (!is_editable) return;
+        if (!initial_lock || initial_lock.is_owner) {
+            acquireLock(false);
+        }
+    }, [is_editable, initial_lock, acquireLock]);
+
+    // Heartbeat every 2 minutes while user owns lock and tab is active
+    useEffect(() => {
+        if (!is_editable) return;
+        const interval = setInterval(() => {
+            if (document.visibilityState === 'visible' && lockState?.is_owner) {
+                acquireLock(false);
+            }
+        }, 120000);
+
+        return () => clearInterval(interval);
+    }, [is_editable, lockState?.is_owner, acquireLock]);
+
+    // Release lock on unmount if user owns lock
+    useEffect(() => {
+        return () => {
+            if (lockState?.is_owner) {
+                const csrfToken =
+                    (document.querySelector('meta[name="csrf-token"]') as HTMLMetaElement)?.content || '';
+                fetch(`/reports/${report.id}/lock`, {
+                    method: 'DELETE',
+                    headers: {
+                        'Content-Type': 'application/json',
+                        Accept: 'application/json',
+                        'X-CSRF-TOKEN': csrfToken,
+                        'X-Requested-With': 'XMLHttpRequest',
+                    },
+                    keepalive: true,
+                }).catch(() => {});
+            }
+        };
+    }, [report.id, lockState?.is_owner]);
+
+    // Save Answer with IndexedDB retry queue and conflict detection (Task 3.3, 3.4, 3.5, 3.6, NFR-1, NFR-2, NFR-15)
     const saveAnswerToServer = async (
         questionId: number,
-        updatedFields: Partial<AnswerData>
+        updatedFields: Partial<AnswerData>,
+        overrideBaseVersion?: number
     ) => {
         if (!is_editable) return;
 
@@ -219,35 +402,70 @@ export default function ReportDataEntry({ report, is_editable = true }: Props) {
             ...updatedFields,
         };
 
-        // Update local state immediately
+        // Update local state immediately for responsive UI
         setAnswers((prev) => ({
             ...prev,
             [questionId]: newAnswerData,
         }));
 
         setSaveStatuses((prev) => ({ ...prev, [questionId]: 'saving' }));
+        setGlobalSyncState('saving');
+
+        const clientSaveId = generateClientSaveId();
+        const endpoint = `/reports/${report.id}/questions/${questionId}/answer`;
+        const payload = {
+            answer: newAnswerData.answer,
+            note: newAnswerData.note,
+            extra_value: newAnswerData.extra_value,
+            client_save_id: clientSaveId,
+            base_row_version:
+                overrideBaseVersion !== undefined ? overrideBaseVersion : (currentAnswer.row_version ?? null),
+        };
+
+        // Persist in IndexedDB retry queue first (NFR-2)
+        await enqueueSave({
+            client_save_id: clientSaveId,
+            report_id: report.id,
+            question_id: questionId,
+            endpoint,
+            payload,
+            timestamp: Date.now(),
+            attempts: 0,
+        });
+
+        const count = await getPendingCount(report.id);
+        setPendingQueueCount(count);
 
         try {
             const csrfToken =
                 (document.querySelector('meta[name="csrf-token"]') as HTMLMetaElement)?.content || '';
 
-            const res = await fetch(`/reports/${report.id}/questions/${questionId}/answer`, {
+            const res = await fetch(endpoint, {
                 method: 'POST',
                 headers: {
                     'Content-Type': 'application/json',
                     Accept: 'application/json',
                     'X-CSRF-TOKEN': csrfToken,
+                    'X-Requested-With': 'XMLHttpRequest',
                 },
-                body: JSON.stringify({
-                    answer: newAnswerData.answer,
-                    note: newAnswerData.note,
-                    extra_value: newAnswerData.extra_value,
-                    client_save_id: `cs_${Date.now()}_${Math.random().toString(36).substring(2, 7)}`,
-                }),
+                body: JSON.stringify(payload),
             });
 
             if (res.ok) {
                 const data = await res.json();
+                // Server acknowledged -> remove from IndexedDB
+                await dequeueSave(clientSaveId);
+                const remaining = await getPendingCount(report.id);
+                setPendingQueueCount(remaining);
+                setGlobalSyncState(remaining > 0 ? 'retrying' : 'saved');
+
+                // Clear any conflict for this question
+                setConflicts((prev) => {
+                    const copy = { ...prev };
+                    delete copy[questionId];
+                    return copy;
+                });
+
                 setAnswers((prev) => ({
                     ...prev,
                     [questionId]: { ...newAnswerData, ...data.answer },
@@ -256,19 +474,80 @@ export default function ReportDataEntry({ report, is_editable = true }: Props) {
                 setTimeout(() => {
                     setSaveStatuses((prev) => {
                         const copy = { ...prev };
-                        delete copy[questionId];
+                        if (copy[questionId] === 'saved') {
+                            delete copy[questionId];
+                        }
                         return copy;
                     });
                 }, 2000);
+            } else if (res.status === 409) {
+                // Conflict detected (NFR-15): Stale row_version refused by server
+                const conflictData: ConflictData = await res.json();
+                await dequeueSave(clientSaveId);
+                const remaining = await getPendingCount(report.id);
+                setPendingQueueCount(remaining);
+                setGlobalSyncState(remaining > 0 ? 'retrying' : 'saved');
+
+                setConflicts((prev) => ({
+                    ...prev,
+                    [questionId]: conflictData,
+                }));
+                setSaveStatuses((prev) => ({ ...prev, [questionId]: 'conflict' }));
             } else {
-                setSaveStatuses((prev) => ({ ...prev, [questionId]: 'error' }));
+                setSaveStatuses((prev) => ({ ...prev, [questionId]: 'retrying' }));
+                setGlobalSyncState('retrying');
             }
         } catch {
-            setSaveStatuses((prev) => ({ ...prev, [questionId]: 'error' }));
+            // Offline / VSAT drop: keep in IndexedDB and flag as retrying
+            setSaveStatuses((prev) => ({ ...prev, [questionId]: 'retrying' }));
+            setGlobalSyncState('retrying');
         }
     };
 
-    // Save Chapter Comments (Task 3.8)
+    // Conflict Resolution Handlers (NFR-15)
+    const handleAcceptServerAnswer = (
+        questionId: number,
+        serverAnswer: ConflictData['server_answer']
+    ) => {
+        setAnswers((prev) => ({
+            ...prev,
+            [questionId]: {
+                id: serverAnswer.id,
+                report_question_id: serverAnswer.report_question_id,
+                answer: serverAnswer.answer,
+                note: serverAnswer.note,
+                extra_value: serverAnswer.extra_value,
+                row_version: serverAnswer.row_version,
+                answered_at: serverAnswer.answered_at,
+            },
+        }));
+        setConflicts((prev) => {
+            const next = { ...prev };
+            delete next[questionId];
+            return next;
+        });
+        setSaveStatuses((prev) => {
+            const copy = { ...prev };
+            delete copy[questionId];
+            return copy;
+        });
+    };
+
+    const handleOverwriteAnswer = (questionId: number, serverRowVersion: number) => {
+        const current = answers[questionId];
+        if (!current) return;
+        setConflicts((prev) => {
+            const next = { ...prev };
+            delete next[questionId];
+            return next;
+        });
+        saveAnswerToServer(questionId, current, serverRowVersion);
+    };
+
+    // Save Chapter Comments with debounce and flush on chapter change (Task 3.4, 3.8)
+    const commentsDebounceTimer = useRef<ReturnType<typeof setTimeout> | null>(null);
+    const lastSavedComments = useRef<Record<number, string>>({});
+
     const saveChapterComments = async (chapterId: number, text: string) => {
         if (!is_editable) return;
 
@@ -284,6 +563,7 @@ export default function ReportDataEntry({ report, is_editable = true }: Props) {
                     'Content-Type': 'application/json',
                     Accept: 'application/json',
                     'X-CSRF-TOKEN': csrfToken,
+                    'X-Requested-With': 'XMLHttpRequest',
                 },
                 body: JSON.stringify({ comments: text }),
             });
@@ -301,6 +581,35 @@ export default function ReportDataEntry({ report, is_editable = true }: Props) {
         } catch {
             setCommentsSaveStatuses((prev) => ({ ...prev, [chapterId]: 'error' }));
         }
+    };
+
+    const flushPendingComments = useCallback(async (chapterId: number) => {
+        if (commentsDebounceTimer.current) {
+            clearTimeout(commentsDebounceTimer.current);
+            commentsDebounceTimer.current = null;
+        }
+        const text = chapterComments[chapterId] ?? '';
+        if (text !== (lastSavedComments.current[chapterId] ?? '')) {
+            lastSavedComments.current[chapterId] = text;
+            await saveChapterComments(chapterId, text);
+        }
+    }, [chapterComments]);
+
+    const handleChapterCommentsChange = (chapterId: number, text: string) => {
+        setChapterComments((prev) => ({ ...prev, [chapterId]: text }));
+        if (commentsDebounceTimer.current) clearTimeout(commentsDebounceTimer.current);
+        commentsDebounceTimer.current = setTimeout(() => {
+            if (text !== (lastSavedComments.current[chapterId] ?? '')) {
+                lastSavedComments.current[chapterId] = text;
+                saveChapterComments(chapterId, text);
+            }
+        }, 1500);
+    };
+
+    const handleChapterSwitch = async (targetChapterId: number) => {
+        if (targetChapterId === activeChapterId) return;
+        await flushPendingComments(activeChapterId);
+        setActiveChapterId(targetChapterId);
     };
 
     // Filter questions based on search & unanswered filter
@@ -366,10 +675,54 @@ export default function ReportDataEntry({ report, is_editable = true }: Props) {
                             </div>
                         </div>
 
-                        {/* Overall Progress Bar & Filter Controls */}
-                        <div className="flex items-center gap-4 flex-wrap">
+                        {/* Overall Progress Bar, Sync Status & Filter Controls */}
+                        <div className="flex items-center gap-3 flex-wrap">
+                            {/* Global Save / Sync Status (Task 3.4 & 3.5, NFR-1, NFR-2) */}
                             <div className="flex items-center gap-2">
-                                <div className="w-36 h-2.5 rounded-full bg-muted overflow-hidden">
+                                {globalSyncState === 'saved' && (
+                                    <span
+                                        className="text-xs text-muted-foreground flex items-center gap-1.5"
+                                        title="All checklist changes saved"
+                                    >
+                                        <CheckCircle2 className="size-3.5 text-emerald-500" />
+                                        <span className="hidden lg:inline text-[11px] font-medium">Saved</span>
+                                    </span>
+                                )}
+                                {globalSyncState === 'saving' && (
+                                    <span
+                                        className="text-xs text-muted-foreground flex items-center gap-1.5"
+                                        title="Saving change to server..."
+                                    >
+                                        <Loader2 className="size-3.5 text-primary animate-spin" />
+                                        <span className="hidden lg:inline text-[11px] font-medium">Saving...</span>
+                                    </span>
+                                )}
+                                {globalSyncState === 'retrying' && (
+                                    <Button
+                                        size="sm"
+                                        variant="outline"
+                                        type="button"
+                                        onClick={triggerManualQueueFlush}
+                                        disabled={isFlushingQueue}
+                                        className="h-7 text-xs border-amber-500 text-amber-600 bg-amber-50 hover:bg-amber-100 dark:bg-amber-950/40 dark:hover:bg-amber-900/50 flex items-center gap-1.5 px-2"
+                                        title="Temporary VSAT drop or offline. Click to retry syncing immediately."
+                                    >
+                                        <CloudOff className="size-3 text-amber-500" />
+                                        <span>{pendingQueueCount} queued</span>
+                                        <RefreshCw className={`size-3 ml-0.5 ${isFlushingQueue ? 'animate-spin' : ''}`} />
+                                    </Button>
+                                )}
+                                {isOffline && (
+                                    <Badge variant="destructive" className="text-[10px] px-1.5 py-0 flex items-center gap-1">
+                                        <WifiOff className="size-3" /> Offline
+                                    </Badge>
+                                )}
+                            </div>
+
+                            <div className="h-4 w-px bg-border hidden sm:block" />
+
+                            <div className="flex items-center gap-2">
+                                <div className="w-32 h-2.5 rounded-full bg-muted overflow-hidden">
                                     <div
                                         className="h-full bg-primary transition-all duration-300"
                                         style={{ width: `${overallStats.percent}%` }}
@@ -381,7 +734,7 @@ export default function ReportDataEntry({ report, is_editable = true }: Props) {
                             </div>
 
                             {/* Search Jump */}
-                            <div className="relative w-48">
+                            <div className="relative w-40">
                                 <Search className="absolute left-2.5 top-2 size-3.5 text-muted-foreground" />
                                 <Input
                                     placeholder="Search question..."
@@ -405,6 +758,27 @@ export default function ReportDataEntry({ report, is_editable = true }: Props) {
                     </div>
                 </header>
 
+                {/* Advisory Edit Lock Banner (NFR-15) */}
+                {lockState && lockState.is_locked && !lockState.is_owner && (
+                    <div className="bg-amber-500/10 border-b border-amber-500/20 px-6 py-2.5 flex items-center justify-between text-xs text-amber-800 dark:text-amber-300">
+                        <div className="flex items-center gap-2">
+                            <Users className="size-4 text-amber-600 dark:text-amber-400 shrink-0" />
+                            <span>
+                                <strong>{lockState.owner_name}</strong> is currently editing this report. Concurrent changes might conflict.
+                            </span>
+                        </div>
+                        <Button
+                            size="sm"
+                            variant="outline"
+                            type="button"
+                            onClick={() => acquireLock(true)}
+                            className="h-7 text-xs border-amber-300 bg-amber-50 hover:bg-amber-100 dark:border-amber-800 dark:bg-amber-950 dark:hover:bg-amber-900 shrink-0"
+                        >
+                            Take over editing
+                        </Button>
+                    </div>
+                )}
+
                 {/* Main 2-Column Split: Sticky Sidebar (Left) + Current Group Form (Right) */}
                 <div className="flex flex-1 overflow-hidden">
                     {/* Left Sticky Chapter Navigation Sidebar */}
@@ -422,7 +796,7 @@ export default function ReportDataEntry({ report, is_editable = true }: Props) {
                                 <button
                                     key={group.id}
                                     type="button"
-                                    onClick={() => setActiveChapterId(group.id)}
+                                    onClick={() => handleChapterSwitch(group.id)}
                                     className={`w-full text-left rounded-lg p-3 transition-all flex flex-col gap-1.5 ${
                                         isCurrent
                                             ? 'bg-card border-2 border-primary shadow-xs ring-1 ring-primary/20'
@@ -476,6 +850,29 @@ export default function ReportDataEntry({ report, is_editable = true }: Props) {
                     <main className="flex-1 overflow-y-auto p-6 md:p-8 space-y-6">
                         {activeChapter ? (
                             <div className="max-w-4xl mx-auto space-y-6">
+                                {/* VSAT Offline Buffer Banner (NFR-2) */}
+                                {pendingQueueCount > 0 && (
+                                    <div className="rounded-lg border border-amber-200 bg-amber-50/90 p-3 text-xs text-amber-900 dark:border-amber-900/60 dark:bg-amber-950/40 dark:text-amber-300 flex items-center justify-between gap-3 shadow-xs">
+                                        <div className="flex items-center gap-2.5">
+                                            <CloudOff className="size-4 text-amber-600 shrink-0" />
+                                            <span>
+                                                <strong>VSAT Offline Buffer:</strong> {pendingQueueCount} change(s) stored locally in browser IndexedDB. Will auto-sync when connection restores.
+                                            </span>
+                                        </div>
+                                        <Button
+                                            size="sm"
+                                            variant="outline"
+                                            type="button"
+                                            onClick={triggerManualQueueFlush}
+                                            disabled={isFlushingQueue}
+                                            className="h-7 text-xs border-amber-300 dark:border-amber-800 hover:bg-amber-100 dark:hover:bg-amber-900/60 shrink-0"
+                                        >
+                                            <RefreshCw className={`size-3 mr-1.5 ${isFlushingQueue ? 'animate-spin' : ''}`} />
+                                            Retry Sync
+                                        </Button>
+                                    </div>
+                                )}
+
                                 {/* Chapter Title Banner */}
                                 <div className="border-b pb-4">
                                     <div className="flex items-center gap-2 mb-1">
@@ -528,6 +925,9 @@ export default function ReportDataEntry({ report, is_editable = true }: Props) {
                                                 onSaveExtraValue={(val) =>
                                                     saveAnswerToServer(q.id, { extra_value: val })
                                                 }
+                                                conflict={conflicts[q.id]}
+                                                onAcceptServerAnswer={(srv) => handleAcceptServerAnswer(q.id, srv)}
+                                                onOverwriteAnswer={(srvVer) => handleOverwriteAnswer(q.id, srvVer)}
                                             />
                                         ))}
                                     </div>
@@ -588,6 +988,9 @@ export default function ReportDataEntry({ report, is_editable = true }: Props) {
                                                                 onSaveExtraValue={(val) =>
                                                                     saveAnswerToServer(q.id, { extra_value: val })
                                                                 }
+                                                                conflict={conflicts[q.id]}
+                                                                onAcceptServerAnswer={(srv) => handleAcceptServerAnswer(q.id, srv)}
+                                                                onOverwriteAnswer={(srvVer) => handleOverwriteAnswer(q.id, srvVer)}
                                                             />
                                                         ))}
                                                     </div>
@@ -637,12 +1040,9 @@ export default function ReportDataEntry({ report, is_editable = true }: Props) {
                                             value={chapterComments[activeChapter.id] || ''}
                                             disabled={!is_editable}
                                             onChange={(e) =>
-                                                setChapterComments((prev) => ({
-                                                    ...prev,
-                                                    [activeChapter.id]: e.target.value,
-                                                }))
+                                                handleChapterCommentsChange(activeChapter.id, e.target.value)
                                             }
-                                            onBlur={(e) => saveChapterComments(activeChapter.id, e.target.value)}
+                                            onBlur={() => flushPendingComments(activeChapter.id)}
                                             placeholder="Write chapter remarks, qualifications, or NS/NA explanations..."
                                             className="w-full rounded-md border border-input bg-transparent px-3 py-2 text-sm shadow-xs placeholder:text-muted-foreground focus-visible:outline-none focus-visible:ring-1 focus-visible:ring-ring disabled:cursor-not-allowed disabled:opacity-50"
                                         />
@@ -659,7 +1059,7 @@ export default function ReportDataEntry({ report, is_editable = true }: Props) {
     );
 }
 
-// Subcomponent: Individual Question Answer Row (Task 3.3)
+// Subcomponent: Individual Question Answer Row (Task 3.3, 3.6)
 function QuestionAnswerCard({
     question,
     currentAnswer,
@@ -674,6 +1074,9 @@ function QuestionAnswerCard({
     onSelectAnswer,
     onSaveNote,
     onSaveExtraValue,
+    conflict,
+    onAcceptServerAnswer,
+    onOverwriteAnswer,
 }: {
     question: QuestionData;
     currentAnswer?: AnswerData;
@@ -688,10 +1091,89 @@ function QuestionAnswerCard({
     onSelectAnswer: (val: string) => void;
     onSaveNote: (note: string) => void;
     onSaveExtraValue: (val: string) => void;
+    conflict?: ConflictData;
+    onAcceptServerAnswer?: (serverAnswer: ConflictData['server_answer']) => void;
+    onOverwriteAnswer?: (serverRowVersion: number) => void;
 }) {
     const selectedAnswer = currentAnswer?.answer;
-    const hasNote = Boolean(currentAnswer?.note?.trim());
     const isLockedNA = !question.is_applicable;
+
+    // Internal buffered inputs for notes & extra values with debounced autosave (NFR-1)
+    const [noteBuffer, setNoteBuffer] = useState(currentAnswer?.note || '');
+    const [extraBuffer, setExtraBuffer] = useState(currentAnswer?.extra_value || '');
+    const noteDebounceTimer = useRef<ReturnType<typeof setTimeout> | null>(null);
+    const extraDebounceTimer = useRef<ReturnType<typeof setTimeout> | null>(null);
+    const lastSavedNote = useRef(currentAnswer?.note || '');
+    const lastSavedExtra = useRef(currentAnswer?.extra_value || '');
+
+    useEffect(() => {
+        setNoteBuffer(currentAnswer?.note || '');
+        lastSavedNote.current = currentAnswer?.note || '';
+    }, [currentAnswer?.note]);
+
+    useEffect(() => {
+        setExtraBuffer(currentAnswer?.extra_value || '');
+        lastSavedExtra.current = currentAnswer?.extra_value || '';
+    }, [currentAnswer?.extra_value]);
+
+    const flushNote = useCallback(() => {
+        if (noteDebounceTimer.current) clearTimeout(noteDebounceTimer.current);
+        if (noteBuffer !== lastSavedNote.current) {
+            lastSavedNote.current = noteBuffer;
+            onSaveNote(noteBuffer);
+        }
+    }, [noteBuffer, onSaveNote]);
+
+    const handleNoteChange = (val: string) => {
+        setNoteBuffer(val);
+        if (noteDebounceTimer.current) clearTimeout(noteDebounceTimer.current);
+        noteDebounceTimer.current = setTimeout(() => {
+            if (val !== lastSavedNote.current) {
+                lastSavedNote.current = val;
+                onSaveNote(val);
+            }
+        }, 1500);
+    };
+
+    const flushExtra = useCallback(() => {
+        if (extraDebounceTimer.current) clearTimeout(extraDebounceTimer.current);
+        if (extraBuffer !== lastSavedExtra.current) {
+            lastSavedExtra.current = extraBuffer;
+            onSaveExtraValue(extraBuffer);
+        }
+    }, [extraBuffer, onSaveExtraValue]);
+
+    const handleExtraChange = (val: string) => {
+        setExtraBuffer(val);
+        if (extraDebounceTimer.current) clearTimeout(extraDebounceTimer.current);
+        extraDebounceTimer.current = setTimeout(() => {
+            if (val !== lastSavedExtra.current) {
+                lastSavedExtra.current = val;
+                onSaveExtraValue(val);
+            }
+        }, 1500);
+    };
+
+    const handleAnswerClick = (val: string) => {
+        flushNote();
+        flushExtra();
+        onSelectAnswer(val);
+    };
+
+    useEffect(() => {
+        return () => {
+            if (noteDebounceTimer.current) clearTimeout(noteDebounceTimer.current);
+            if (extraDebounceTimer.current) clearTimeout(extraDebounceTimer.current);
+            if (noteBuffer !== lastSavedNote.current) {
+                onSaveNote(noteBuffer);
+            }
+            if (extraBuffer !== lastSavedExtra.current) {
+                onSaveExtraValue(extraBuffer);
+            }
+        };
+    }, [noteBuffer, extraBuffer, onSaveNote, onSaveExtraValue]);
+
+    const hasNote = Boolean(noteBuffer.trim() || currentAnswer?.note?.trim());
 
     return (
         <div
@@ -718,16 +1200,28 @@ function QuestionAnswerCard({
                         )}
 
                         {saveStatus === 'saving' && (
-                            <span className="text-[10px] text-amber-500 animate-pulse">Saving...</span>
+                            <span className="text-[10px] text-amber-500 animate-pulse flex items-center gap-1">
+                                <Loader2 className="size-2.5 animate-spin" /> Saving...
+                            </span>
                         )}
                         {saveStatus === 'saved' && (
                             <span className="text-[10px] text-emerald-600 flex items-center gap-0.5">
                                 <Check className="size-3" /> Saved
                             </span>
                         )}
+                        {saveStatus === 'retrying' && (
+                            <span className="text-[10px] text-amber-600 dark:text-amber-400 flex items-center gap-1">
+                                <CloudOff className="size-3" /> Queued (retrying)
+                            </span>
+                        )}
                         {saveStatus === 'error' && (
                             <span className="text-[10px] text-rose-600 flex items-center gap-0.5">
                                 <AlertCircle className="size-3" /> Save failed
+                            </span>
+                        )}
+                        {saveStatus === 'conflict' && (
+                            <span className="text-[10px] text-amber-600 dark:text-amber-400 font-semibold flex items-center gap-1">
+                                <AlertTriangle className="size-3 text-amber-600 dark:text-amber-400" /> Conflict
                             </span>
                         )}
                     </div>
@@ -740,9 +1234,10 @@ function QuestionAnswerCard({
                             </Label>
                             <Input
                                 type={question.input_type === 'date' ? 'date' : 'text'}
-                                defaultValue={currentAnswer?.extra_value || ''}
+                                value={extraBuffer}
                                 disabled={!isEditable || isLockedNA}
-                                onBlur={(e) => onSaveExtraValue(e.target.value)}
+                                onChange={(e) => handleExtraChange(e.target.value)}
+                                onBlur={flushExtra}
                                 className="h-7 text-xs"
                                 placeholder={`Enter ${question.input_type}...`}
                             />
@@ -792,7 +1287,7 @@ function QuestionAnswerCard({
                                     key={choice.value}
                                     type="button"
                                     disabled={!isEditable || isLockedNA}
-                                    onClick={() => onSelectAnswer(choice.value)}
+                                    onClick={() => handleAnswerClick(choice.value)}
                                     className={`px-3 py-1 text-xs font-semibold rounded transition-all ${
                                         isSelected
                                             ? `${choice.color} shadow-xs font-bold ring-1`
@@ -820,18 +1315,66 @@ function QuestionAnswerCard({
                 </div>
             )}
 
-            {/* Expandable Note Input (Task 3.3) */}
+            {/* Expandable Note Input (Task 3.3 & 3.4) */}
             {(isExpandedNotes || hasNote) && (
                 <div className="mt-3 pt-2 border-t border-border/50">
                     <Label className="text-xs text-muted-foreground">Inspector Note / Finding Details:</Label>
                     <textarea
                         rows={2}
-                        defaultValue={currentAnswer?.note || ''}
+                        value={noteBuffer}
                         disabled={!isEditable}
-                        onBlur={(e) => onSaveNote(e.target.value)}
+                        onChange={(e) => handleNoteChange(e.target.value)}
+                        onBlur={flushNote}
                         placeholder="Add notes, context, or observation particulars..."
                         className="mt-1 w-full rounded border border-input bg-transparent px-2.5 py-1.5 text-xs shadow-xs focus-visible:outline-none focus-visible:ring-1 focus-visible:ring-ring"
                     />
+                </div>
+            )}
+
+            {/* Conflict Resolution Banner (NFR-15) */}
+            {conflict && onAcceptServerAnswer && onOverwriteAnswer && (
+                <div className="mt-3 rounded-lg border border-amber-300 bg-amber-50/90 p-3 text-xs dark:border-amber-700/60 dark:bg-amber-950/40 space-y-2">
+                    <div className="flex items-start gap-2">
+                        <AlertTriangle className="size-4 text-amber-600 dark:text-amber-400 shrink-0 mt-0.5" />
+                        <div className="space-y-1 flex-1">
+                            <p className="font-semibold text-amber-900 dark:text-amber-200">
+                                Edit Conflict Detected
+                            </p>
+                            <p className="text-amber-800 dark:text-amber-300 text-[11px]">
+                                This answer was modified by <strong>{conflict.server_answer.answered_by_name || 'another user'}</strong> while you were editing.
+                            </p>
+                            <div className="rounded bg-background/80 p-2 border border-amber-200 dark:border-amber-900 text-[11px] space-y-0.5">
+                                <div>
+                                    <span className="text-muted-foreground font-medium">Server Value:</span>{' '}
+                                    <Badge variant="outline" className="text-[10px] uppercase font-bold py-0 px-1">
+                                        {conflict.server_answer.answer || 'Unanswered'}
+                                    </Badge>
+                                    {conflict.server_answer.note ? ` — Note: "${conflict.server_answer.note}"` : ''}
+                                    {conflict.server_answer.extra_value ? ` — Extra: "${conflict.server_answer.extra_value}"` : ''}
+                                </div>
+                            </div>
+                        </div>
+                    </div>
+                    <div className="flex items-center gap-2 pt-1 pl-6">
+                        <Button
+                            size="sm"
+                            variant="outline"
+                            type="button"
+                            onClick={() => onAcceptServerAnswer(conflict.server_answer)}
+                            className="h-7 text-xs border-amber-300 hover:bg-amber-100 dark:border-amber-700 dark:hover:bg-amber-900/60"
+                        >
+                            Keep Server Value
+                        </Button>
+                        <Button
+                            size="sm"
+                            variant="default"
+                            type="button"
+                            onClick={() => onOverwriteAnswer(conflict.server_answer.row_version)}
+                            className="h-7 text-xs bg-amber-600 hover:bg-amber-700 text-white"
+                        >
+                            Overwrite with My Value
+                        </Button>
+                    </div>
                 </div>
             )}
         </div>

@@ -11,13 +11,15 @@ Route::inertia('/', 'welcome')->name('home');
 Route::middleware(['auth', 'verified'])->group(function () {
     Route::inertia('dashboard', 'dashboard')->name('dashboard');
 
-    // Reports (Task 3.1, 3.2, 3.3)
+    // Reports (Task 3.1, 3.2, 3.3, 3.6)
     Route::get('reports', [ReportController::class, 'index'])->name('reports.index');
     Route::get('reports/create', [ReportController::class, 'create'])->name('reports.create');
     Route::post('reports', [ReportController::class, 'store'])->name('reports.store');
     Route::get('reports/{report}', [ReportController::class, 'show'])->name('reports.show');
     Route::post('reports/{report}/questions/{question}/answer', [ReportController::class, 'saveAnswer'])->name('reports.answers.save');
     Route::post('reports/{report}/groups/{group}/comments', [ReportController::class, 'saveGroupComments'])->name('reports.groups.comments');
+    Route::post('reports/{report}/lock', [ReportController::class, 'acquireLock'])->name('reports.lock.acquire');
+    Route::delete('reports/{report}/lock', [ReportController::class, 'releaseLock'])->name('reports.lock.release');
 
     Route::middleware('can:manage-forms')->prefix('admin')->name('admin.')->group(function () {
         Route::get('forms', [FormController::class, 'index'])->name('forms.index');
