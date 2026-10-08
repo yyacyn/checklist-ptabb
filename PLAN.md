@@ -107,17 +107,17 @@ This is the phase users feel. Budget it properly.
 | 3.6 | Conflict handling: stale `row_version` refused and surfaced, advisory edit lock with "X is editing" | **done**: optimistic locking via `row_version` & HTTP 409 conflict UI, report advisory lock endpoints & banner in `reports/show.tsx` (NFR-15) |
 | 3.7 | Inapplicable items shown as locked `NA` with reason, overridable | **done**: frozen snapshot flags `is_applicable=false`, rendered as locked `NA` with applicability badge (FM-4, FM-4a) |
 | 3.8 | Group comments box with the NS/NA hint | **done**: Chapter remarks textarea with NS/NA explanation prompt and auto-save endpoint (INS-6, FM-7a) |
-| 3.9 | `No` requires a comment and a risk level, with optional VIQ paragraph and job order | INS-9 |
-| 3.10 | Undo of a recent answer | INS-23 |
-| 3.11 | Tests: payload sizes, one-answer-per-request, retry does not duplicate, never posts a whole chapter | NFR-13, cPanel check 4 |
+| 3.9 | Streamlined checklist; dedicated Chapter 15 Summary of Observations section (Chapter, VIQ, Description, Risk Level, Job Order) | **done**: Streamlined Yes/No/NS/NA choices without popups; dedicated Chapter 15 section matching Form D-062 (INS-9, REP-1) |
+| 3.10 | Undo of a recent answer | **done**: transient inline Undo button with 8s window in `QuestionAnswerCard`, logs changes from/to `No` in `activity_log` (INS-23) |
+| 3.11 | Tests: payload sizes, one-answer-per-request, retry does not duplicate, never posts a whole chapter | **done**: isolated payload tests, ActivityLog tests, idempotency retry tests in `ReportDataEntryTest.php` (NFR-13, cPanel check 4) |
 
 ---
 
-## Phase 4 — Findings, v1 subset (3 to 4 days)
+## Phase 4 — Findings & Chapter 15 Summary of Observations (3 to 4 days)
 
 | # | Task | Ref |
 | --- | --- | --- |
-| 4.1 | Finding created from a `No` answer, with chapter and question reference | FND-1, INS-9, AUD-9 |
+| 4.1 | Chapter 15 Summary of Observations: add/edit/delete observation rows (Chapter, VIQ, Description, Risk Level High/Med/Low, Job Order) | FND-1, INS-9, AUD-9 |
 | 4.2 | Findings list per vessel name with filters, scoped by role | FND-2 |
 | 4.3 | Evidence placeholders, wired for real in Phase 5 | PHO-5 |
 

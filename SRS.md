@@ -199,7 +199,7 @@ Read with `spikes/s1-parser/FINDINGS.md`, which lists what still needs a human d
 - INS-6: One comments/remarks box per group (the form's "Comments/Remarks"). The form tells inspectors to list Not Seen and Not Applicable items here, so the app shows a hint under the box when any item in the group is marked NS or NA.
 - INS-7: Extra typed inputs (dates, spaces protected) where the question has them.
 - INS-8: Progress per group (answered / total) and a filter for unanswered.
-- INS-9: Answering **No** requires a comment and a risk level (High / Medium / Low). Optional VIQ paragraph and job order number. A row is created automatically in Summary of Observations (chapter 15), with chapter and question reference.
+- INS-9: Checklist questions (Chapters 2 to 13) remain streamlined with direct Yes / No / NS / NA choices. Chapter 15 ("Summary of Observations") operates as a dedicated findings section where observation rows (Chapter, VIQ paragraph, Observation description, Risk mitigation High/Medium/Low, Job Order No.) are recorded and managed directly, faithful to Form D-062.
 
 ### 6.3 Summary and sign-off
 

@@ -6,6 +6,7 @@ import {
     Check,
     CheckCircle2,
     ChevronDown,
+    ChevronLeft,
     ChevronRight,
     CloudOff,
     FileCheck,
@@ -14,6 +15,7 @@ import {
     Loader2,
     MessageSquare,
     RefreshCw,
+    RotateCcw,
     Save,
     Search,
     Ship,
@@ -43,6 +45,7 @@ import {
     flushSaveQueue,
     generateClientSaveId,
     getPendingCount,
+    csrfHeaders,
     type QueueSyncState,
 } from '@/lib/autosave-queue';
 
@@ -290,6 +293,28 @@ export default function ReportDataEntry({
     // Active Chapter object
     const activeChapter = report.groups.find((g) => g.id === activeChapterId) || report.groups[0];
 
+    const otherChapters = useMemo(
+        () => report.groups.filter((g) => g.chapter_no !== '1' && g.title !== 'General Information'),
+        [report.groups]
+    );
+
+    const navChapters = useMemo(
+        () => [
+            { id: 0, title: 'General Information & Particulars', chapter_no: '1', sort_order: 1 },
+            ...otherChapters,
+        ],
+        [otherChapters]
+    );
+
+    const currentChapterIdx = navChapters.findIndex((c) => c.id === activeChapterId);
+    const prevChapter = currentChapterIdx > 0 ? navChapters[currentChapterIdx - 1] : null;
+    const nextChapter =
+        currentChapterIdx >= 0 && currentChapterIdx < navChapters.length - 1
+            ? navChapters[currentChapterIdx + 1]
+            : null;
+
+    const mainContentRef = useRef<HTMLElement | null>(null);
+
     // Task 3.4 & 3.5: IndexedDB Offline Retry Queue & Autosave Engine State
     const [pendingQueueCount, setPendingQueueCount] = useState<number>(0);
     const [globalSyncState, setGlobalSyncState] = useState<QueueSyncState>('saved');
@@ -362,14 +387,12 @@ export default function ReportDataEntry({
         async (force = false) => {
             if (!is_editable) return;
             try {
-                const csrfToken =
-                    (document.querySelector('meta[name="csrf-token"]') as HTMLMetaElement)?.content || '';
                 const res = await fetch(`/reports/${report.id}/lock`, {
                     method: 'POST',
                     headers: {
                         'Content-Type': 'application/json',
                         Accept: 'application/json',
-                        'X-CSRF-TOKEN': csrfToken,
+                        ...csrfHeaders(),
                         'X-Requested-With': 'XMLHttpRequest',
                     },
                     body: JSON.stringify({ force }),
@@ -411,14 +434,12 @@ export default function ReportDataEntry({
     useEffect(() => {
         return () => {
             if (lockState?.is_owner) {
-                const csrfToken =
-                    (document.querySelector('meta[name="csrf-token"]') as HTMLMetaElement)?.content || '';
                 fetch(`/reports/${report.id}/lock`, {
                     method: 'DELETE',
                     headers: {
                         'Content-Type': 'application/json',
                         Accept: 'application/json',
-                        'X-CSRF-TOKEN': csrfToken,
+                        ...csrfHeaders(),
                         'X-Requested-With': 'XMLHttpRequest',
                     },
                     keepalive: true,
@@ -482,15 +503,12 @@ export default function ReportDataEntry({
         setPendingQueueCount(count);
 
         try {
-            const csrfToken =
-                (document.querySelector('meta[name="csrf-token"]') as HTMLMetaElement)?.content || '';
-
             const res = await fetch(endpoint, {
                 method: 'POST',
                 headers: {
                     'Content-Type': 'application/json',
                     Accept: 'application/json',
-                    'X-CSRF-TOKEN': csrfToken,
+                    ...csrfHeaders(),
                     'X-Requested-With': 'XMLHttpRequest',
                 },
                 body: JSON.stringify(payload),
@@ -599,15 +617,12 @@ export default function ReportDataEntry({
         setCommentsSaveStatuses((prev) => ({ ...prev, [chapterId]: 'saving' }));
 
         try {
-            const csrfToken =
-                (document.querySelector('meta[name="csrf-token"]') as HTMLMetaElement)?.content || '';
-
             const res = await fetch(`/reports/${report.id}/groups/${chapterId}/comments`, {
                 method: 'POST',
                 headers: {
                     'Content-Type': 'application/json',
                     Accept: 'application/json',
-                    'X-CSRF-TOKEN': csrfToken,
+                    ...csrfHeaders(),
                     'X-Requested-With': 'XMLHttpRequest',
                 },
                 body: JSON.stringify({ comments: text }),
@@ -657,6 +672,9 @@ export default function ReportDataEntry({
             await flushPendingComments(activeChapterId);
         }
         setActiveChapterId(targetChapterId);
+        if (mainContentRef.current) {
+            mainContentRef.current.scrollTo({ top: 0, behavior: 'smooth' });
+        }
     };
 
     // Filter questions based on search & unanswered filter
@@ -957,7 +975,7 @@ export default function ReportDataEntry({
                     </aside>
 
                     {/* Right Main Content Area: General Information or Group Form */}
-                    <main className="flex-1 overflow-y-auto p-6 md:p-8 space-y-6">
+                    <main ref={mainContentRef} className="flex-1 overflow-y-auto p-6 md:p-8 space-y-6">
                         {activeChapterId === 0 ? (
                             <GeneralInfoSection
                                 report={report}
@@ -969,6 +987,8 @@ export default function ReportDataEntry({
                                 expandedGuidance={expandedGuidance}
                                 saveStatuses={saveStatuses}
                                 conflicts={conflicts}
+                                nextChapter={nextChapter}
+                                onChapterSwitch={handleChapterSwitch}
                                 onToggleGuidance={(qid) =>
                                     setExpandedGuidance((prev) => ({
                                         ...prev,
@@ -1022,9 +1042,25 @@ export default function ReportDataEntry({
                                             </Badge>
                                         )}
                                     </div>
-                                    <h1 className="text-2xl font-bold tracking-tight text-foreground">
-                                        {activeChapter.title}
-                                    </h1>
+                                    <div className="flex items-center justify-between gap-3 flex-wrap">
+                                        <div className="flex items-center gap-3 flex-wrap">
+                                            <h1 className="text-2xl font-bold tracking-tight text-foreground">
+                                                {activeChapter.title}
+                                            </h1>
+                                            {prevChapter && (
+                                                <Button
+                                                    type="button"
+                                                    variant="outline"
+                                                    size="sm"
+                                                    onClick={() => handleChapterSwitch(prevChapter.id)}
+                                                    className="h-7 px-2.5 text-xs flex items-center gap-1 text-muted-foreground hover:text-foreground"
+                                                >
+                                                    <ChevronLeft className="size-3.5" />
+                                                    <span>Previous</span>
+                                                </Button>
+                                            )}
+                                        </div>
+                                    </div>
                                 </div>
 
                                 {/* Direct Chapter Questions (if any) */}
@@ -1165,6 +1201,22 @@ export default function ReportDataEntry({
                                         />
                                     </CardContent>
                                 </Card>
+
+                                {/* Next Chapter Navigation */}
+                                {nextChapter && (
+                                    <div className="flex justify-end pt-1 pb-4">
+                                        <Button
+                                            type="button"
+                                            onClick={() => handleChapterSwitch(nextChapter.id)}
+                                            className="flex items-center gap-2 font-medium"
+                                        >
+                                            <span>
+                                                Next: {nextChapter.chapter_no ? `Chapter ${nextChapter.chapter_no} - ${nextChapter.title}` : nextChapter.title}
+                                            </span>
+                                            <ChevronRight className="size-4" />
+                                        </Button>
+                                    </div>
+                                )}
                             </div>
                         ) : (
                             <div className="text-center py-12 text-muted-foreground">Select a chapter from the sidebar.</div>
@@ -1248,6 +1300,8 @@ function GeneralInfoSection({
     expandedGuidance,
     saveStatuses,
     conflicts,
+    nextChapter,
+    onChapterSwitch,
     onToggleGuidance,
     onSelectAnswer,
     onSaveExtraValue,
@@ -1264,6 +1318,8 @@ function GeneralInfoSection({
     expandedGuidance: Record<number, boolean>;
     saveStatuses: Record<number, string>;
     conflicts: Record<number, ConflictData>;
+    nextChapter?: { id: number; title: string; chapter_no?: string | null; sort_order?: number } | null;
+    onChapterSwitch?: (targetId: number) => void;
     onToggleGuidance: (questionId: number) => void;
     onSelectAnswer: (questionId: number, val: string) => void;
     onSaveExtraValue: (questionId: number, val: string) => void;
@@ -1296,14 +1352,12 @@ function GeneralInfoSection({
         if (!isEditable) return;
         setSaveStatus('saving');
         try {
-            const csrfToken =
-                (document.querySelector('meta[name="csrf-token"]') as HTMLMetaElement)?.content || '';
             const res = await fetch(`/reports/${report.id}/general-info`, {
                 method: 'PUT',
                 headers: {
                     'Content-Type': 'application/json',
                     Accept: 'application/json',
-                    'X-CSRF-TOKEN': csrfToken,
+                    ...csrfHeaders(),
                     'X-Requested-With': 'XMLHttpRequest',
                 },
                 body: JSON.stringify(nextState),
@@ -1728,8 +1782,70 @@ function GeneralInfoSection({
                     </CardContent>
                 </Card>
             )}
+
+            {/* Next Chapter Navigation */}
+            {nextChapter && onChapterSwitch && (
+                <div className="flex justify-end pt-1 pb-4">
+                    <Button
+                        type="button"
+                        onClick={() => onChapterSwitch(nextChapter.id)}
+                        className="flex items-center gap-2 font-medium"
+                    >
+                        <span>
+                            Next: {nextChapter.chapter_no ? `Chapter ${nextChapter.chapter_no} - ${nextChapter.title}` : nextChapter.title}
+                        </span>
+                        <ChevronRight className="size-4" />
+                    </Button>
+                </div>
+            )}
         </div>
     );
+}
+
+function getQuestionInputMeta(question: QuestionData): { label: string; placeholder: string } {
+    const text = (question.question_text || '').toUpperCase();
+
+    if (text.includes('SAFETY MEETING HELD ONBOARD')) {
+        return { label: 'IF NO EXPLAIN REASON:', placeholder: 'Explain reason if No...' };
+    }
+    if (text.includes('SAFETY DRILL CONDUCTED ONBOARD') || text.includes('SAFETY DRILL CONDUCTED')) {
+        return { label: 'IF YES SPECIFY TYPE:', placeholder: 'Specify drill type if Yes...' };
+    }
+    if (text.includes('TRAINING SEMINAR')) {
+        return { label: 'IF YES SPECIFY TYPE:', placeholder: 'Specify training seminar type if Yes...' };
+    }
+    if (text.includes('PMS TRAINING PROVIDED')) {
+        return { label: 'PROVIDE DETAILS:', placeholder: 'Provide PMS training details...' };
+    }
+    if (text.includes('PMS RECORDS COMPARED')) {
+        return { label: 'COMMENTS (IF ANY):', placeholder: 'Enter comments if any...' };
+    }
+    if (text.includes('CRITICAL EQUIPMENT TESTED')) {
+        return { label: 'PROVIDE DETAILS:', placeholder: 'Provide details of critical equipment tested...' };
+    }
+    if (text.includes('WORK/REST HOURS RECORDS')) {
+        return { label: 'COMMENTS (IF ANY):', placeholder: 'Enter comments if any...' };
+    }
+    if (text.includes('RISK ASSESSMENTS REVIEWED')) {
+        return { label: 'COMMENTS (IF ANY):', placeholder: 'Enter comments if any...' };
+    }
+    if (text.includes('NEAR MISSES')) {
+        return { label: 'COMMENTS (IF ANY):', placeholder: 'Enter comments if any...' };
+    }
+    if (text.includes('APPRAISALS FOR CREW')) {
+        return { label: 'PROVIDE DETAILS (INCL. IDENTIFIED TRAINING NEEDS, IF ANY):', placeholder: 'Provide details (incl. identified training needs)...' };
+    }
+    if (text.includes('VERIFICATION OF PENDING WORKS')) {
+        return { label: 'PROVIDE FURTHER COMMENTS (IF ANY FURTHER FOLLOW-UP IS NEEDED):', placeholder: 'Provide further comments / follow-up...' };
+    }
+
+    if (question.input_type === 'date' || question.input_type === 'date_only') {
+        return { label: 'DATE:', placeholder: 'Select date...' };
+    }
+    if (question.input_type === 'number') {
+        return { label: 'VALUE:', placeholder: 'Enter number...' };
+    }
+    return { label: 'COMMENTS / DETAILS:', placeholder: 'Enter details...' };
 }
 
 // Subcomponent: Individual Question Answer Row (Task 3.3, 3.6)
@@ -1767,6 +1883,7 @@ function QuestionAnswerCard({
     const isTextOnly = question.input_type === 'text_only';
     const isDateOnly = question.input_type === 'date_only';
     const isPureInput = isTextOnly || isDateOnly;
+    const inputMeta = getQuestionInputMeta(question);
 
     // Internal buffered inputs for extra values with debounced autosave (NFR-1)
     const [extraBuffer, setExtraBuffer] = useState(currentAnswer?.extra_value || '');
@@ -1797,14 +1914,33 @@ function QuestionAnswerCard({
         }, 1500);
     };
 
+    const [undoTarget, setUndoTarget] = useState<string | null | undefined>(undefined);
+    const undoTimerRef = useRef<ReturnType<typeof setTimeout> | null>(null);
+
     const handleAnswerClick = (val: string) => {
+        if (val === selectedAnswer) return;
         flushExtra();
+        const prev = selectedAnswer ?? null;
+        setUndoTarget(prev);
+        if (undoTimerRef.current) clearTimeout(undoTimerRef.current);
+        undoTimerRef.current = setTimeout(() => {
+            setUndoTarget(undefined);
+        }, 8000);
         onSelectAnswer(val);
+    };
+
+    const handleUndo = () => {
+        if (undoTarget === undefined) return;
+        if (undoTimerRef.current) clearTimeout(undoTimerRef.current);
+        const target = undoTarget;
+        setUndoTarget(undefined);
+        onSelectAnswer(target ?? '');
     };
 
     useEffect(() => {
         return () => {
             if (extraDebounceTimer.current) clearTimeout(extraDebounceTimer.current);
+            if (undoTimerRef.current) clearTimeout(undoTimerRef.current);
             if (extraBuffer !== lastSavedExtra.current) {
                 onSaveExtraValue(extraBuffer);
             }
@@ -1835,6 +1971,18 @@ function QuestionAnswerCard({
                             </Badge>
                         )}
 
+                        {undoTarget !== undefined && isEditable && !isLockedNA && (
+                            <button
+                                type="button"
+                                onClick={handleUndo}
+                                className="text-[10px] text-primary hover:text-primary/80 font-semibold flex items-center gap-1 bg-primary/10 hover:bg-primary/20 px-1.5 py-0.5 rounded transition-all cursor-pointer shadow-2xs"
+                                title="Undo recent answer change"
+                            >
+                                <RotateCcw className="size-2.5" />
+                                <span>Undo</span>
+                            </button>
+                        )}
+
                         {saveStatus === 'saving' && (
                             <span className="text-[10px] text-amber-500 animate-pulse flex items-center gap-1">
                                 <Loader2 className="size-2.5 animate-spin" /> Saving...
@@ -1861,24 +2009,6 @@ function QuestionAnswerCard({
                             </span>
                         )}
                     </div>
-
-                    {/* Extra input field if question has dual typed input (text, date, number alongside Yes/No) */}
-                    {!isPureInput && question.input_type && question.input_type !== 'none' && (
-                        <div className="pt-1 flex items-center gap-2 max-w-sm">
-                            <Label className="text-xs text-muted-foreground shrink-0 capitalize">
-                                {question.input_type}:
-                            </Label>
-                            <Input
-                                type={question.input_type === 'date' ? 'date' : 'text'}
-                                value={extraBuffer}
-                                disabled={!isEditable || isLockedNA}
-                                onChange={(e) => handleExtraChange(e.target.value)}
-                                onBlur={flushExtra}
-                                className="h-7 text-xs"
-                                placeholder={`Enter ${question.input_type}...`}
-                            />
-                        </div>
-                    )}
                 </div>
 
                 {/* Answer Choice Buttons & Quick Expanders OR Pure Input */}
@@ -1889,13 +2019,13 @@ function QuestionAnswerCard({
                             size="sm"
                             variant="ghost"
                             onClick={onToggleGuidance}
-                            className={`h-8 px-2 text-xs flex items-center gap-1 ${
-                                isExpandedGuidance ? 'bg-primary/10 text-primary' : 'text-muted-foreground'
+                            className={`h-8 w-8 p-0 flex items-center justify-center ${
+                                isExpandedGuidance ? 'bg-primary/10 text-primary' : 'text-muted-foreground hover:text-foreground'
                             }`}
-                            title="Expand inspection guidance / instruction notes"
+                            title="Inspection guidance notes"
+                            aria-label="Toggle inspection guidance"
                         >
-                            <HelpCircle className="size-3.5" />
-                            <span>Guidance</span>
+                            <HelpCircle className="size-4" />
                         </Button>
                     )}
 
@@ -1909,7 +2039,7 @@ function QuestionAnswerCard({
                                 onChange={(e) => handleExtraChange(e.target.value)}
                                 onBlur={flushExtra}
                                 className="h-8 text-xs bg-background"
-                                placeholder={isDateOnly ? 'Select date...' : 'Enter details...'}
+                                placeholder={inputMeta.placeholder}
                             />
                         </div>
                     ) : (
@@ -1937,6 +2067,24 @@ function QuestionAnswerCard({
                     )}
                 </div>
             </div>
+
+            {/* Extra input field if question has dual typed input (text, date, number alongside Yes/No) */}
+            {!isPureInput && question.input_type && question.input_type !== 'none' && (
+                <div className="mt-3 pt-2.5 border-t border-border/40 space-y-1.5">
+                    <Label className="text-xs text-muted-foreground font-medium block">
+                        {inputMeta.label}
+                    </Label>
+                    <Input
+                        type={question.input_type === 'date' ? 'date' : 'text'}
+                        value={extraBuffer}
+                        disabled={!isEditable || isLockedNA}
+                        onChange={(e) => handleExtraChange(e.target.value)}
+                        onBlur={flushExtra}
+                        className="h-8 text-xs w-full bg-background"
+                        placeholder={inputMeta.placeholder}
+                    />
+                </div>
+            )}
 
             {/* Expandable Guidance Panel */}
             {isExpandedGuidance && question.guidance && (

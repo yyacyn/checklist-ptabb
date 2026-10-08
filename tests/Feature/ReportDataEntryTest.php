@@ -488,4 +488,138 @@ class ReportDataEntryTest extends TestCase
         $this->assertNull($report->lock_owner_id);
         $this->assertNull($report->lock_expires_at);
     }
+
+    public function test_changing_no_answer_records_activity_log_with_before_and_after_values(): void
+    {
+        $user = User::factory()->create([
+            'role' => 'corporate',
+            'is_active' => true,
+        ]);
+
+        $form = Form::where('code', 'D-062')->firstOrFail();
+
+        $report = app(ReportSnapshot::class)->createReport($form, [
+            'vessel_name' => 'MV Log Test',
+            'report_date' => now()->toDateString(),
+            'created_by' => $user->id,
+            'status' => 'draft',
+        ]);
+
+        $question = $report->questions()->where('is_applicable', true)->firstOrFail();
+
+        // 1. First save as 'no'
+        $this->actingAs($user)
+            ->postJson(route('reports.answers.save', [$report->id, $question->id]), [
+                'answer' => 'no',
+                'note' => 'Defect observed',
+            ])
+            ->assertOk();
+
+        // 2. Change 'no' to 'yes' (e.g. undo or corrected)
+        $this->actingAs($user)
+            ->postJson(route('reports.answers.save', [$report->id, $question->id]), [
+                'answer' => 'yes',
+                'base_row_version' => 1,
+            ])
+            ->assertOk();
+
+        // Check ActivityLog has logged the change from 'no' to 'yes' (INS-23)
+        $this->assertDatabaseHas('activity_log', [
+            'entity_type' => $report->getMorphClass(),
+            'entity_id' => $report->id,
+            'action' => 'answer_changed',
+            'field' => "question_{$question->id}",
+            'before_value' => 'no',
+            'after_value' => 'yes',
+        ]);
+    }
+
+    public function test_answer_save_payload_is_small_and_isolated_to_single_question(): void
+    {
+        $user = User::factory()->create([
+            'role' => 'corporate',
+            'is_active' => true,
+        ]);
+
+        $form = Form::where('code', 'D-062')->firstOrFail();
+
+        $report = app(ReportSnapshot::class)->createReport($form, [
+            'vessel_name' => 'MV VSAT Test',
+            'report_date' => now()->toDateString(),
+            'created_by' => $user->id,
+            'status' => 'draft',
+        ]);
+
+        $question = $report->questions()->where('is_applicable', true)->firstOrFail();
+
+        $response = $this->actingAs($user)
+            ->postJson(route('reports.answers.save', [$report->id, $question->id]), [
+                'answer' => 'yes',
+                'client_save_id' => 'client-save-vsat-001',
+            ]);
+
+        $response->assertOk();
+
+        // NFR-13: Payload size must be tiny (< 1000 bytes) and only contain this single answer
+        $content = $response->getContent();
+        $this->assertLessThan(1024, strlen($content), 'Single answer save response payload must be under 1KB.');
+        $response->assertJsonStructure([
+            'status',
+            'answer' => [
+                'id',
+                'report_question_id',
+                'answer',
+                'note',
+                'extra_value',
+                'client_save_id',
+                'row_version',
+                'answered_at',
+            ],
+        ]);
+    }
+
+    public function test_idempotent_retry_does_not_duplicate_or_re_increment_row_version(): void
+    {
+        $user = User::factory()->create([
+            'role' => 'corporate',
+            'is_active' => true,
+        ]);
+
+        $form = Form::where('code', 'D-062')->firstOrFail();
+
+        $report = app(ReportSnapshot::class)->createReport($form, [
+            'vessel_name' => 'MV Retry Test',
+            'report_date' => now()->toDateString(),
+            'created_by' => $user->id,
+            'status' => 'draft',
+        ]);
+
+        $question = $report->questions()->where('is_applicable', true)->firstOrFail();
+        $clientSaveId = 'client-save-unique-abc-123';
+
+        // Initial save
+        $resp1 = $this->actingAs($user)
+            ->postJson(route('reports.answers.save', [$report->id, $question->id]), [
+                'answer' => 'yes',
+                'client_save_id' => $clientSaveId,
+            ]);
+
+        $resp1->assertOk();
+        $rowVersion1 = $resp1->json('answer.row_version');
+
+        // Retry same save with identical client_save_id (e.g. offline queue retry)
+        $resp2 = $this->actingAs($user)
+            ->postJson(route('reports.answers.save', [$report->id, $question->id]), [
+                'answer' => 'yes',
+                'client_save_id' => $clientSaveId,
+            ]);
+
+        $resp2->assertOk();
+        $rowVersion2 = $resp2->json('answer.row_version');
+
+        // Must match exactly without duplicating answer records or incrementing row_version
+        $this->assertEquals($rowVersion1, $rowVersion2);
+        $this->assertEquals(1, ReportAnswer::where('report_question_id', $question->id)->count());
+    }
 }
+

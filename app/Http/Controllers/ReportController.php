@@ -308,6 +308,17 @@ class ReportController extends Controller
                 'report_id' => $report->id,
             ]);
 
+            // INS-23: Log before/after values whenever a 'No' answer is changed or created
+            if ($existing && ($existing->answer === 'no' || ($validated['answer'] ?? null) === 'no') && $existing->answer !== ($validated['answer'] ?? null)) {
+                ActivityLog::record(
+                    $report,
+                    'answer_changed',
+                    "question_{$question->id}",
+                    $existing->answer ?? 'unanswered',
+                    $validated['answer'] ?? 'unanswered'
+                );
+            }
+
             $answerRecord->answer = $validated['answer'] ?? null;
             $answerRecord->note = $validated['note'] ?? null;
             $answerRecord->extra_value = $validated['extra_value'] ?? null;

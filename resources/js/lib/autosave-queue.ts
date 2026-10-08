@@ -64,7 +64,20 @@ export function generateClientSaveId(): string {
 }
 
 /**
+ * Build CSRF headers. Prefers Laravel's XSRF-TOKEN cookie (refreshed on every response)
+ * so long-lived tabs don't get stuck on 419; falls back to the page meta token.
+ * Note: Laravel ignores X-XSRF-TOKEN if X-CSRF-TOKEN is present, so only one is sent.
+ */
+export function csrfHeaders(): Record<string, string> {
+    const match = document.cookie.match(/(?:^|;\s*)XSRF-TOKEN=([^;]+)/);
+    if (match) return { 'X-XSRF-TOKEN': decodeURIComponent(match[1]) };
+    const meta = document.querySelector('meta[name="csrf-token"]')?.getAttribute('content');
+    return meta ? { 'X-CSRF-TOKEN': meta } : {};
+}
+
+/**
  * Save an item into the IndexedDB retry queue.
+ * Automatically replaces any existing pending save for the same question so answers don't stack up.
  */
 export async function enqueueSave(item: QueuedSaveItem): Promise<void> {
     try {
@@ -72,9 +85,23 @@ export async function enqueueSave(item: QueuedSaveItem): Promise<void> {
         return new Promise((resolve, reject) => {
             const tx = db.transaction(STORE_NAME, 'readwrite');
             const store = tx.objectStore(STORE_NAME);
-            const req = store.put(item);
-            req.onsuccess = () => resolve();
-            req.onerror = () => reject(req.error);
+
+            // Deduplicate: check if an older unacknowledged save exists for the same question
+            const index = store.index('question_id');
+            const req = index.getAll(item.question_id);
+
+            req.onsuccess = () => {
+                const existing = (req.result || []) as QueuedSaveItem[];
+                for (const oldItem of existing) {
+                    if (oldItem.report_id === item.report_id && oldItem.client_save_id !== item.client_save_id) {
+                        store.delete(oldItem.client_save_id);
+                    }
+                }
+                store.put(item);
+            };
+
+            tx.oncomplete = () => resolve();
+            tx.onerror = () => reject(tx.error);
         });
     } catch (e) {
         console.warn('Failed to enqueue into IndexedDB:', e);
@@ -169,16 +196,13 @@ export async function flushSaveQueue(
 
         for (const item of pending) {
             try {
-                // Get fresh CSRF token from meta tag
-                const token = document.querySelector('meta[name="csrf-token"]')?.getAttribute('content') || '';
-
                 const response = await fetch(item.endpoint, {
                     method: 'POST',
                     headers: {
                         'Content-Type': 'application/json',
                         'Accept': 'application/json',
-                        'X-CSRF-TOKEN': token,
                         'X-Requested-With': 'XMLHttpRequest',
+                        ...csrfHeaders(),
                     },
                     body: JSON.stringify(item.payload),
                 });
