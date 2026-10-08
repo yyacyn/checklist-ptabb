@@ -126,7 +126,16 @@ class ReportController extends Controller
             'chief_officer_name' => ['nullable', 'string', 'max:255'],
             'inspected_by' => ['nullable', 'string', 'max:255'],
             'port' => ['nullable', 'string', 'max:255'],
-            'sailing_with_vessel' => ['nullable', 'string', 'max:255'],
+            'sailing_with_vessel' => ['nullable', 'boolean'],
+            'sailing_from' => ['nullable', 'string', 'max:255'],
+            'sailing_to' => ['nullable', 'string', 'max:255'],
+            'psc_last_port' => ['nullable', 'string', 'max:255'],
+            'psc_last_date' => ['nullable', 'date'],
+            'psc_detained_or_deficiencies' => ['nullable', 'boolean'],
+            'drydock_last_date' => ['nullable', 'date'],
+            'drydock_next_date' => ['nullable', 'date'],
+            'operations' => ['nullable', 'array'],
+            'operations.*' => ['string', 'max:100'],
         ]);
 
         $form = Form::findOrFail($validated['form_id']);
@@ -138,6 +147,39 @@ class ReportController extends Controller
         // If vessel user, force their assigned vessel name (SRS §2)
         if ($user->role === 'vessel') {
             $validated['vessel_name'] = $user->vessel_name;
+        }
+
+        // Clean & normalise nullable fields from empty strings to null
+        $nullableFields = [
+            'vessel_imo',
+            'vessel_flag',
+            'vessel_gt',
+            'vessel_built',
+            'vessel_type_id',
+            'master_name',
+            'chief_engineer_name',
+            'chief_officer_name',
+            'inspected_by',
+            'port',
+            'sailing_from',
+            'sailing_to',
+            'psc_last_port',
+            'psc_last_date',
+            'drydock_last_date',
+            'drydock_next_date',
+        ];
+        foreach ($nullableFields as $field) {
+            if (array_key_exists($field, $validated) && (is_null($validated[$field]) || trim((string) $validated[$field]) === '')) {
+                $validated[$field] = null;
+            }
+        }
+
+        if (array_key_exists('sailing_with_vessel', $validated)) {
+            $validated['sailing_with_vessel'] = (bool) $validated['sailing_with_vessel'];
+        }
+
+        if (array_key_exists('psc_detained_or_deficiencies', $validated) && $validated['psc_detained_or_deficiencies'] !== null) {
+            $validated['psc_detained_or_deficiencies'] = (bool) $validated['psc_detained_or_deficiencies'];
         }
 
         // Clean & normalise vessel name
@@ -395,6 +437,69 @@ class ReportController extends Controller
         return response()->json([
             'status' => 'saved',
             'comments' => $group->comments,
+        ]);
+    }
+
+    /**
+     * Update report General Information particulars (Task 3.1, Form D-062 Chapter 1).
+     */
+    public function updateGeneralInfo(Request $request, Report $report): JsonResponse
+    {
+        Gate::authorize('update', $report);
+
+        $validated = $request->validate([
+            'report_date' => ['nullable', 'date'],
+            'port' => ['nullable', 'string', 'max:255'],
+            'inspected_by' => ['nullable', 'string', 'max:255'],
+            'master_name' => ['nullable', 'string', 'max:255'],
+            'chief_engineer_name' => ['nullable', 'string', 'max:255'],
+            'chief_officer_name' => ['nullable', 'string', 'max:255'],
+            'sailing_with_vessel' => ['nullable', 'boolean'],
+            'sailing_from' => ['nullable', 'string', 'max:255'],
+            'sailing_to' => ['nullable', 'string', 'max:255'],
+            'psc_last_port' => ['nullable', 'string', 'max:255'],
+            'psc_last_date' => ['nullable', 'date'],
+            'psc_detained_or_deficiencies' => ['nullable', 'boolean'],
+            'drydock_last_date' => ['nullable', 'date'],
+            'drydock_next_date' => ['nullable', 'date'],
+            'operations' => ['nullable', 'array'],
+            'operations.*' => ['string', 'max:100'],
+        ]);
+
+        $nullableStrings = [
+            'report_date',
+            'port',
+            'inspected_by',
+            'master_name',
+            'chief_engineer_name',
+            'chief_officer_name',
+            'sailing_from',
+            'sailing_to',
+            'psc_last_port',
+            'psc_last_date',
+            'drydock_last_date',
+            'drydock_next_date',
+        ];
+
+        foreach ($nullableStrings as $field) {
+            if (array_key_exists($field, $validated) && (is_null($validated[$field]) || trim((string) $validated[$field]) === '')) {
+                $validated[$field] = null;
+            }
+        }
+
+        if (array_key_exists('sailing_with_vessel', $validated)) {
+            $validated['sailing_with_vessel'] = (bool) $validated['sailing_with_vessel'];
+        }
+
+        if (array_key_exists('psc_detained_or_deficiencies', $validated) && $validated['psc_detained_or_deficiencies'] !== null) {
+            $validated['psc_detained_or_deficiencies'] = (bool) $validated['psc_detained_or_deficiencies'];
+        }
+
+        $report->update($validated);
+
+        return response()->json([
+            'status' => 'saved',
+            'report' => $report->fresh(),
         ]);
     }
 }

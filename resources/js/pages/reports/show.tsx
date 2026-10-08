@@ -8,6 +8,7 @@ import {
     ChevronDown,
     ChevronRight,
     CloudOff,
+    FileCheck,
     HelpCircle,
     Info,
     Loader2,
@@ -116,6 +117,17 @@ export interface ReportData {
     vessel_built: number | null;
     vessel_ice_class: boolean;
     report_date: string;
+    port: string | null;
+    inspected_by: string | null;
+    sailing_with_vessel: boolean;
+    sailing_from: string | null;
+    sailing_to: string | null;
+    psc_last_port: string | null;
+    psc_last_date: string | null;
+    psc_detained_or_deficiencies: boolean | null;
+    drydock_last_date: string | null;
+    drydock_next_date: string | null;
+    operations: string[] | null;
     master_name: string | null;
     chief_engineer_name: string | null;
     chief_officer_name: string | null;
@@ -145,10 +157,8 @@ export default function ReportDataEntry({ report, is_editable = true, initial_lo
     // Question edit conflicts state (NFR-15): questionId -> ConflictData
     const [conflicts, setConflicts] = useState<Record<number, ConflictData>>({});
 
-    // Current Active Chapter (Task 3.2: One group per screen)
-    const [activeChapterId, setActiveChapterId] = useState<number>(
-        report.groups[0]?.id || 0
-    );
+    // Current Active Chapter (0 = 1. General Information & Particulars, >0 = Form Groups)
+    const [activeChapterId, setActiveChapterId] = useState<number>(0);
 
     // Filter states (Task 3.2: unanswered filter, search-jump)
     const [showUnansweredOnly, setShowUnansweredOnly] = useState(false);
@@ -181,9 +191,6 @@ export default function ReportDataEntry({ report, is_editable = true, initial_lo
 
     // Guidance expanded states: questionId -> boolean
     const [expandedGuidance, setExpandedGuidance] = useState<Record<number, boolean>>({});
-
-    // Notes open states: questionId -> boolean
-    const [expandedNotes, setExpandedNotes] = useState<Record<number, boolean>>({});
 
     // Saving indicators: questionId -> 'saving' | 'saved' | 'error'
     const [saveStatuses, setSaveStatuses] = useState<Record<number, string>>({});
@@ -225,7 +232,9 @@ export default function ReportDataEntry({ report, is_editable = true, initial_lo
                 if (q.is_applicable) {
                     applicable++;
                     const ans = answers[q.id]?.answer;
-                    if (ans) {
+                    const extra = answers[q.id]?.extra_value;
+                    const isPure = ['text_only', 'date_only'].includes(q.input_type);
+                    if (ans || (isPure && extra && extra.trim().length > 0)) {
                         answered++;
                         if (ans === 'no') noCount++;
                         if (ans === 'ns') nsCount++;
@@ -608,7 +617,9 @@ export default function ReportDataEntry({ report, is_editable = true, initial_lo
 
     const handleChapterSwitch = async (targetChapterId: number) => {
         if (targetChapterId === activeChapterId) return;
-        await flushPendingComments(activeChapterId);
+        if (activeChapterId !== 0) {
+            await flushPendingComments(activeChapterId);
+        }
         setActiveChapterId(targetChapterId);
     };
 
@@ -618,7 +629,9 @@ export default function ReportDataEntry({ report, is_editable = true, initial_lo
 
         if (showUnansweredOnly) {
             const ans = answers[q.id]?.answer;
-            if (ans) return false;
+            const extra = answers[q.id]?.extra_value;
+            const isPure = ['text_only', 'date_only'].includes(q.input_type);
+            if (ans || (isPure && extra && extra.trim().length > 0)) return false;
         }
 
         if (searchQuery.trim().length > 0) {
@@ -787,6 +800,32 @@ export default function ReportDataEntry({ report, is_editable = true, initial_lo
                             Chapters / Sections
                         </div>
 
+                        {/* Chapter 1: General Information & Particulars */}
+                        <button
+                            type="button"
+                            onClick={() => handleChapterSwitch(0)}
+                            className={`w-full text-left rounded-lg p-3 transition-all flex flex-col gap-1.5 ${
+                                activeChapterId === 0
+                                    ? 'bg-card border-2 border-primary shadow-xs ring-1 ring-primary/20'
+                                    : 'border border-transparent hover:bg-card/70'
+                            }`}
+                        >
+                            <div className="flex items-start justify-between gap-2">
+                                <div className="flex items-center gap-1.5 min-w-0">
+                                    <Info className="size-4 text-primary shrink-0" />
+                                    <span className="font-semibold text-xs text-foreground truncate">
+                                        1. General Information
+                                    </span>
+                                </div>
+                                <Badge variant="secondary" className="text-[10px] shrink-0 font-mono">
+                                    Particulars
+                                </Badge>
+                            </div>
+                            <div className="text-[11px] text-muted-foreground pl-5 truncate">
+                                Ship, PSC, Drydock, Operations & Officers
+                            </div>
+                        </button>
+
                         {report.groups.map((group) => {
                             const stats = chapterStats[group.id] || { applicable: 0, answered: 0, noCount: 0, nsCount: 0 };
                             const isCurrent = group.id === activeChapterId;
@@ -846,9 +885,11 @@ export default function ReportDataEntry({ report, is_editable = true, initial_lo
                         })}
                     </aside>
 
-                    {/* Right Main Content Area: One Group Screen */}
+                    {/* Right Main Content Area: General Information or Group Form */}
                     <main className="flex-1 overflow-y-auto p-6 md:p-8 space-y-6">
-                        {activeChapter ? (
+                        {activeChapterId === 0 ? (
+                            <GeneralInfoSection report={report} isEditable={is_editable} />
+                        ) : activeChapter ? (
                             <div className="max-w-4xl mx-auto space-y-6">
                                 {/* VSAT Offline Buffer Banner (NFR-2) */}
                                 {pendingQueueCount > 0 && (
@@ -901,7 +942,6 @@ export default function ReportDataEntry({ report, is_editable = true, initial_lo
                                                 isB008={isB008}
                                                 answerChoices={answerChoices}
                                                 isExpandedGuidance={Boolean(expandedGuidance[q.id])}
-                                                isExpandedNotes={Boolean(expandedNotes[q.id])}
                                                 saveStatus={saveStatuses[q.id]}
                                                 isEditable={is_editable}
                                                 onToggleGuidance={() =>
@@ -910,17 +950,8 @@ export default function ReportDataEntry({ report, is_editable = true, initial_lo
                                                         [q.id]: !prev[q.id],
                                                     }))
                                                 }
-                                                onToggleNotes={() =>
-                                                    setExpandedNotes((prev) => ({
-                                                        ...prev,
-                                                        [q.id]: !prev[q.id],
-                                                    }))
-                                                }
                                                 onSelectAnswer={(val) =>
                                                     saveAnswerToServer(q.id, { answer: val })
-                                                }
-                                                onSaveNote={(noteText) =>
-                                                    saveAnswerToServer(q.id, { note: noteText })
                                                 }
                                                 onSaveExtraValue={(val) =>
                                                     saveAnswerToServer(q.id, { extra_value: val })
@@ -964,7 +995,6 @@ export default function ReportDataEntry({ report, is_editable = true, initial_lo
                                                                 isB008={isB008}
                                                                 answerChoices={answerChoices}
                                                                 isExpandedGuidance={Boolean(expandedGuidance[q.id])}
-                                                                isExpandedNotes={Boolean(expandedNotes[q.id])}
                                                                 saveStatus={saveStatuses[q.id]}
                                                                 isEditable={is_editable}
                                                                 onToggleGuidance={() =>
@@ -973,17 +1003,8 @@ export default function ReportDataEntry({ report, is_editable = true, initial_lo
                                                                         [q.id]: !prev[q.id],
                                                                     }))
                                                                 }
-                                                                onToggleNotes={() =>
-                                                                    setExpandedNotes((prev) => ({
-                                                                        ...prev,
-                                                                        [q.id]: !prev[q.id],
-                                                                    }))
-                                                                }
                                                                 onSelectAnswer={(val) =>
                                                                     saveAnswerToServer(q.id, { answer: val })
-                                                                }
-                                                                onSaveNote={(noteText) =>
-                                                                    saveAnswerToServer(q.id, { note: noteText })
                                                                 }
                                                                 onSaveExtraValue={(val) =>
                                                                     saveAnswerToServer(q.id, { extra_value: val })
@@ -1059,6 +1080,451 @@ export default function ReportDataEntry({ report, is_editable = true, initial_lo
     );
 }
 
+const INSPECTION_OPERATIONS = [
+    'Loading',
+    'Discharging',
+    'Bunkering',
+    'Deballasting',
+    'Ballasting',
+    'River transit',
+    'IGS in operation',
+    'Major repairs/ Drydock',
+    'COW in progress',
+    'Repairs under way',
+    'STS operations',
+    'Idle',
+    'At anchor',
+    'At sea/Sailing',
+    'Other',
+];
+
+// Subcomponent: Chapter 1 General Information & Particulars (Form D-062)
+function GeneralInfoSection({
+    report,
+    isEditable,
+}: {
+    report: ReportData;
+    isEditable: boolean;
+}) {
+    const [info, setInfo] = useState({
+        report_date: report.report_date || '',
+        port: report.port || '',
+        inspected_by: report.inspected_by || '',
+        master_name: report.master_name || '',
+        chief_engineer_name: report.chief_engineer_name || '',
+        chief_officer_name: report.chief_officer_name || '',
+        sailing_with_vessel: Boolean(report.sailing_with_vessel),
+        sailing_from: report.sailing_from || '',
+        sailing_to: report.sailing_to || '',
+        psc_last_port: report.psc_last_port || '',
+        psc_last_date: report.psc_last_date || '',
+        psc_detained_or_deficiencies: Boolean(report.psc_detained_or_deficiencies),
+        drydock_last_date: report.drydock_last_date || '',
+        drydock_next_date: report.drydock_next_date || '',
+        operations: (report.operations || []) as string[],
+    });
+
+    const [saveStatus, setSaveStatus] = useState<'idle' | 'saving' | 'saved' | 'error'>('idle');
+    const debounceTimer = useRef<ReturnType<typeof setTimeout> | null>(null);
+
+    const persistChanges = async (nextState: typeof info) => {
+        if (!isEditable) return;
+        setSaveStatus('saving');
+        try {
+            const csrfToken =
+                (document.querySelector('meta[name="csrf-token"]') as HTMLMetaElement)?.content || '';
+            const res = await fetch(`/reports/${report.id}/general-info`, {
+                method: 'PUT',
+                headers: {
+                    'Content-Type': 'application/json',
+                    Accept: 'application/json',
+                    'X-CSRF-TOKEN': csrfToken,
+                    'X-Requested-With': 'XMLHttpRequest',
+                },
+                body: JSON.stringify(nextState),
+            });
+
+            if (res.ok) {
+                setSaveStatus('saved');
+                setTimeout(() => setSaveStatus('idle'), 2500);
+            } else {
+                setSaveStatus('error');
+            }
+        } catch {
+            setSaveStatus('error');
+        }
+    };
+
+    const updateField = (field: keyof typeof info, val: any, debounce = true) => {
+        const next = { ...info, [field]: val };
+        setInfo(next);
+
+        if (debounceTimer.current) clearTimeout(debounceTimer.current);
+
+        if (!debounce) {
+            persistChanges(next);
+        } else {
+            debounceTimer.current = setTimeout(() => {
+                persistChanges(next);
+            }, 1200);
+        }
+    };
+
+    const toggleOperation = (op: string) => {
+        const nextOps = info.operations.includes(op)
+            ? info.operations.filter((o) => o !== op)
+            : [...info.operations, op];
+        updateField('operations', nextOps, false);
+    };
+
+    return (
+        <div className="max-w-4xl mx-auto space-y-6">
+            {/* Header Banner */}
+            <div className="border-b pb-4 flex items-start justify-between gap-4">
+                <div>
+                    <div className="flex items-center gap-2 mb-1">
+                        <Badge variant="outline" className="text-xs font-mono">
+                            Chapter 1
+                        </Badge>
+                        <Badge variant="secondary" className="text-xs font-mono">
+                            {report.form.code}
+                        </Badge>
+                    </div>
+                    <h1 className="text-2xl font-bold tracking-tight text-foreground">
+                        General Information & Particulars
+                    </h1>
+                    <p className="text-xs text-muted-foreground mt-0.5">
+                        Vessel particulars, senior officers, PSC records, dry dock dates, and operational status (Form D-062).
+                    </p>
+                </div>
+
+                <div className="flex items-center gap-2 shrink-0">
+                    {saveStatus === 'saving' && (
+                        <span className="text-xs text-amber-500 flex items-center gap-1.5 font-medium">
+                            <Loader2 className="size-3.5 animate-spin" /> Saving...
+                        </span>
+                    )}
+                    {saveStatus === 'saved' && (
+                        <span className="text-xs text-emerald-600 flex items-center gap-1 font-medium">
+                            <Check className="size-3.5" /> All saved
+                        </span>
+                    )}
+                    {saveStatus === 'error' && (
+                        <span className="text-xs text-rose-600 flex items-center gap-1 font-medium">
+                            <AlertCircle className="size-3.5" /> Save failed
+                        </span>
+                    )}
+                </div>
+            </div>
+
+            {/* 1. Vessel Particulars Overview Card */}
+            <Card>
+                <CardHeader className="pb-3">
+                    <CardTitle className="text-sm font-semibold flex items-center gap-2">
+                        <Ship className="size-4 text-primary" />
+                        <span>Vessel Particulars</span>
+                    </CardTitle>
+                    <CardDescription className="text-xs">
+                        Base vessel data snapshot taken during report creation.
+                    </CardDescription>
+                </CardHeader>
+                <CardContent>
+                    <div className="grid grid-cols-2 sm:grid-cols-3 md:grid-cols-4 gap-4 text-xs">
+                        <div>
+                            <span className="text-muted-foreground block text-[11px]">Ship Name</span>
+                            <span className="font-semibold text-foreground text-sm">{report.vessel_name}</span>
+                        </div>
+                        <div>
+                            <span className="text-muted-foreground block text-[11px]">IMO Number</span>
+                            <span className="font-medium text-foreground">{report.vessel_imo || '—'}</span>
+                        </div>
+                        <div>
+                            <span className="text-muted-foreground block text-[11px]">Vessel Type</span>
+                            <span className="font-medium text-foreground">{report.vessel_type?.name || '—'}</span>
+                        </div>
+                        <div>
+                            <span className="text-muted-foreground block text-[11px]">Flag State</span>
+                            <span className="font-medium text-foreground">{report.vessel_flag || '—'}</span>
+                        </div>
+                        <div>
+                            <span className="text-muted-foreground block text-[11px]">Gross Tonnage (GT)</span>
+                            <span className="font-medium text-foreground">{report.vessel_gt || '—'}</span>
+                        </div>
+                        <div>
+                            <span className="text-muted-foreground block text-[11px]">Year Built</span>
+                            <span className="font-medium text-foreground">{report.vessel_built || '—'}</span>
+                        </div>
+                        <div>
+                            <span className="text-muted-foreground block text-[11px]">Ice Class Notation</span>
+                            <Badge variant={report.vessel_ice_class ? 'default' : 'outline'} className="text-[10px] mt-0.5">
+                                {report.vessel_ice_class ? 'Yes (Ice Class)' : 'No'}
+                            </Badge>
+                        </div>
+                        <div>
+                            <span className="text-muted-foreground block text-[11px]">Reference No.</span>
+                            <span className="font-mono text-foreground font-semibold">{report.reference_number}</span>
+                        </div>
+                    </div>
+                </CardContent>
+            </Card>
+
+            {/* 2. Inspection & Senior Officers Card */}
+            <Card>
+                <CardHeader className="pb-3">
+                    <CardTitle className="text-sm font-semibold flex items-center gap-2">
+                        <Info className="size-4 text-primary" />
+                        <span>Inspection & Senior Officer Particulars</span>
+                    </CardTitle>
+                    <CardDescription className="text-xs">
+                        Editable text and date fields for attendance and crew leadership.
+                    </CardDescription>
+                </CardHeader>
+                <CardContent className="space-y-4">
+                    <div className="grid gap-4 md:grid-cols-3">
+                        <div className="space-y-1">
+                            <Label htmlFor="gi_report_date" className="text-xs">Date of Inspection * (date only)</Label>
+                            <Input
+                                id="gi_report_date"
+                                type="date"
+                                value={info.report_date}
+                                disabled={!isEditable}
+                                onChange={(e) => updateField('report_date', e.target.value)}
+                                className="h-8 text-xs"
+                            />
+                        </div>
+
+                        <div className="space-y-1">
+                            <Label htmlFor="gi_port" className="text-xs">Port / Location (text only)</Label>
+                            <Input
+                                id="gi_port"
+                                value={info.port}
+                                disabled={!isEditable}
+                                placeholder="e.g. Bojonegara, Merak"
+                                onChange={(e) => updateField('port', e.target.value)}
+                                className="h-8 text-xs"
+                            />
+                        </div>
+
+                        <div className="space-y-1">
+                            <Label htmlFor="gi_inspected_by" className="text-xs">Inspected By (text only)</Label>
+                            <Input
+                                id="gi_inspected_by"
+                                value={info.inspected_by}
+                                disabled={!isEditable}
+                                placeholder="e.g. Rendy"
+                                onChange={(e) => updateField('inspected_by', e.target.value)}
+                                className="h-8 text-xs"
+                            />
+                        </div>
+                    </div>
+
+                    <div className="grid gap-4 md:grid-cols-3 pt-2">
+                        <div className="space-y-1">
+                            <Label htmlFor="gi_master" className="text-xs">Master (text only)</Label>
+                            <Input
+                                id="gi_master"
+                                value={info.master_name}
+                                disabled={!isEditable}
+                                placeholder="Capt. Name"
+                                onChange={(e) => updateField('master_name', e.target.value)}
+                                className="h-8 text-xs"
+                            />
+                        </div>
+
+                        <div className="space-y-1">
+                            <Label htmlFor="gi_ce" className="text-xs">Chief Engineer (text only)</Label>
+                            <Input
+                                id="gi_ce"
+                                value={info.chief_engineer_name}
+                                disabled={!isEditable}
+                                placeholder="C/E Name"
+                                onChange={(e) => updateField('chief_engineer_name', e.target.value)}
+                                className="h-8 text-xs"
+                            />
+                        </div>
+
+                        <div className="space-y-1">
+                            <Label htmlFor="gi_co" className="text-xs">Chief Officer (text only)</Label>
+                            <Input
+                                id="gi_co"
+                                value={info.chief_officer_name}
+                                disabled={!isEditable}
+                                placeholder="C/O Name"
+                                onChange={(e) => updateField('chief_officer_name', e.target.value)}
+                                className="h-8 text-xs"
+                            />
+                        </div>
+                    </div>
+
+                    {/* Sailing with vessel toggle */}
+                    <div className="rounded-lg border p-3 bg-muted/20 space-y-3 mt-2">
+                        <div className="flex items-center gap-2">
+                            <input
+                                id="gi_sailing_toggle"
+                                type="checkbox"
+                                checked={info.sailing_with_vessel}
+                                disabled={!isEditable}
+                                onChange={(e) => updateField('sailing_with_vessel', e.target.checked, false)}
+                                className="h-4 w-4 rounded border-gray-300 text-primary focus:ring-primary"
+                            />
+                            <Label htmlFor="gi_sailing_toggle" className="cursor-pointer text-xs font-semibold">
+                                Sailing with Vessel during inspection
+                            </Label>
+                        </div>
+
+                        {info.sailing_with_vessel && (
+                            <div className="grid gap-4 md:grid-cols-2 pt-1 pl-6">
+                                <div className="space-y-1">
+                                    <Label htmlFor="gi_sailing_from" className="text-xs">Sailing From (text only)</Label>
+                                    <Input
+                                        id="gi_sailing_from"
+                                        value={info.sailing_from}
+                                        disabled={!isEditable}
+                                        placeholder="e.g. Merak"
+                                        onChange={(e) => updateField('sailing_from', e.target.value)}
+                                        className="h-8 text-xs"
+                                    />
+                                </div>
+                                <div className="space-y-1">
+                                    <Label htmlFor="gi_sailing_to" className="text-xs">Sailing To (text only)</Label>
+                                    <Input
+                                        id="gi_sailing_to"
+                                        value={info.sailing_to}
+                                        disabled={!isEditable}
+                                        placeholder="e.g. Batam"
+                                        onChange={(e) => updateField('sailing_to', e.target.value)}
+                                        className="h-8 text-xs"
+                                    />
+                                </div>
+                            </div>
+                        )}
+                    </div>
+                </CardContent>
+            </Card>
+
+            {/* 3. Port State Control (PSC) & Dry Dock Particulars */}
+            <Card>
+                <CardHeader className="pb-3">
+                    <CardTitle className="text-sm font-semibold flex items-center gap-2">
+                        <FileCheck className="size-4 text-primary" />
+                        <span>Port State Control (PSC) & Dry Dock Dates</span>
+                    </CardTitle>
+                    <CardDescription className="text-xs">
+                        Last PSC inspection results and scheduled drydocking.
+                    </CardDescription>
+                </CardHeader>
+                <CardContent className="space-y-4">
+                    <div className="grid gap-4 md:grid-cols-2">
+                        <div className="space-y-1">
+                            <Label htmlFor="gi_psc_port" className="text-xs">Port of Last PSC Inspection (text only)</Label>
+                            <Input
+                                id="gi_psc_port"
+                                value={info.psc_last_port}
+                                disabled={!isEditable}
+                                placeholder="e.g. Tanjung Priok"
+                                onChange={(e) => updateField('psc_last_port', e.target.value)}
+                                className="h-8 text-xs"
+                            />
+                        </div>
+
+                        <div className="space-y-1">
+                            <Label htmlFor="gi_psc_date" className="text-xs">Date of Last PSC Inspection (date only)</Label>
+                            <Input
+                                id="gi_psc_date"
+                                type="date"
+                                value={info.psc_last_date}
+                                disabled={!isEditable}
+                                onChange={(e) => updateField('psc_last_date', e.target.value)}
+                                className="h-8 text-xs"
+                            />
+                        </div>
+                    </div>
+
+                    <div className="flex items-center gap-2 pt-1">
+                        <input
+                            id="gi_psc_detained"
+                            type="checkbox"
+                            checked={info.psc_detained_or_deficiencies}
+                            disabled={!isEditable}
+                            onChange={(e) => updateField('psc_detained_or_deficiencies', e.target.checked, false)}
+                            className="h-4 w-4 rounded border-gray-300 text-primary focus:ring-primary"
+                        />
+                        <Label htmlFor="gi_psc_detained" className="cursor-pointer text-xs font-medium text-muted-foreground">
+                            Vessel was detained or deficiencies were identified during last PSC (verify close out)
+                        </Label>
+                    </div>
+
+                    <div className="grid gap-4 md:grid-cols-2 pt-3 border-t">
+                        <div className="space-y-1">
+                            <Label htmlFor="gi_dd_last" className="text-xs">Date of Last Dry Dock (date only)</Label>
+                            <Input
+                                id="gi_dd_last"
+                                type="date"
+                                value={info.drydock_last_date}
+                                disabled={!isEditable}
+                                onChange={(e) => updateField('drydock_last_date', e.target.value)}
+                                className="h-8 text-xs"
+                            />
+                        </div>
+
+                        <div className="space-y-1">
+                            <Label htmlFor="gi_dd_next" className="text-xs">Next Dry Dock Date (date only)</Label>
+                            <Input
+                                id="gi_dd_next"
+                                type="date"
+                                value={info.drydock_next_date}
+                                disabled={!isEditable}
+                                onChange={(e) => updateField('drydock_next_date', e.target.value)}
+                                className="h-8 text-xs"
+                            />
+                        </div>
+                    </div>
+                </CardContent>
+            </Card>
+
+            {/* 4. Operations at the time of inspection */}
+            <Card>
+                <CardHeader className="pb-3">
+                    <CardTitle className="text-sm font-semibold flex items-center gap-2">
+                        <Info className="size-4 text-primary" />
+                        <span>Operations at the Time of Inspection</span>
+                    </CardTitle>
+                    <CardDescription className="text-xs">
+                        Select all operational activities occurring during attendance (Form D-062 Chapter 1).
+                    </CardDescription>
+                </CardHeader>
+                <CardContent>
+                    <div className="grid grid-cols-2 sm:grid-cols-3 md:grid-cols-5 gap-2.5">
+                        {INSPECTION_OPERATIONS.map((op) => {
+                            const isSelected = info.operations.includes(op);
+                            return (
+                                <button
+                                    key={op}
+                                    type="button"
+                                    disabled={!isEditable}
+                                    onClick={() => toggleOperation(op)}
+                                    className={`p-2.5 rounded-lg border text-left text-xs font-medium transition-all flex items-center gap-2 ${
+                                        isSelected
+                                            ? 'border-primary bg-primary/10 text-primary font-semibold ring-1 ring-primary'
+                                            : 'border-border hover:bg-muted/60 text-muted-foreground'
+                                    } disabled:opacity-60 disabled:cursor-not-allowed`}
+                                >
+                                    <span className={`size-3.5 rounded border flex items-center justify-center shrink-0 ${
+                                        isSelected ? 'bg-primary border-primary text-primary-foreground' : 'border-muted-foreground/50'
+                                    }`}>
+                                        {isSelected && <Check className="size-2.5" />}
+                                    </span>
+                                    <span className="truncate">{op}</span>
+                                </button>
+                            );
+                        })}
+                    </div>
+                </CardContent>
+            </Card>
+        </div>
+    );
+}
+
 // Subcomponent: Individual Question Answer Row (Task 3.3, 3.6)
 function QuestionAnswerCard({
     question,
@@ -1066,13 +1532,10 @@ function QuestionAnswerCard({
     isB008,
     answerChoices,
     isExpandedGuidance,
-    isExpandedNotes,
     saveStatus,
     isEditable,
     onToggleGuidance,
-    onToggleNotes,
     onSelectAnswer,
-    onSaveNote,
     onSaveExtraValue,
     conflict,
     onAcceptServerAnswer,
@@ -1083,13 +1546,10 @@ function QuestionAnswerCard({
     isB008: boolean;
     answerChoices: { value: string; label: string; color: string }[];
     isExpandedGuidance: boolean;
-    isExpandedNotes: boolean;
     saveStatus?: string;
     isEditable: boolean;
     onToggleGuidance: () => void;
-    onToggleNotes: () => void;
     onSelectAnswer: (val: string) => void;
-    onSaveNote: (note: string) => void;
     onSaveExtraValue: (val: string) => void;
     conflict?: ConflictData;
     onAcceptServerAnswer?: (serverAnswer: ConflictData['server_answer']) => void;
@@ -1097,43 +1557,19 @@ function QuestionAnswerCard({
 }) {
     const selectedAnswer = currentAnswer?.answer;
     const isLockedNA = !question.is_applicable;
+    const isTextOnly = question.input_type === 'text_only';
+    const isDateOnly = question.input_type === 'date_only';
+    const isPureInput = isTextOnly || isDateOnly;
 
-    // Internal buffered inputs for notes & extra values with debounced autosave (NFR-1)
-    const [noteBuffer, setNoteBuffer] = useState(currentAnswer?.note || '');
+    // Internal buffered inputs for extra values with debounced autosave (NFR-1)
     const [extraBuffer, setExtraBuffer] = useState(currentAnswer?.extra_value || '');
-    const noteDebounceTimer = useRef<ReturnType<typeof setTimeout> | null>(null);
     const extraDebounceTimer = useRef<ReturnType<typeof setTimeout> | null>(null);
-    const lastSavedNote = useRef(currentAnswer?.note || '');
     const lastSavedExtra = useRef(currentAnswer?.extra_value || '');
-
-    useEffect(() => {
-        setNoteBuffer(currentAnswer?.note || '');
-        lastSavedNote.current = currentAnswer?.note || '';
-    }, [currentAnswer?.note]);
 
     useEffect(() => {
         setExtraBuffer(currentAnswer?.extra_value || '');
         lastSavedExtra.current = currentAnswer?.extra_value || '';
     }, [currentAnswer?.extra_value]);
-
-    const flushNote = useCallback(() => {
-        if (noteDebounceTimer.current) clearTimeout(noteDebounceTimer.current);
-        if (noteBuffer !== lastSavedNote.current) {
-            lastSavedNote.current = noteBuffer;
-            onSaveNote(noteBuffer);
-        }
-    }, [noteBuffer, onSaveNote]);
-
-    const handleNoteChange = (val: string) => {
-        setNoteBuffer(val);
-        if (noteDebounceTimer.current) clearTimeout(noteDebounceTimer.current);
-        noteDebounceTimer.current = setTimeout(() => {
-            if (val !== lastSavedNote.current) {
-                lastSavedNote.current = val;
-                onSaveNote(val);
-            }
-        }, 1500);
-    };
 
     const flushExtra = useCallback(() => {
         if (extraDebounceTimer.current) clearTimeout(extraDebounceTimer.current);
@@ -1155,25 +1591,18 @@ function QuestionAnswerCard({
     };
 
     const handleAnswerClick = (val: string) => {
-        flushNote();
         flushExtra();
         onSelectAnswer(val);
     };
 
     useEffect(() => {
         return () => {
-            if (noteDebounceTimer.current) clearTimeout(noteDebounceTimer.current);
             if (extraDebounceTimer.current) clearTimeout(extraDebounceTimer.current);
-            if (noteBuffer !== lastSavedNote.current) {
-                onSaveNote(noteBuffer);
-            }
             if (extraBuffer !== lastSavedExtra.current) {
                 onSaveExtraValue(extraBuffer);
             }
         };
-    }, [noteBuffer, extraBuffer, onSaveNote, onSaveExtraValue]);
-
-    const hasNote = Boolean(noteBuffer.trim() || currentAnswer?.note?.trim());
+    }, [extraBuffer, onSaveExtraValue]);
 
     return (
         <div
@@ -1226,8 +1655,8 @@ function QuestionAnswerCard({
                         )}
                     </div>
 
-                    {/* Extra input field if question asks for typed date/number/text */}
-                    {question.input_type && question.input_type !== 'none' && (
+                    {/* Extra input field if question has dual typed input (text, date, number alongside Yes/No) */}
+                    {!isPureInput && question.input_type && question.input_type !== 'none' && (
                         <div className="pt-1 flex items-center gap-2 max-w-sm">
                             <Label className="text-xs text-muted-foreground shrink-0 capitalize">
                                 {question.input_type}:
@@ -1245,7 +1674,7 @@ function QuestionAnswerCard({
                     )}
                 </div>
 
-                {/* Answer Choice Buttons & Quick Expanders */}
+                {/* Answer Choice Buttons & Quick Expanders OR Pure Input */}
                 <div className="flex items-center gap-2 shrink-0 self-end md:self-start">
                     {/* Guidance button */}
                     {question.guidance && (
@@ -1263,42 +1692,42 @@ function QuestionAnswerCard({
                         </Button>
                     )}
 
-                    {/* Note button */}
-                    <Button
-                        size="sm"
-                        variant="ghost"
-                        onClick={onToggleNotes}
-                        className={`h-8 px-2 text-xs flex items-center gap-1 ${
-                            hasNote || isExpandedNotes ? 'bg-primary/10 text-primary' : 'text-muted-foreground'
-                        }`}
-                        title="Add question note"
-                    >
-                        <MessageSquare className="size-3.5" />
-                        <span>{hasNote ? 'Note' : '+ Note'}</span>
-                    </Button>
+                    {/* Answer Segmented Buttons OR Pure Input (Text Only / Date Only) */}
+                    {isPureInput ? (
+                        <div className="w-full md:w-64 shrink-0">
+                            <Input
+                                type={isDateOnly ? 'date' : 'text'}
+                                value={extraBuffer}
+                                disabled={!isEditable || isLockedNA}
+                                onChange={(e) => handleExtraChange(e.target.value)}
+                                onBlur={flushExtra}
+                                className="h-8 text-xs bg-background"
+                                placeholder={isDateOnly ? 'Select date...' : 'Enter details...'}
+                            />
+                        </div>
+                    ) : (
+                        <div className="inline-flex rounded-md border p-0.5 bg-muted/30">
+                            {answerChoices.map((choice) => {
+                                const isSelected = selectedAnswer === choice.value;
 
-                    {/* Answer Segmented Buttons */}
-                    <div className="inline-flex rounded-md border p-0.5 bg-muted/30">
-                        {answerChoices.map((choice) => {
-                            const isSelected = selectedAnswer === choice.value;
-
-                            return (
-                                <button
-                                    key={choice.value}
-                                    type="button"
-                                    disabled={!isEditable || isLockedNA}
-                                    onClick={() => handleAnswerClick(choice.value)}
-                                    className={`px-3 py-1 text-xs font-semibold rounded transition-all ${
-                                        isSelected
-                                            ? `${choice.color} shadow-xs font-bold ring-1`
-                                            : 'text-muted-foreground hover:text-foreground'
-                                    } disabled:opacity-40 disabled:cursor-not-allowed`}
-                                >
-                                    {choice.label}
-                                </button>
-                            );
-                        })}
-                    </div>
+                                return (
+                                    <button
+                                        key={choice.value}
+                                        type="button"
+                                        disabled={!isEditable || isLockedNA}
+                                        onClick={() => handleAnswerClick(choice.value)}
+                                        className={`px-3 py-1 text-xs font-semibold rounded transition-all ${
+                                            isSelected
+                                                ? `${choice.color} shadow-xs font-bold ring-1`
+                                                : 'text-muted-foreground hover:text-foreground'
+                                        } disabled:opacity-40 disabled:cursor-not-allowed`}
+                                    >
+                                        {choice.label}
+                                    </button>
+                                );
+                            })}
+                        </div>
+                    )}
                 </div>
             </div>
 
@@ -1312,22 +1741,6 @@ function QuestionAnswerCard({
                             <p className="leading-relaxed whitespace-pre-line">{question.guidance}</p>
                         </div>
                     </div>
-                </div>
-            )}
-
-            {/* Expandable Note Input (Task 3.3 & 3.4) */}
-            {(isExpandedNotes || hasNote) && (
-                <div className="mt-3 pt-2 border-t border-border/50">
-                    <Label className="text-xs text-muted-foreground">Inspector Note / Finding Details:</Label>
-                    <textarea
-                        rows={2}
-                        value={noteBuffer}
-                        disabled={!isEditable}
-                        onChange={(e) => handleNoteChange(e.target.value)}
-                        onBlur={flushNote}
-                        placeholder="Add notes, context, or observation particulars..."
-                        className="mt-1 w-full rounded border border-input bg-transparent px-2.5 py-1.5 text-xs shadow-xs focus-visible:outline-none focus-visible:ring-1 focus-visible:ring-ring"
-                    />
                 </div>
             )}
 

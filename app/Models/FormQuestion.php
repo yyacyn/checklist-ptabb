@@ -27,7 +27,7 @@ class FormQuestion extends Model
     /** @use HasFactory<FormQuestionFactory> */
     use HasFactory;
 
-    public const INPUT_TYPES = ['none', 'date', 'text', 'number'];
+    public const INPUT_TYPES = ['none', 'date', 'text', 'number', 'text_only', 'date_only'];
 
     public function group(): BelongsTo
     {
@@ -46,7 +46,7 @@ class FormQuestion extends Model
 
     public function hasTypedInput(): bool
     {
-        return in_array($this->input_type, ['date', 'text', 'number'], true);
+        return in_array($this->input_type, ['date', 'text', 'number', 'text_only', 'date_only'], true);
     }
 
     /**

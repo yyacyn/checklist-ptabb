@@ -25,7 +25,7 @@ class FormQuestionController extends Controller
         $validated = $request->validate([
             'question_text' => ['required', 'string'],
             'guidance' => ['nullable', 'string'],
-            'input_type' => ['required', 'in:none,date,text,number'],
+            'input_type' => ['required', 'in:none,date,text,number,text_only,date_only'],
         ]);
 
         DB::transaction(function () use ($group, $validated) {
@@ -60,7 +60,7 @@ class FormQuestionController extends Controller
         $validated = $request->validate([
             'question_text' => ['required', 'string'],
             'guidance' => ['nullable', 'string'],
-            'input_type' => ['required', 'in:none,date,text,number'],
+            'input_type' => ['required', 'in:none,date,text,number,text_only,date_only'],
         ]);
 
         $before = [

@@ -121,4 +121,99 @@ class ReportCreationTest extends TestCase
         // Assert forced to their assigned vessel
         $this->assertEquals('MV Meratus Java', $report->vessel_name);
     }
+
+    public function test_corporate_user_can_create_report_with_all_general_info_fields(): void
+    {
+        $corporate = User::factory()->create([
+            'role' => 'corporate',
+            'is_active' => true,
+        ]);
+
+        $form = Form::where('code', 'D-062')->firstOrFail();
+
+        $response = $this->actingAs($corporate)->post(route('reports.store'), [
+            'form_id' => $form->id,
+            'vessel_name' => 'MV Oceanic Leader',
+            'vessel_imo' => '9876543',
+            'report_date' => '2026-10-06',
+            'port' => 'Bojonegara',
+            'inspected_by' => 'Rendy',
+            'master_name' => 'Capt. Haddock',
+            'chief_engineer_name' => 'C/E Calculus',
+            'chief_officer_name' => 'C/O Tintin',
+            'sailing_with_vessel' => true,
+            'sailing_from' => 'Merak',
+            'sailing_to' => 'Batam',
+            'psc_last_port' => 'Tanjung Priok',
+            'psc_last_date' => '2026-05-15',
+            'psc_detained_or_deficiencies' => true,
+            'drydock_last_date' => '2025-01-10',
+            'drydock_next_date' => '2027-01-10',
+            'operations' => ['Loading', 'Deballasting', 'At anchor'],
+        ]);
+
+        $report = Report::where('vessel_name', 'MV Oceanic Leader')->firstOrFail();
+        $response->assertRedirect(route('reports.show', $report->id));
+
+        $this->assertEquals('Bojonegara', $report->port);
+        $this->assertEquals('Rendy', $report->inspected_by);
+        $this->assertTrue($report->sailing_with_vessel);
+        $this->assertEquals('Merak', $report->sailing_from);
+        $this->assertEquals('Batam', $report->sailing_to);
+        $this->assertEquals('Tanjung Priok', $report->psc_last_port);
+        $this->assertEquals('2026-05-15', $report->psc_last_date->format('Y-m-d'));
+        $this->assertTrue($report->psc_detained_or_deficiencies);
+        $this->assertEquals('2025-01-10', $report->drydock_last_date->format('Y-m-d'));
+        $this->assertEquals('2027-01-10', $report->drydock_next_date->format('Y-m-d'));
+        $this->assertEquals(['Loading', 'Deballasting', 'At anchor'], $report->operations);
+    }
+
+    public function test_user_can_update_general_info_on_existing_report(): void
+    {
+        $user = User::factory()->create([
+            'role' => 'corporate',
+            'is_active' => true,
+        ]);
+
+        $form = Form::where('code', 'D-062')->firstOrFail();
+
+        $this->actingAs($user)->post(route('reports.store'), [
+            'form_id' => $form->id,
+            'vessel_name' => 'MV Pacific Star',
+            'report_date' => '2026-10-06',
+        ]);
+
+        $report = Report::where('vessel_name', 'MV Pacific Star')->firstOrFail();
+
+        $updateResponse = $this->actingAs($user)->put(route('reports.general-info.update', $report->id), [
+            'report_date' => '2026-10-07',
+            'port' => 'Singapore',
+            'inspected_by' => 'Inspector Lee',
+            'master_name' => 'Capt. Morgan',
+            'chief_engineer_name' => 'C/E Sparrow',
+            'chief_officer_name' => 'C/O Turner',
+            'sailing_with_vessel' => false,
+            'psc_last_port' => 'Jurong',
+            'psc_last_date' => '2026-04-12',
+            'psc_detained_or_deficiencies' => false,
+            'drydock_last_date' => '2024-11-20',
+            'drydock_next_date' => '2026-11-20',
+            'operations' => ['Bunkering', 'Repairs under way'],
+        ]);
+
+        $updateResponse->assertOk()
+            ->assertJson([
+                'status' => 'saved',
+            ]);
+
+        $report->refresh();
+        $this->assertEquals('2026-10-07', $report->report_date->format('Y-m-d'));
+        $this->assertEquals('Singapore', $report->port);
+        $this->assertEquals('Inspector Lee', $report->inspected_by);
+        $this->assertEquals('Capt. Morgan', $report->master_name);
+        $this->assertEquals('Jurong', $report->psc_last_port);
+        $this->assertEquals('2026-04-12', $report->psc_last_date->format('Y-m-d'));
+        $this->assertFalse($report->psc_detained_or_deficiencies);
+        $this->assertEquals(['Bunkering', 'Repairs under way'], $report->operations);
+    }
 }

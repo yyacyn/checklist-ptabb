@@ -833,9 +833,11 @@ export default function FormShow({
                                 </SelectTrigger>
                                 <SelectContent>
                                     <SelectItem value="none">None (Standard Yes/No checkboxes)</SelectItem>
-                                    <SelectItem value="date">Date Input</SelectItem>
-                                    <SelectItem value="text">Text Input</SelectItem>
-                                    <SelectItem value="number">Numeric Input</SelectItem>
+                                    <SelectItem value="text_only">Text Only (no Yes/No checkboxes)</SelectItem>
+                                    <SelectItem value="date_only">Date Only (no Yes/No checkboxes)</SelectItem>
+                                    <SelectItem value="text">Text Input (Yes/No + Text)</SelectItem>
+                                    <SelectItem value="date">Date Input (Yes/No + Date)</SelectItem>
+                                    <SelectItem value="number">Numeric Input (Yes/No + Number)</SelectItem>
                                 </SelectContent>
                             </Select>
                         </div>

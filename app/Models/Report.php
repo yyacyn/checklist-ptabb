@@ -65,6 +65,17 @@ use Illuminate\Database\Eloquent\SoftDeletes;
     'closed_at',
     'lock_owner_id',
     'lock_expires_at',
+    'port',
+    'inspected_by',
+    'sailing_with_vessel',
+    'sailing_from',
+    'sailing_to',
+    'psc_last_port',
+    'psc_last_date',
+    'psc_detained_or_deficiencies',
+    'drydock_last_date',
+    'drydock_next_date',
+    'operations',
     'delete_reason',
 ])]
 class Report extends Model
@@ -78,6 +89,24 @@ class Report extends Model
             if ($report->vessel_name !== null) {
                 $report->vessel_name = VesselName::normalize($report->vessel_name);
             }
+            if ($report->vessel_gt === '' || $report->vessel_gt === null) {
+                $report->vessel_gt = null;
+            }
+            if ($report->vessel_built === '' || $report->vessel_built === null) {
+                $report->vessel_built = null;
+            }
+            if ($report->vessel_type_id === '' || $report->vessel_type_id === null) {
+                $report->vessel_type_id = null;
+            }
+            if ($report->psc_last_date === '' || $report->psc_last_date === null) {
+                $report->psc_last_date = null;
+            }
+            if ($report->drydock_last_date === '' || $report->drydock_last_date === null) {
+                $report->drydock_last_date = null;
+            }
+            if ($report->drydock_next_date === '' || $report->drydock_next_date === null) {
+                $report->drydock_next_date = null;
+            }
         });
     }
 
@@ -89,6 +118,12 @@ class Report extends Model
             'vessel_built' => 'integer',
             'vessel_ice_class' => 'boolean',
             'report_date' => 'date',
+            'sailing_with_vessel' => 'boolean',
+            'psc_last_date' => 'date',
+            'psc_detained_or_deficiencies' => 'boolean',
+            'drydock_last_date' => 'date',
+            'drydock_next_date' => 'date',
+            'operations' => 'array',
             'current_version' => 'integer',
             'submitted_at' => 'datetime',
             'closed_at' => 'datetime',

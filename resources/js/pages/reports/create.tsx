@@ -1,5 +1,5 @@
 import { Head, router, useForm } from '@inertiajs/react';
-import { ArrowLeft, Check, FileCheck, Info, Ship } from 'lucide-react';
+import { ArrowLeft, Check, FileCheck, Info, Loader2, Ship } from 'lucide-react';
 import React, { useState } from 'react';
 import { Badge } from '@/components/ui/badge';
 import { Button } from '@/components/ui/button';
@@ -29,6 +29,24 @@ interface Props {
     default_inspector_name?: string;
 }
 
+export const INSPECTION_OPERATIONS = [
+    'Loading',
+    'Discharging',
+    'Bunkering',
+    'Deballasting',
+    'Ballasting',
+    'River transit',
+    'IGS in operation',
+    'Major repairs/ Drydock',
+    'COW in progress',
+    'Repairs under way',
+    'STS operations',
+    'Idle',
+    'At anchor',
+    'At sea/Sailing',
+    'Other',
+];
+
 export default function ReportCreate({
     forms,
     vessel_types,
@@ -53,7 +71,15 @@ export default function ReportCreate({
         chief_officer_name: '',
         inspected_by: default_inspector_name,
         port: '',
-        sailing_with_vessel: '',
+        sailing_with_vessel: false,
+        sailing_from: '',
+        sailing_to: '',
+        psc_last_port: '',
+        psc_last_date: '',
+        psc_detained_or_deficiencies: false,
+        drydock_last_date: '',
+        drydock_next_date: '',
+        operations: [] as string[],
     });
 
     const [vesselSuggestions, setVesselSuggestions] = useState<string[]>([]);
@@ -78,7 +104,12 @@ export default function ReportCreate({
         setShowSuggestions(false);
     };
 
-    const selectedForm = forms.find((f) => String(f.id) === String(data.form_id));
+    const toggleOperation = (op: string) => {
+        setData('operations', data.operations.includes(op)
+            ? data.operations.filter((o) => o !== op)
+            : [...data.operations, op]
+        );
+    };
 
     const handleSubmit = (e: React.FormEvent) => {
         e.preventDefault();
@@ -96,11 +127,23 @@ export default function ReportCreate({
                     </Button>
                     <div>
                         <h1 className="text-xl font-semibold tracking-tight text-foreground">Create Report</h1>
-                        <p className="text-sm text-muted-foreground">Initialise a new inspection or audit report.</p>
+                        <p className="text-sm text-muted-foreground">Initialise a new inspection or audit report (Form D-062 / B-008).</p>
                     </div>
                 </div>
 
                 <form onSubmit={handleSubmit} className="space-y-6">
+                    {/* Error Summary Banner */}
+                    {Object.keys(errors).length > 0 && (
+                        <div className="rounded-lg border border-destructive/50 bg-destructive/10 p-4 text-sm text-destructive">
+                            <p className="font-semibold mb-1">Please review the required details:</p>
+                            <ul className="list-disc list-inside space-y-0.5 text-xs">
+                                {Object.entries(errors).map(([key, msg]) => (
+                                    <li key={key}>{msg}</li>
+                                ))}
+                            </ul>
+                        </div>
+                    )}
+
                     {/* Form Template Selection */}
                     <Card>
                         <CardHeader>
@@ -173,7 +216,7 @@ export default function ReportCreate({
                                         value={data.vessel_name}
                                         onChange={(e) => handleVesselNameChange(e.target.value)}
                                         onFocus={() => {
-                                            if (data.vessel_name.trim().length > 0 && known_vessels.length > 0) {
+                                             if (data.vessel_name.trim().length > 0 && known_vessels.length > 0) {
                                                 setShowSuggestions(true);
                                             }
                                         }}
@@ -201,7 +244,7 @@ export default function ReportCreate({
 
                                 {/* IMO Number */}
                                 <div className="space-y-1">
-                                    <Label htmlFor="vessel_imo">IMO Number (optional)</Label>
+                                    <Label htmlFor="vessel_imo">IMO Number (text only)</Label>
                                     <Input
                                         id="vessel_imo"
                                         placeholder="e.g. 9123456"
@@ -238,7 +281,7 @@ export default function ReportCreate({
 
                                 {/* Flag */}
                                 <div className="space-y-1">
-                                    <Label htmlFor="vessel_flag">Flag State</Label>
+                                    <Label htmlFor="vessel_flag">Flag State (text only)</Label>
                                     <Input
                                         id="vessel_flag"
                                         placeholder="e.g. Panama, Indonesia"
@@ -262,7 +305,7 @@ export default function ReportCreate({
 
                                 {/* Year Built */}
                                 <div className="space-y-1">
-                                    <Label htmlFor="vessel_built">Year Built</Label>
+                                    <Label htmlFor="vessel_built">Year Built (text / number only)</Label>
                                     <Input
                                         id="vessel_built"
                                         type="number"
@@ -296,11 +339,14 @@ export default function ReportCreate({
                                 <Info className="size-4 text-primary" />
                                 <span>3. Inspection & Personnel Particulars</span>
                             </CardTitle>
+                            <CardDescription>
+                                Attendance details and senior officer particulars (Form D-062 Chapter 1).
+                            </CardDescription>
                         </CardHeader>
                         <CardContent className="space-y-4">
                             <div className="grid gap-4 md:grid-cols-2">
                                 <div className="space-y-1">
-                                    <Label htmlFor="report_date">Date of Inspection / Audit *</Label>
+                                    <Label htmlFor="report_date">Date of Inspection / Audit * (date only)</Label>
                                     <Input
                                         id="report_date"
                                         type="date"
@@ -311,36 +357,27 @@ export default function ReportCreate({
                                 </div>
 
                                 <div className="space-y-1">
-                                    <Label htmlFor="port">Port / Location</Label>
+                                    <Label htmlFor="port">Port / Location (text only)</Label>
                                     <Input
                                         id="port"
-                                        placeholder="e.g. Singapore, Cigading"
+                                        placeholder="e.g. Singapore, Cigading, Bojonegara"
                                         value={data.port}
                                         onChange={(e) => setData('port', e.target.value)}
                                     />
                                 </div>
 
                                 <div className="space-y-1">
-                                    <Label htmlFor="inspected_by">Inspector / Lead Auditor Name</Label>
+                                    <Label htmlFor="inspected_by">Inspector / Lead Auditor Name (text only)</Label>
                                     <Input
                                         id="inspected_by"
+                                        placeholder="e.g. Rendy"
                                         value={data.inspected_by}
                                         onChange={(e) => setData('inspected_by', e.target.value)}
                                     />
                                 </div>
 
                                 <div className="space-y-1">
-                                    <Label htmlFor="sailing_with_vessel">Sailing with vessel (from/to, if applicable)</Label>
-                                    <Input
-                                        id="sailing_with_vessel"
-                                        placeholder="e.g. Yes, from Merak to Batam"
-                                        value={data.sailing_with_vessel}
-                                        onChange={(e) => setData('sailing_with_vessel', e.target.value)}
-                                    />
-                                </div>
-
-                                <div className="space-y-1">
-                                    <Label htmlFor="master_name">Master Name</Label>
+                                    <Label htmlFor="master_name">Master Name (text only)</Label>
                                     <Input
                                         id="master_name"
                                         placeholder="Capt. Name"
@@ -350,7 +387,7 @@ export default function ReportCreate({
                                 </div>
 
                                 <div className="space-y-1">
-                                    <Label htmlFor="chief_engineer_name">Chief Engineer Name</Label>
+                                    <Label htmlFor="chief_engineer_name">Chief Engineer Name (text only)</Label>
                                     <Input
                                         id="chief_engineer_name"
                                         placeholder="C/E Name"
@@ -360,7 +397,7 @@ export default function ReportCreate({
                                 </div>
 
                                 <div className="space-y-1">
-                                    <Label htmlFor="chief_officer_name">Chief Officer Name</Label>
+                                    <Label htmlFor="chief_officer_name">Chief Officer Name (text only)</Label>
                                     <Input
                                         id="chief_officer_name"
                                         placeholder="C/O Name"
@@ -368,6 +405,155 @@ export default function ReportCreate({
                                         onChange={(e) => setData('chief_officer_name', e.target.value)}
                                     />
                                 </div>
+                            </div>
+
+                            {/* Sailing With Vessel */}
+                            <div className="rounded-lg border p-3.5 space-y-3 bg-muted/20">
+                                <div className="flex items-center gap-2">
+                                    <input
+                                        id="sailing_with_vessel"
+                                        type="checkbox"
+                                        checked={Boolean(data.sailing_with_vessel)}
+                                        onChange={(e) => setData('sailing_with_vessel', e.target.checked)}
+                                        className="h-4 w-4 rounded border-gray-300 text-primary focus:ring-primary"
+                                    />
+                                    <Label htmlFor="sailing_with_vessel" className="cursor-pointer text-sm font-semibold">
+                                        Sailing with Vessel during inspection
+                                    </Label>
+                                </div>
+
+                                {data.sailing_with_vessel && (
+                                    <div className="grid gap-4 md:grid-cols-2 pt-1 pl-6">
+                                        <div className="space-y-1">
+                                            <Label htmlFor="sailing_from">Sailing From (text only)</Label>
+                                            <Input
+                                                id="sailing_from"
+                                                placeholder="e.g. Merak"
+                                                value={data.sailing_from}
+                                                onChange={(e) => setData('sailing_from', e.target.value)}
+                                            />
+                                        </div>
+                                        <div className="space-y-1">
+                                            <Label htmlFor="sailing_to">Sailing To (text only)</Label>
+                                            <Input
+                                                id="sailing_to"
+                                                placeholder="e.g. Batam"
+                                                value={data.sailing_to}
+                                                onChange={(e) => setData('sailing_to', e.target.value)}
+                                            />
+                                        </div>
+                                    </div>
+                                )}
+                            </div>
+                        </CardContent>
+                    </Card>
+
+                    {/* Port State Control & Dry Dock Particulars */}
+                    <Card>
+                        <CardHeader>
+                            <CardTitle className="text-base flex items-center gap-2">
+                                <FileCheck className="size-4 text-primary" />
+                                <span>4. Port State Control (PSC) & Dry Dock Dates</span>
+                            </CardTitle>
+                            <CardDescription>
+                                Inspection history and docking dates (Form D-062 Chapter 1).
+                            </CardDescription>
+                        </CardHeader>
+                        <CardContent className="space-y-4">
+                            <div className="grid gap-4 md:grid-cols-2">
+                                <div className="space-y-1">
+                                    <Label htmlFor="psc_last_port">Port of Last PSC Inspection (text only)</Label>
+                                    <Input
+                                        id="psc_last_port"
+                                        placeholder="e.g. Tanjung Priok"
+                                        value={data.psc_last_port}
+                                        onChange={(e) => setData('psc_last_port', e.target.value)}
+                                    />
+                                </div>
+
+                                <div className="space-y-1">
+                                    <Label htmlFor="psc_last_date">Date of Last PSC Inspection (date only)</Label>
+                                    <Input
+                                        id="psc_last_date"
+                                        type="date"
+                                        value={data.psc_last_date}
+                                        onChange={(e) => setData('psc_last_date', e.target.value)}
+                                    />
+                                </div>
+                            </div>
+
+                            <div className="flex items-center gap-2 pt-1">
+                                <input
+                                    id="psc_detained_or_deficiencies"
+                                    type="checkbox"
+                                    checked={Boolean(data.psc_detained_or_deficiencies)}
+                                    onChange={(e) => setData('psc_detained_or_deficiencies', e.target.checked)}
+                                    className="h-4 w-4 rounded border-gray-300 text-primary focus:ring-primary"
+                                />
+                                <Label htmlFor="psc_detained_or_deficiencies" className="cursor-pointer text-xs font-medium text-muted-foreground">
+                                    Vessel was detained or deficiencies were identified during last PSC (verify close out)
+                                </Label>
+                            </div>
+
+                            <div className="grid gap-4 md:grid-cols-2 pt-2 border-t">
+                                <div className="space-y-1">
+                                    <Label htmlFor="drydock_last_date">Date of Last Dry Dock (date only)</Label>
+                                    <Input
+                                        id="drydock_last_date"
+                                        type="date"
+                                        value={data.drydock_last_date}
+                                        onChange={(e) => setData('drydock_last_date', e.target.value)}
+                                    />
+                                </div>
+
+                                <div className="space-y-1">
+                                    <Label htmlFor="drydock_next_date">Next Dry Dock Date (date only)</Label>
+                                    <Input
+                                        id="drydock_next_date"
+                                        type="date"
+                                        value={data.drydock_next_date}
+                                        onChange={(e) => setData('drydock_next_date', e.target.value)}
+                                    />
+                                </div>
+                            </div>
+                        </CardContent>
+                    </Card>
+
+                    {/* Operations at the time of inspection */}
+                    <Card>
+                        <CardHeader>
+                            <CardTitle className="text-base flex items-center gap-2">
+                                <Info className="size-4 text-primary" />
+                                <span>5. Operations at the Time of Inspection</span>
+                            </CardTitle>
+                            <CardDescription>
+                                Select all operations taking place during attendance (Form D-062 Chapter 1).
+                            </CardDescription>
+                        </CardHeader>
+                        <CardContent>
+                            <div className="grid grid-cols-2 sm:grid-cols-3 md:grid-cols-5 gap-2.5">
+                                {INSPECTION_OPERATIONS.map((op) => {
+                                    const isSelected = data.operations.includes(op);
+                                    return (
+                                        <button
+                                            key={op}
+                                            type="button"
+                                            onClick={() => toggleOperation(op)}
+                                            className={`p-2.5 rounded-lg border text-left text-xs font-medium transition-all flex items-center gap-2 ${
+                                                isSelected
+                                                    ? 'border-primary bg-primary/10 text-primary font-semibold ring-1 ring-primary'
+                                                    : 'border-border hover:bg-muted/60 text-muted-foreground'
+                                            }`}
+                                        >
+                                            <span className={`size-3.5 rounded border flex items-center justify-center shrink-0 ${
+                                                isSelected ? 'bg-primary border-primary text-primary-foreground' : 'border-muted-foreground/50'
+                                            }`}>
+                                                {isSelected && <Check className="size-2.5" />}
+                                            </span>
+                                            <span className="truncate">{op}</span>
+                                        </button>
+                                    );
+                                })}
                             </div>
                         </CardContent>
                     </Card>
@@ -378,7 +564,14 @@ export default function ReportCreate({
                             Cancel
                         </Button>
                         <Button type="submit" disabled={processing} className="min-w-36">
-                            {processing ? 'Creating Report...' : 'Create & Start Filling'}
+                            {processing ? (
+                                <span className="flex items-center gap-1.5">
+                                    <Loader2 className="size-4 animate-spin" />
+                                    Creating Report...
+                                </span>
+                            ) : (
+                                'Create & Start Filling'
+                            )}
                         </Button>
                     </div>
                 </form>
