@@ -16,6 +16,7 @@ Route::middleware(['auth', 'verified'])->group(function () {
     Route::get('reports/create', [ReportController::class, 'create'])->name('reports.create');
     Route::post('reports', [ReportController::class, 'store'])->name('reports.store');
     Route::get('reports/{report}', [ReportController::class, 'show'])->name('reports.show');
+    Route::delete('reports/{report}', [ReportController::class, 'destroy'])->name('reports.destroy');
     Route::post('reports/{report}/questions/{question}/answer', [ReportController::class, 'saveAnswer'])->name('reports.answers.save');
     Route::put('reports/{report}/general-info', [ReportController::class, 'updateGeneralInfo'])->name('reports.general-info.update');
     Route::post('reports/{report}/groups/{group}/comments', [ReportController::class, 'saveGroupComments'])->name('reports.groups.comments');

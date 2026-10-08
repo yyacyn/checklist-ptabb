@@ -1,9 +1,20 @@
-import { Head, Link } from '@inertiajs/react';
-import { Eye, FilePlus2, Filter, Ship } from 'lucide-react';
+import { useState } from 'react';
+import { Head, Link, router } from '@inertiajs/react';
+import { Eye, FilePlus2, Filter, Ship, Trash2 } from 'lucide-react';
 import Heading from '@/components/heading';
 import { Badge } from '@/components/ui/badge';
 import { Button } from '@/components/ui/button';
 import { Card, CardContent } from '@/components/ui/card';
+import {
+    Dialog,
+    DialogContent,
+    DialogDescription,
+    DialogFooter,
+    DialogHeader,
+    DialogTitle,
+} from '@/components/ui/dialog';
+import { Input } from '@/components/ui/input';
+import { Label } from '@/components/ui/label';
 
 interface ReportItem {
     id: number;
@@ -17,6 +28,7 @@ interface ReportItem {
     form_code: string;
     form_name: string;
     created_at: string;
+    can_delete?: boolean;
 }
 
 interface PaginationProps {
@@ -53,6 +65,22 @@ function getStatusBadge(status: string) {
 }
 
 export default function ReportsIndex({ reports }: Props) {
+    const [deletingReport, setDeletingReport] = useState<ReportItem | null>(null);
+    const [deleteReason, setDeleteReason] = useState('');
+    const [isDeleting, setIsDeleting] = useState(false);
+
+    const handleDelete = () => {
+        if (!deletingReport) return;
+        setIsDeleting(true);
+        router.delete(`/reports/${deletingReport.id}`, {
+            data: { delete_reason: deleteReason },
+            onFinish: () => {
+                setIsDeleting(false);
+                setDeletingReport(null);
+            },
+        });
+    };
+
     return (
         <>
             <Head title="Vessel Reports & Audits" />
@@ -129,11 +157,27 @@ export default function ReportsIndex({ reports }: Props) {
                                                 {getStatusBadge(report.status)}
                                             </td>
                                             <td className="px-4 py-3 text-right">
-                                                <Button size="sm" variant="outline" asChild>
-                                                    <Link href={`/reports/${report.id}`}>
-                                                        <Eye className="size-3.5 mr-1" /> View / Fill
-                                                    </Link>
-                                                </Button>
+                                                <div className="flex items-center justify-end gap-2">
+                                                    <Button size="sm" variant="outline" asChild>
+                                                        <Link href={`/reports/${report.id}`}>
+                                                            <Eye className="size-3.5 mr-1" /> View / Fill
+                                                        </Link>
+                                                    </Button>
+                                                    {report.can_delete && (
+                                                        <Button
+                                                            size="sm"
+                                                            variant="outline"
+                                                            className="text-destructive hover:bg-destructive/10 border-destructive/30 hover:border-destructive/60"
+                                                            onClick={() => {
+                                                                setDeletingReport(report);
+                                                                setDeleteReason('');
+                                                            }}
+                                                            title="Delete Draft"
+                                                        >
+                                                            <Trash2 className="size-3.5" />
+                                                        </Button>
+                                                    )}
+                                                </div>
                                             </td>
                                         </tr>
                                     ))}
@@ -164,6 +208,50 @@ export default function ReportsIndex({ reports }: Props) {
                     </div>
                 )}
             </div>
+
+            {/* Confirmation Dialog for Deleting Draft */}
+            <Dialog open={!!deletingReport} onOpenChange={(open) => !open && setDeletingReport(null)}>
+                <DialogContent className="sm:max-w-md">
+                    <DialogHeader>
+                        <DialogTitle>Delete Draft Report</DialogTitle>
+                        <DialogDescription>
+                            Are you sure you want to delete draft report{' '}
+                            <span className="font-semibold text-foreground">{deletingReport?.reference_number}</span> for{' '}
+                            <span className="font-semibold text-foreground">{deletingReport?.vessel_name}</span>? This action cannot be undone.
+                        </DialogDescription>
+                    </DialogHeader>
+
+                    <div className="space-y-2 py-2">
+                        <Label htmlFor="delete-reason" className="text-xs">Reason for deletion (optional)</Label>
+                        <Input
+                            id="delete-reason"
+                            placeholder="e.g. Created by mistake / duplicated"
+                            value={deleteReason}
+                            onChange={(e) => setDeleteReason(e.target.value)}
+                            disabled={isDeleting}
+                        />
+                    </div>
+
+                    <DialogFooter className="gap-2 sm:gap-0">
+                        <Button
+                            type="button"
+                            variant="outline"
+                            onClick={() => setDeletingReport(null)}
+                            disabled={isDeleting}
+                        >
+                            Cancel
+                        </Button>
+                        <Button
+                            type="button"
+                            variant="destructive"
+                            disabled={isDeleting}
+                            onClick={handleDelete}
+                        >
+                            {isDeleting ? 'Deleting...' : 'Delete Draft'}
+                        </Button>
+                    </DialogFooter>
+                </DialogContent>
+            </Dialog>
         </>
     );
 }

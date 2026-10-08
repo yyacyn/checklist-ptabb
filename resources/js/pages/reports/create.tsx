@@ -244,12 +244,13 @@ export default function ReportCreate({
 
                                 {/* IMO Number */}
                                 <div className="space-y-1">
-                                    <Label htmlFor="vessel_imo">IMO Number (text only)</Label>
+                                    <Label htmlFor="vessel_imo">IMO Number *</Label>
                                     <Input
                                         id="vessel_imo"
                                         placeholder="e.g. 9123456"
                                         value={data.vessel_imo}
                                         onChange={(e) => setData('vessel_imo', e.target.value)}
+                                        required
                                     />
                                     {errors.vessel_imo && (
                                         <p className="text-xs text-destructive">{errors.vessel_imo}</p>
@@ -258,17 +259,18 @@ export default function ReportCreate({
 
                                 {/* Vessel Type */}
                                 <div className="space-y-1">
-                                    <Label htmlFor="vessel_type_id">Vessel Type (Applicability Filter)</Label>
+                                    <Label htmlFor="vessel_type_id">Vessel Type *</Label>
                                     <Select
                                         value={data.vessel_type_id}
                                         onValueChange={(val) => setData('vessel_type_id', val)}
+                                        required
                                     >
                                         <SelectTrigger id="vessel_type_id">
                                             <SelectValue placeholder="Select vessel type..." />
                                         </SelectTrigger>
                                         <SelectContent>
                                             {vessel_types.map((vt) => (
-                                                <SelectItem key={vt.id} value={String(vt.id)}>
+                                                 <SelectItem key={vt.id} value={String(vt.id)}>
                                                     {vt.name}
                                                 </SelectItem>
                                             ))}
@@ -281,18 +283,22 @@ export default function ReportCreate({
 
                                 {/* Flag */}
                                 <div className="space-y-1">
-                                    <Label htmlFor="vessel_flag">Flag State (text only)</Label>
+                                    <Label htmlFor="vessel_flag">Flag State *</Label>
                                     <Input
                                         id="vessel_flag"
                                         placeholder="e.g. Panama, Indonesia"
                                         value={data.vessel_flag}
                                         onChange={(e) => setData('vessel_flag', e.target.value)}
+                                        required
                                     />
+                                    {errors.vessel_flag && (
+                                        <p className="text-xs text-destructive">{errors.vessel_flag}</p>
+                                    )}
                                 </div>
 
                                 {/* Gross Tonnage */}
                                 <div className="space-y-1">
-                                    <Label htmlFor="vessel_gt">Gross Tonnage (GT)</Label>
+                                    <Label htmlFor="vessel_gt">Gross Tonnage (GT) *</Label>
                                     <Input
                                         id="vessel_gt"
                                         type="number"
@@ -300,19 +306,27 @@ export default function ReportCreate({
                                         placeholder="e.g. 15420"
                                         value={data.vessel_gt}
                                         onChange={(e) => setData('vessel_gt', e.target.value)}
+                                        required
                                     />
+                                    {errors.vessel_gt && (
+                                        <p className="text-xs text-destructive">{errors.vessel_gt}</p>
+                                    )}
                                 </div>
 
                                 {/* Year Built */}
                                 <div className="space-y-1">
-                                    <Label htmlFor="vessel_built">Year Built (text / number only)</Label>
+                                    <Label htmlFor="vessel_built">Year Built *</Label>
                                     <Input
                                         id="vessel_built"
                                         type="number"
                                         placeholder="e.g. 2012"
                                         value={data.vessel_built}
                                         onChange={(e) => setData('vessel_built', e.target.value)}
+                                        required
                                     />
+                                    {errors.vessel_built && (
+                                        <p className="text-xs text-destructive">{errors.vessel_built}</p>
+                                    )}
                                 </div>
                             </div>
 
@@ -346,7 +360,7 @@ export default function ReportCreate({
                         <CardContent className="space-y-4">
                             <div className="grid gap-4 md:grid-cols-2">
                                 <div className="space-y-1">
-                                    <Label htmlFor="report_date">Date of Inspection / Audit * (date only)</Label>
+                                    <Label htmlFor="report_date">Date of Inspection / Audit *</Label>
                                     <Input
                                         id="report_date"
                                         type="date"
@@ -357,7 +371,7 @@ export default function ReportCreate({
                                 </div>
 
                                 <div className="space-y-1">
-                                    <Label htmlFor="port">Port / Location (text only)</Label>
+                                    <Label htmlFor="port">Port / Location</Label>
                                     <Input
                                         id="port"
                                         placeholder="e.g. Singapore, Cigading, Bojonegara"
@@ -367,7 +381,7 @@ export default function ReportCreate({
                                 </div>
 
                                 <div className="space-y-1">
-                                    <Label htmlFor="inspected_by">Inspector / Lead Auditor Name (text only)</Label>
+                                    <Label htmlFor="inspected_by">Inspector / Lead Auditor Name</Label>
                                     <Input
                                         id="inspected_by"
                                         placeholder="e.g. Rendy"
@@ -377,7 +391,7 @@ export default function ReportCreate({
                                 </div>
 
                                 <div className="space-y-1">
-                                    <Label htmlFor="master_name">Master Name (text only)</Label>
+                                    <Label htmlFor="master_name">Master Name</Label>
                                     <Input
                                         id="master_name"
                                         placeholder="Capt. Name"
@@ -387,7 +401,7 @@ export default function ReportCreate({
                                 </div>
 
                                 <div className="space-y-1">
-                                    <Label htmlFor="chief_engineer_name">Chief Engineer Name (text only)</Label>
+                                    <Label htmlFor="chief_engineer_name">Chief Engineer Name</Label>
                                     <Input
                                         id="chief_engineer_name"
                                         placeholder="C/E Name"
@@ -397,7 +411,7 @@ export default function ReportCreate({
                                 </div>
 
                                 <div className="space-y-1">
-                                    <Label htmlFor="chief_officer_name">Chief Officer Name (text only)</Label>
+                                    <Label htmlFor="chief_officer_name">Chief Officer Name</Label>
                                     <Input
                                         id="chief_officer_name"
                                         placeholder="C/O Name"
@@ -425,7 +439,7 @@ export default function ReportCreate({
                                 {data.sailing_with_vessel && (
                                     <div className="grid gap-4 md:grid-cols-2 pt-1 pl-6">
                                         <div className="space-y-1">
-                                            <Label htmlFor="sailing_from">Sailing From (text only)</Label>
+                                            <Label htmlFor="sailing_from">Sailing From</Label>
                                             <Input
                                                 id="sailing_from"
                                                 placeholder="e.g. Merak"
@@ -434,7 +448,7 @@ export default function ReportCreate({
                                             />
                                         </div>
                                         <div className="space-y-1">
-                                            <Label htmlFor="sailing_to">Sailing To (text only)</Label>
+                                            <Label htmlFor="sailing_to">Sailing To</Label>
                                             <Input
                                                 id="sailing_to"
                                                 placeholder="e.g. Batam"
@@ -462,7 +476,7 @@ export default function ReportCreate({
                         <CardContent className="space-y-4">
                             <div className="grid gap-4 md:grid-cols-2">
                                 <div className="space-y-1">
-                                    <Label htmlFor="psc_last_port">Port of Last PSC Inspection (text only)</Label>
+                                    <Label htmlFor="psc_last_port">Port of Last PSC Inspection</Label>
                                     <Input
                                         id="psc_last_port"
                                         placeholder="e.g. Tanjung Priok"
@@ -472,7 +486,7 @@ export default function ReportCreate({
                                 </div>
 
                                 <div className="space-y-1">
-                                    <Label htmlFor="psc_last_date">Date of Last PSC Inspection (date only)</Label>
+                                    <Label htmlFor="psc_last_date">Date of Last PSC Inspection</Label>
                                     <Input
                                         id="psc_last_date"
                                         type="date"
@@ -497,7 +511,7 @@ export default function ReportCreate({
 
                             <div className="grid gap-4 md:grid-cols-2 pt-2 border-t">
                                 <div className="space-y-1">
-                                    <Label htmlFor="drydock_last_date">Date of Last Dry Dock (date only)</Label>
+                                    <Label htmlFor="drydock_last_date">Date of Last Dry Dock</Label>
                                     <Input
                                         id="drydock_last_date"
                                         type="date"
@@ -507,7 +521,7 @@ export default function ReportCreate({
                                 </div>
 
                                 <div className="space-y-1">
-                                    <Label htmlFor="drydock_next_date">Next Dry Dock Date (date only)</Label>
+                                    <Label htmlFor="drydock_next_date">Next Dry Dock Date</Label>
                                     <Input
                                         id="drydock_next_date"
                                         type="date"

@@ -57,6 +57,9 @@ class ReportCreationTest extends TestCase
             'form_id' => $form->id,
             'vessel_name' => '  MV Amarin Glory  ',
             'vessel_imo' => '9123456',
+            'vessel_flag' => 'Panama',
+            'vessel_gt' => 5000,
+            'vessel_built' => 2015,
             'vessel_type_id' => $cementType->id,
             'vessel_ice_class' => false,
             'report_date' => '2026-10-06',
@@ -98,11 +101,18 @@ class ReportCreationTest extends TestCase
         $b008 = Form::where('code', 'B-008')->firstOrFail();
         $d062 = Form::where('code', 'D-062')->firstOrFail();
 
+        $vesselType = VesselType::firstOrFail();
+
         // 1. Vessel user cannot create D-062 inspection
         $this->actingAs($vesselUser)
             ->post(route('reports.store'), [
                 'form_id' => $d062->id,
                 'vessel_name' => 'MV Meratus Java',
+                'vessel_imo' => '9123456',
+                'vessel_flag' => 'Indonesia',
+                'vessel_gt' => 4500,
+                'vessel_built' => 2018,
+                'vessel_type_id' => $vesselType->id,
                 'report_date' => '2026-10-06',
             ])
             ->assertForbidden();
@@ -112,6 +122,11 @@ class ReportCreationTest extends TestCase
             ->post(route('reports.store'), [
                 'form_id' => $b008->id,
                 'vessel_name' => 'Another Ship', // Attempt to spoof
+                'vessel_imo' => '9123456',
+                'vessel_flag' => 'Indonesia',
+                'vessel_gt' => 4500,
+                'vessel_built' => 2018,
+                'vessel_type_id' => $vesselType->id,
                 'report_date' => '2026-10-06',
             ]);
 
@@ -131,10 +146,16 @@ class ReportCreationTest extends TestCase
 
         $form = Form::where('code', 'D-062')->firstOrFail();
 
+        $vesselType = VesselType::firstOrFail();
+
         $response = $this->actingAs($corporate)->post(route('reports.store'), [
             'form_id' => $form->id,
             'vessel_name' => 'MV Oceanic Leader',
             'vessel_imo' => '9876543',
+            'vessel_flag' => 'Singapore',
+            'vessel_gt' => 8500,
+            'vessel_built' => 2017,
+            'vessel_type_id' => $vesselType->id,
             'report_date' => '2026-10-06',
             'port' => 'Bojonegara',
             'inspected_by' => 'Rendy',
@@ -176,10 +197,16 @@ class ReportCreationTest extends TestCase
         ]);
 
         $form = Form::where('code', 'D-062')->firstOrFail();
+        $vesselType = VesselType::firstOrFail();
 
         $this->actingAs($user)->post(route('reports.store'), [
             'form_id' => $form->id,
             'vessel_name' => 'MV Pacific Star',
+            'vessel_imo' => '9554321',
+            'vessel_flag' => 'Marshall Islands',
+            'vessel_gt' => 6200,
+            'vessel_built' => 2019,
+            'vessel_type_id' => $vesselType->id,
             'report_date' => '2026-10-06',
         ]);
 

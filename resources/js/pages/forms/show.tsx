@@ -385,12 +385,7 @@ export default function FormShow({
     };
 
     const handleDeleteGroup = (group: GroupData) => {
-        const isUsed = group.reports_count > 0;
-        const msg = isUsed
-            ? `WARNING: This group is used in ${group.reports_count} historical report(s). It cannot be permanently deleted. Proceeding will archive it from future templates while preserving past audit evidence.`
-            : 'Are you sure you want to permanently delete this group?';
-
-        if (confirm(msg)) {
+        if (confirm('Are you sure you want to delete this group?')) {
             router.delete(`/admin/groups/${group.id}`, { preserveScroll: true });
         }
     };
@@ -408,12 +403,7 @@ export default function FormShow({
     };
 
     const handleDeleteQuestion = (question: QuestionData) => {
-        const isUsed = question.reports_count > 0;
-        const msg = isUsed
-            ? `WARNING: This question is used in ${question.reports_count} historical report(s). It cannot be permanently deleted. Proceeding will archive it from future templates while preserving past audit evidence.`
-            : 'Are you sure you want to permanently delete this question?';
-
-        if (confirm(msg)) {
+        if (confirm('Are you sure you want to delete this question?')) {
             router.delete(`/admin/questions/${question.id}`, { preserveScroll: true });
         }
     };
@@ -503,19 +493,13 @@ export default function FormShow({
                                                 {chapter.chapter_no ? `${chapter.chapter_no}. ` : ''}{chapter.title}
                                             </h3>
                                             {!chapter.is_enabled && <Badge variant="destructive">Disabled</Badge>}
-                                            {chapter.ice_class_only && <Badge variant="outline">Ice Class Only</Badge>}
+                                            {chapter.ice_class_only && <Badge variant="outline">Ice Class</Badge>}
                                             {(chapter.vessel_type_ids || []).length > 0 && (
                                                 <Badge variant="outline" className="text-xs">
                                                     {(vessel_types || [])
                                                         .filter((vt) => (chapter.vessel_type_ids || []).includes(vt.id))
                                                         .map((vt) => vt.name)
-                                                        .join('/')}{' '}
-                                                    only
-                                                </Badge>
-                                            )}
-                                            {chapter.reports_count > 0 && (
-                                                <Badge variant="outline" className="text-xs text-muted-foreground">
-                                                    Used in {chapter.reports_count} reports
+                                                        .join('/')}
                                                 </Badge>
                                             )}
                                         </div>
@@ -624,12 +608,8 @@ export default function FormShow({
                                                                             {(vessel_types || [])
                                                                                 .filter((vt) => (subgroup.vessel_type_ids || []).includes(vt.id))
                                                                                 .map((vt) => vt.name)
-                                                                                .join('/')}{' '}
-                                                                            only
+                                                                                .join('/')}
                                                                         </Badge>
-                                                                    )}
-                                                                    {subgroup.reports_count > 0 && (
-                                                                        <span className="text-xs text-muted-foreground">({subgroup.reports_count} reports)</span>
                                                                     )}
                                                                 </div>
                                                                 <div className="flex items-center gap-1 shrink-0">
@@ -781,7 +761,7 @@ export default function FormShow({
                                     onChange={(e) => setGroupIceClass(e.target.checked)}
                                     className="rounded border-gray-300"
                                 />
-                                <Label htmlFor="ice_class" className="cursor-pointer">Ice Class Only</Label>
+                                <Label htmlFor="ice_class" className="cursor-pointer">Ice Class</Label>
                             </div>
                         )}
                         <DialogFooter className="pt-4">
@@ -1077,11 +1057,6 @@ function QuestionRow({
                                 >
                                     <HelpCircle className="size-3.5" />
                                 </button>
-                            )}
-                            {question.reports_count > 0 && (
-                                <span className="text-[10px] text-muted-foreground" title="Reports using this question">
-                                    ({question.reports_count} reports)
-                                </span>
                             )}
                         </div>
 

@@ -3,6 +3,7 @@
 namespace App\Http\Controllers;
 
 use App\Enums\ReportStatus;
+use App\Models\ActivityLog;
 use App\Models\Form;
 use App\Models\Report;
 use App\Models\ReportAnswer;
@@ -52,6 +53,7 @@ class ReportController extends Controller
             'form_code' => $report->form->code,
             'form_name' => $report->form->name,
             'created_at' => $report->created_at->toIso8601String(),
+            'can_delete' => Gate::allows('delete', $report),
         ]);
 
         return Inertia::render('reports/index', [
@@ -114,11 +116,11 @@ class ReportController extends Controller
         $validated = $request->validate([
             'form_id' => ['required', 'exists:forms,id'],
             'vessel_name' => ['required', 'string', 'max:255'],
-            'vessel_imo' => ['nullable', 'string', 'max:20'],
-            'vessel_flag' => ['nullable', 'string', 'max:100'],
-            'vessel_gt' => ['nullable', 'numeric', 'min:0'],
-            'vessel_built' => ['nullable', 'integer', 'min:1900', 'max:'.(date('Y') + 1)],
-            'vessel_type_id' => ['nullable', 'exists:vessel_types,id'],
+            'vessel_imo' => ['required', 'string', 'max:20'],
+            'vessel_flag' => ['required', 'string', 'max:100'],
+            'vessel_gt' => ['required', 'numeric', 'min:0'],
+            'vessel_built' => ['required', 'integer', 'min:1900', 'max:'.(date('Y') + 1)],
+            'vessel_type_id' => ['required', 'exists:vessel_types,id'],
             'vessel_ice_class' => ['boolean'],
             'report_date' => ['required', 'date'],
             'master_name' => ['nullable', 'string', 'max:255'],
@@ -231,6 +233,7 @@ class ReportController extends Controller
             'report' => $report,
             'is_editable' => $isEditable,
             'initial_lock' => $activeLock,
+            'can_delete' => Gate::allows('delete', $report),
         ]);
     }
 
@@ -501,5 +504,35 @@ class ReportController extends Controller
             'status' => 'saved',
             'report' => $report->fresh(),
         ]);
+    }
+
+    /**
+     * Delete a draft or in_progress report (RLS-8).
+     */
+    public function destroy(Request $request, Report $report): RedirectResponse
+    {
+        Gate::authorize('delete', $report);
+
+        $validated = $request->validate([
+            'delete_reason' => ['nullable', 'string', 'max:500'],
+        ]);
+
+        $reason = ! empty($validated['delete_reason']) ? $validated['delete_reason'] : 'Deleted by user';
+
+        DB::transaction(function () use ($report, $reason) {
+            $report->update(['delete_reason' => $reason]);
+            $report->delete();
+
+            ActivityLog::record(
+                entity: $report,
+                action: 'delete_draft',
+                field: 'deleted_at',
+                before: null,
+                after: now()->toIso8601String(),
+                reportId: $report->id
+            );
+        });
+
+        return redirect()->route('reports.index')->with('success', "Draft report {$report->reference_number} deleted successfully.");
     }
 }

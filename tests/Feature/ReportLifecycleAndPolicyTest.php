@@ -277,5 +277,92 @@ class ReportLifecycleAndPolicyTest extends TestCase
         // 5. Senior officer appraisals privacy (SRS section 2)
         $this->assertTrue(Gate::forUser($corporate)->allows('viewAppraisals', $inspection));
         $this->assertFalse(Gate::forUser($vesselUserA)->allows('viewAppraisals', $inspection));
+
+        // 6. Delete Draft permissions (RLS-8)
+        // Corporate can delete inspection draft
+        $this->assertTrue(Gate::forUser($corporate)->allows('delete', $inspection));
+        // Corporate cannot delete vessel audit draft
+        $this->assertFalse(Gate::forUser($corporate)->allows('delete', $auditA));
+
+        // Author vesselUserA can delete own audit draft on MV Alpha
+        $this->assertTrue(Gate::forUser($vesselUserA)->allows('delete', $auditA));
+        // vesselUserB cannot delete audit draft of MV Alpha
+        $this->assertFalse(Gate::forUser($vesselUserB)->allows('delete', $auditA));
+        // vesselUserA cannot delete inspection draft
+        $this->assertFalse(Gate::forUser($vesselUserA)->allows('delete', $inspection));
+
+        // Superadmin can delete drafts
+        $this->assertTrue(Gate::forUser($superadmin)->allows('delete', $inspection));
+        $this->assertTrue(Gate::forUser($superadmin)->allows('delete', $auditA));
+    }
+
+    /**
+     * Test deleting a draft report via endpoint (RLS-8).
+     */
+    public function test_authorized_user_can_delete_draft_report_with_activity_log(): void
+    {
+        $this->seedCatalogue();
+
+        $corporate = User::factory()->create(['role' => 'corporate']);
+        $d062 = Form::query()->where('code', 'D-062')->firstOrFail();
+
+        $snapshotService = new ReportSnapshot;
+        $report = $snapshotService->createReport($d062, [
+            'created_by' => $corporate->id,
+            'vessel_name' => 'MV Oceanic Star',
+            'report_date' => '2026-10-06',
+        ]);
+
+        $this->assertSame('draft', $report->status);
+
+        $response = $this->actingAs($corporate)->delete(route('reports.destroy', $report), [
+            'delete_reason' => 'Created in error during testing',
+        ]);
+
+        $response->assertRedirect(route('reports.index'));
+        $response->assertSessionHas('success');
+
+        $this->assertSoftDeleted('reports', [
+            'id' => $report->id,
+            'delete_reason' => 'Created in error during testing',
+        ]);
+
+        $this->assertDatabaseHas('activity_log', [
+            'report_id' => $report->id,
+            'action' => 'delete_draft',
+            'field' => 'deleted_at',
+        ]);
+    }
+
+    /**
+     * Test that submitted or closed reports cannot be deleted by anyone (RLS-8).
+     */
+    public function test_cannot_delete_submitted_or_closed_report_even_as_superadmin(): void
+    {
+        $this->seedCatalogue();
+
+        $superadmin = User::factory()->create(['role' => 'superadmin']);
+        $corporate = User::factory()->create(['role' => 'corporate']);
+        $d062 = Form::query()->where('code', 'D-062')->firstOrFail();
+
+        $snapshotService = new ReportSnapshot;
+        $report = $snapshotService->createReport($d062, [
+            'created_by' => $corporate->id,
+            'vessel_name' => 'MV Polar Star',
+            'report_date' => '2026-10-06',
+        ]);
+
+        // Change status to submitted
+        $report->update(['status' => 'submitted', 'submitted_at' => now()]);
+
+        // Neither corporate nor superadmin can delete a submitted report (RLS-8)
+        $this->assertFalse(Gate::forUser($corporate)->allows('delete', $report));
+        $this->assertFalse(Gate::forUser($superadmin)->allows('delete', $report));
+
+        $response = $this->actingAs($superadmin)->delete(route('reports.destroy', $report));
+        $response->assertForbidden();
+
+        $this->assertNotSoftDeleted('reports', ['id' => $report->id]);
     }
 }
+

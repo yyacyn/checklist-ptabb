@@ -1,4 +1,4 @@
-import { Head, Link } from '@inertiajs/react';
+import { Head, Link, router } from '@inertiajs/react';
 import {
     AlertCircle,
     AlertTriangle,
@@ -18,6 +18,7 @@ import {
     Search,
     Ship,
     SlidersHorizontal,
+    Trash2,
     Users,
     WifiOff,
 } from 'lucide-react';
@@ -26,6 +27,14 @@ import Heading from '@/components/heading';
 import { Badge } from '@/components/ui/badge';
 import { Button } from '@/components/ui/button';
 import { Card, CardContent, CardDescription, CardHeader, CardTitle } from '@/components/ui/card';
+import {
+    Dialog,
+    DialogContent,
+    DialogDescription,
+    DialogFooter,
+    DialogHeader,
+    DialogTitle,
+} from '@/components/ui/dialog';
 import { Input } from '@/components/ui/input';
 import { Label } from '@/components/ui/label';
 import {
@@ -144,15 +153,42 @@ export interface ReportData {
     groups: ChapterData[];
 }
 
+function formatDate(dateStr: string | null | undefined): string {
+    if (!dateStr) return '';
+    return dateStr.split('T')[0];
+}
+
 interface Props {
     report: ReportData;
     is_editable: boolean;
     initial_lock?: LockData | null;
+    can_delete?: boolean;
 }
 
-export default function ReportDataEntry({ report, is_editable = true, initial_lock = null }: Props) {
+export default function ReportDataEntry({
+    report,
+    is_editable = true,
+    initial_lock = null,
+    can_delete = false,
+}: Props) {
     // Advisory edit lock state (NFR-15)
     const [lockState, setLockState] = useState<LockData | null>(initial_lock);
+
+    // Delete Draft state
+    const [isDeleteDialogOpen, setIsDeleteDialogOpen] = useState(false);
+    const [deleteReason, setDeleteReason] = useState('');
+    const [isDeleting, setIsDeleting] = useState(false);
+
+    const handleDeleteReport = () => {
+        setIsDeleting(true);
+        router.delete(`/reports/${report.id}`, {
+            data: { delete_reason: deleteReason },
+            onFinish: () => {
+                setIsDeleting(false);
+                setIsDeleteDialogOpen(false);
+            },
+        });
+    };
 
     // Question edit conflicts state (NFR-15): questionId -> ConflictData
     const [conflicts, setConflicts] = useState<Record<number, ConflictData>>({});
@@ -661,44 +697,53 @@ export default function ReportDataEntry({ report, is_editable = true, initial_lo
 
             <div className="flex h-screen flex-col overflow-hidden bg-background">
                 {/* Top Sticky Header */}
-                <header className="border-b bg-card px-6 py-3.5 shrink-0 z-30">
-                    <div className="flex flex-col gap-3 md:flex-row md:items-center md:justify-between">
-                        <div className="flex items-center gap-3">
-                            <Button variant="ghost" size="sm" asChild className="h-8 px-2 text-muted-foreground hover:text-foreground">
+                <header className="border-b bg-card px-4 sm:px-6 py-2.5 shrink-0 z-30">
+                    <div className="flex items-center justify-between gap-4">
+                        {/* Left: Navigation & Document Identification */}
+                        <div className="flex items-center gap-3 min-w-0">
+                            <Button
+                                variant="ghost"
+                                size="sm"
+                                asChild
+                                className="h-8 px-2 text-muted-foreground hover:text-foreground shrink-0"
+                            >
                                 <Link href="/reports">
-                                    <ArrowLeft className="size-4 mr-1" /> All Reports
+                                    <ArrowLeft className="size-4 mr-1.5" />
+                                    <span className="text-xs font-medium">All Reports</span>
                                 </Link>
                             </Button>
-                            <span className="text-muted-foreground">•</span>
-                            <div>
+
+                            <div className="h-5 w-px bg-border shrink-0 hidden sm:block" />
+
+                            <div className="flex flex-col min-w-0">
                                 <div className="flex items-center gap-2">
-                                    <h2 className="font-bold text-base text-foreground">
+                                    <h2 className="font-bold text-sm text-foreground truncate max-w-[160px] sm:max-w-xs md:max-w-md">
                                         {report.vessel_name}
                                     </h2>
-                                    <Badge variant="outline" className="font-mono text-xs">
+                                    <Badge variant="outline" className="font-mono text-[10px] px-1.5 py-0 shrink-0">
                                         {report.reference_number}
                                     </Badge>
-                                    <Badge variant="secondary" className="text-xs">
+                                    <Badge variant="secondary" className="text-[10px] px-1.5 py-0 shrink-0 font-medium">
                                         {report.form.code}
                                     </Badge>
                                 </div>
-                                <p className="text-xs text-muted-foreground">
-                                    Inspection Date: {report.report_date} • Template v{report.template_version}
+                                <p className="text-[11px] text-muted-foreground truncate">
+                                    Inspection Date: {formatDate(report.report_date)} • Template v{report.template_version}
                                 </p>
                             </div>
                         </div>
 
-                        {/* Overall Progress Bar, Sync Status & Filter Controls */}
-                        <div className="flex items-center gap-3 flex-wrap">
-                            {/* Global Save / Sync Status (Task 3.4 & 3.5, NFR-1, NFR-2) */}
-                            <div className="flex items-center gap-2">
+                        {/* Right: Progress, Sync, Tools & Actions */}
+                        <div className="flex items-center gap-2 sm:gap-3 shrink-0">
+                            {/* Global Save / Sync Status */}
+                            <div className="flex items-center">
                                 {globalSyncState === 'saved' && (
                                     <span
                                         className="text-xs text-muted-foreground flex items-center gap-1.5"
                                         title="All checklist changes saved"
                                     >
                                         <CheckCircle2 className="size-3.5 text-emerald-500" />
-                                        <span className="hidden lg:inline text-[11px] font-medium">Saved</span>
+                                        <span className="hidden xl:inline text-[11px] font-medium">Saved</span>
                                     </span>
                                 )}
                                 {globalSyncState === 'saving' && (
@@ -707,7 +752,7 @@ export default function ReportDataEntry({ report, is_editable = true, initial_lo
                                         title="Saving change to server..."
                                     >
                                         <Loader2 className="size-3.5 text-primary animate-spin" />
-                                        <span className="hidden lg:inline text-[11px] font-medium">Saving...</span>
+                                        <span className="hidden xl:inline text-[11px] font-medium">Saving...</span>
                                     </span>
                                 )}
                                 {globalSyncState === 'retrying' && (
@@ -717,12 +762,12 @@ export default function ReportDataEntry({ report, is_editable = true, initial_lo
                                         type="button"
                                         onClick={triggerManualQueueFlush}
                                         disabled={isFlushingQueue}
-                                        className="h-7 text-xs border-amber-500 text-amber-600 bg-amber-50 hover:bg-amber-100 dark:bg-amber-950/40 dark:hover:bg-amber-900/50 flex items-center gap-1.5 px-2"
+                                        className="h-7 text-xs border-amber-500 text-amber-600 bg-amber-50 hover:bg-amber-100 dark:bg-amber-950/40 dark:hover:bg-amber-900/50 flex items-center gap-1 px-2"
                                         title="Temporary VSAT drop or offline. Click to retry syncing immediately."
                                     >
                                         <CloudOff className="size-3 text-amber-500" />
-                                        <span>{pendingQueueCount} queued</span>
-                                        <RefreshCw className={`size-3 ml-0.5 ${isFlushingQueue ? 'animate-spin' : ''}`} />
+                                        <span className="text-[11px]">{pendingQueueCount} queued</span>
+                                        <RefreshCw className={`size-3 ${isFlushingQueue ? 'animate-spin' : ''}`} />
                                     </Button>
                                 )}
                                 {isOffline && (
@@ -732,28 +777,31 @@ export default function ReportDataEntry({ report, is_editable = true, initial_lo
                                 )}
                             </div>
 
-                            <div className="h-4 w-px bg-border hidden sm:block" />
+                            <div className="h-4 w-px bg-border shrink-0 hidden sm:block" />
 
-                            <div className="flex items-center gap-2">
-                                <div className="w-32 h-2.5 rounded-full bg-muted overflow-hidden">
+                            {/* Overall Progress */}
+                            <div className="flex items-center gap-2" title={`Progress: ${overallStats.totalAnswered} of ${overallStats.totalApplicable} answered (${overallStats.percent}%)`}>
+                                <div className="w-16 sm:w-24 h-2 rounded-full bg-muted overflow-hidden">
                                     <div
                                         className="h-full bg-primary transition-all duration-300"
                                         style={{ width: `${overallStats.percent}%` }}
                                     />
                                 </div>
-                                <span className="text-xs font-semibold text-foreground">
-                                    {overallStats.totalAnswered} / {overallStats.totalApplicable} ({overallStats.percent}%)
+                                <span className="text-xs font-semibold text-foreground whitespace-nowrap">
+                                    {overallStats.totalAnswered}/{overallStats.totalApplicable} ({overallStats.percent}%)
                                 </span>
                             </div>
 
+                            <div className="h-4 w-px bg-border shrink-0 hidden md:block" />
+
                             {/* Search Jump */}
-                            <div className="relative w-40">
-                                <Search className="absolute left-2.5 top-2 size-3.5 text-muted-foreground" />
+                            <div className="relative w-32 sm:w-36 lg:w-44 hidden sm:block">
+                                <Search className="absolute left-2.5 top-2 size-3 text-muted-foreground" />
                                 <Input
                                     placeholder="Search question..."
                                     value={searchQuery}
                                     onChange={(e) => setSearchQuery(e.target.value)}
-                                    className="h-7 text-xs pl-8"
+                                    className="h-7 text-xs pl-7 pr-2"
                                 />
                             </div>
 
@@ -762,11 +810,32 @@ export default function ReportDataEntry({ report, is_editable = true, initial_lo
                                 size="sm"
                                 variant={showUnansweredOnly ? 'default' : 'outline'}
                                 onClick={() => setShowUnansweredOnly((prev) => !prev)}
-                                className="h-7 text-xs flex items-center gap-1.5"
+                                className="h-7 text-xs px-2.5 flex items-center gap-1.5 whitespace-nowrap"
+                                title={showUnansweredOnly ? 'Show all questions' : 'Filter to show unanswered questions only'}
                             >
                                 <SlidersHorizontal className="size-3" />
-                                <span>{showUnansweredOnly ? 'Showing Unanswered' : 'Filter Unanswered'}</span>
+                                <span className="hidden md:inline">{showUnansweredOnly ? 'Unanswered' : 'Filter'}</span>
                             </Button>
+
+                            {/* Delete Draft Action */}
+                            {can_delete && (
+                                <>
+                                    <div className="h-4 w-px bg-border shrink-0" />
+                                    <Button
+                                        variant="outline"
+                                        size="sm"
+                                        onClick={() => {
+                                            setDeleteReason('');
+                                            setIsDeleteDialogOpen(true);
+                                        }}
+                                        className="h-7 px-2 text-xs text-destructive hover:bg-destructive/10 border-destructive/30 hover:border-destructive/60 flex items-center gap-1.5 shrink-0"
+                                        title="Delete this draft report"
+                                    >
+                                        <Trash2 className="size-3" />
+                                        <span className="hidden sm:inline">Delete</span>
+                                    </Button>
+                                </>
+                            )}
                         </div>
                     </div>
                 </header>
@@ -826,12 +895,14 @@ export default function ReportDataEntry({ report, is_editable = true, initial_lo
                             </div>
                         </button>
 
-                        {report.groups.map((group) => {
-                            const stats = chapterStats[group.id] || { applicable: 0, answered: 0, noCount: 0, nsCount: 0 };
-                            const isCurrent = group.id === activeChapterId;
-                            const isComplete = stats.applicable > 0 && stats.answered === stats.applicable;
+                        {report.groups
+                            .filter((g) => g.chapter_no !== '1' && g.title !== 'General Information')
+                            .map((group) => {
+                                const stats = chapterStats[group.id] || { applicable: 0, answered: 0, noCount: 0, nsCount: 0 };
+                                const isCurrent = group.id === activeChapterId;
+                                const isComplete = stats.applicable > 0 && stats.answered === stats.applicable;
 
-                            return (
+                                return (
                                 <button
                                     key={group.id}
                                     type="button"
@@ -888,7 +959,32 @@ export default function ReportDataEntry({ report, is_editable = true, initial_lo
                     {/* Right Main Content Area: General Information or Group Form */}
                     <main className="flex-1 overflow-y-auto p-6 md:p-8 space-y-6">
                         {activeChapterId === 0 ? (
-                            <GeneralInfoSection report={report} isEditable={is_editable} />
+                            <GeneralInfoSection
+                                report={report}
+                                isEditable={is_editable}
+                                attendanceSubgroup={report.groups.find((g) => g.chapter_no === '1' || g.title === 'General Information')?.subgroups?.find((sg) => sg.title.toLowerCase().includes('attendance'))}
+                                answers={answers}
+                                isB008={isB008}
+                                answerChoices={answerChoices}
+                                expandedGuidance={expandedGuidance}
+                                saveStatuses={saveStatuses}
+                                conflicts={conflicts}
+                                onToggleGuidance={(qid) =>
+                                    setExpandedGuidance((prev) => ({
+                                        ...prev,
+                                        [qid]: !prev[qid],
+                                    }))
+                                }
+                                onSelectAnswer={(qid, val) =>
+                                    saveAnswerToServer(qid, { answer: val })
+                                }
+                                onSaveExtraValue={(qid, val) =>
+                                    saveAnswerToServer(qid, { extra_value: val })
+                                }
+                                onAcceptServerAnswer={handleAcceptServerAnswer}
+                                onOverwriteAnswer={handleOverwriteAnswer}
+                                filterQuestion={filterQuestion}
+                            />
                         ) : activeChapter ? (
                             <div className="max-w-4xl mx-auto space-y-6">
                                 {/* VSAT Offline Buffer Banner (NFR-2) */}
@@ -1076,6 +1172,49 @@ export default function ReportDataEntry({ report, is_editable = true, initial_lo
                     </main>
                 </div>
             </div>
+
+            {/* Confirmation Dialog for Deleting Draft */}
+            <Dialog open={isDeleteDialogOpen} onOpenChange={(open) => !open && setIsDeleteDialogOpen(false)}>
+                <DialogContent className="sm:max-w-md">
+                    <DialogHeader>
+                        <DialogTitle>Delete Draft Report</DialogTitle>
+                        <DialogDescription>
+                            Are you sure you want to delete draft report{' '}
+                            <span className="font-semibold text-foreground">{report.reference_number}</span> ({report.vessel_name})? This action cannot be undone.
+                        </DialogDescription>
+                    </DialogHeader>
+
+                    <div className="space-y-2 py-2">
+                        <Label htmlFor="delete-reason-detail" className="text-xs">Reason for deletion (optional)</Label>
+                        <Input
+                            id="delete-reason-detail"
+                            placeholder="e.g. Created by mistake / duplicated"
+                            value={deleteReason}
+                            onChange={(e) => setDeleteReason(e.target.value)}
+                            disabled={isDeleting}
+                        />
+                    </div>
+
+                    <DialogFooter className="gap-2 sm:gap-0">
+                        <Button
+                            type="button"
+                            variant="outline"
+                            onClick={() => setIsDeleteDialogOpen(false)}
+                            disabled={isDeleting}
+                        >
+                            Cancel
+                        </Button>
+                        <Button
+                            type="button"
+                            variant="destructive"
+                            disabled={isDeleting}
+                            onClick={handleDeleteReport}
+                        >
+                            {isDeleting ? 'Deleting...' : 'Delete Draft'}
+                        </Button>
+                    </DialogFooter>
+                </DialogContent>
+            </Dialog>
         </>
     );
 }
@@ -1102,12 +1241,38 @@ const INSPECTION_OPERATIONS = [
 function GeneralInfoSection({
     report,
     isEditable,
+    attendanceSubgroup,
+    answers,
+    isB008,
+    answerChoices,
+    expandedGuidance,
+    saveStatuses,
+    conflicts,
+    onToggleGuidance,
+    onSelectAnswer,
+    onSaveExtraValue,
+    onAcceptServerAnswer,
+    onOverwriteAnswer,
+    filterQuestion,
 }: {
     report: ReportData;
     isEditable: boolean;
+    attendanceSubgroup?: ChapterData['subgroups'][0];
+    answers: Record<number, AnswerData>;
+    isB008: boolean;
+    answerChoices: { value: string; label: string; color: string }[];
+    expandedGuidance: Record<number, boolean>;
+    saveStatuses: Record<number, string>;
+    conflicts: Record<number, ConflictData>;
+    onToggleGuidance: (questionId: number) => void;
+    onSelectAnswer: (questionId: number, val: string) => void;
+    onSaveExtraValue: (questionId: number, val: string) => void;
+    onAcceptServerAnswer: (questionId: number, serverAnswer: ConflictData['server_answer']) => void;
+    onOverwriteAnswer: (questionId: number, serverRowVersion: number) => void;
+    filterQuestion: (q: QuestionData) => boolean;
 }) {
     const [info, setInfo] = useState({
-        report_date: report.report_date || '',
+        report_date: formatDate(report.report_date),
         port: report.port || '',
         inspected_by: report.inspected_by || '',
         master_name: report.master_name || '',
@@ -1117,10 +1282,10 @@ function GeneralInfoSection({
         sailing_from: report.sailing_from || '',
         sailing_to: report.sailing_to || '',
         psc_last_port: report.psc_last_port || '',
-        psc_last_date: report.psc_last_date || '',
+        psc_last_date: formatDate(report.psc_last_date),
         psc_detained_or_deficiencies: Boolean(report.psc_detained_or_deficiencies),
-        drydock_last_date: report.drydock_last_date || '',
-        drydock_next_date: report.drydock_next_date || '',
+        drydock_last_date: formatDate(report.drydock_last_date),
+        drydock_next_date: formatDate(report.drydock_next_date),
         operations: (report.operations || []) as string[],
     });
 
@@ -1282,7 +1447,7 @@ function GeneralInfoSection({
                 <CardContent className="space-y-4">
                     <div className="grid gap-4 md:grid-cols-3">
                         <div className="space-y-1">
-                            <Label htmlFor="gi_report_date" className="text-xs">Date of Inspection * (date only)</Label>
+                            <Label htmlFor="gi_report_date" className="text-xs">Date of Inspection *</Label>
                             <Input
                                 id="gi_report_date"
                                 type="date"
@@ -1294,7 +1459,7 @@ function GeneralInfoSection({
                         </div>
 
                         <div className="space-y-1">
-                            <Label htmlFor="gi_port" className="text-xs">Port / Location (text only)</Label>
+                            <Label htmlFor="gi_port" className="text-xs">Port / Location</Label>
                             <Input
                                 id="gi_port"
                                 value={info.port}
@@ -1306,7 +1471,7 @@ function GeneralInfoSection({
                         </div>
 
                         <div className="space-y-1">
-                            <Label htmlFor="gi_inspected_by" className="text-xs">Inspected By (text only)</Label>
+                            <Label htmlFor="gi_inspected_by" className="text-xs">Inspected By</Label>
                             <Input
                                 id="gi_inspected_by"
                                 value={info.inspected_by}
@@ -1320,7 +1485,7 @@ function GeneralInfoSection({
 
                     <div className="grid gap-4 md:grid-cols-3 pt-2">
                         <div className="space-y-1">
-                            <Label htmlFor="gi_master" className="text-xs">Master (text only)</Label>
+                            <Label htmlFor="gi_master" className="text-xs">Master</Label>
                             <Input
                                 id="gi_master"
                                 value={info.master_name}
@@ -1332,7 +1497,7 @@ function GeneralInfoSection({
                         </div>
 
                         <div className="space-y-1">
-                            <Label htmlFor="gi_ce" className="text-xs">Chief Engineer (text only)</Label>
+                            <Label htmlFor="gi_ce" className="text-xs">Chief Engineer</Label>
                             <Input
                                 id="gi_ce"
                                 value={info.chief_engineer_name}
@@ -1344,7 +1509,7 @@ function GeneralInfoSection({
                         </div>
 
                         <div className="space-y-1">
-                            <Label htmlFor="gi_co" className="text-xs">Chief Officer (text only)</Label>
+                            <Label htmlFor="gi_co" className="text-xs">Chief Officer</Label>
                             <Input
                                 id="gi_co"
                                 value={info.chief_officer_name}
@@ -1375,7 +1540,7 @@ function GeneralInfoSection({
                         {info.sailing_with_vessel && (
                             <div className="grid gap-4 md:grid-cols-2 pt-1 pl-6">
                                 <div className="space-y-1">
-                                    <Label htmlFor="gi_sailing_from" className="text-xs">Sailing From (text only)</Label>
+                                    <Label htmlFor="gi_sailing_from" className="text-xs">Sailing From</Label>
                                     <Input
                                         id="gi_sailing_from"
                                         value={info.sailing_from}
@@ -1386,7 +1551,7 @@ function GeneralInfoSection({
                                     />
                                 </div>
                                 <div className="space-y-1">
-                                    <Label htmlFor="gi_sailing_to" className="text-xs">Sailing To (text only)</Label>
+                                    <Label htmlFor="gi_sailing_to" className="text-xs">Sailing To</Label>
                                     <Input
                                         id="gi_sailing_to"
                                         value={info.sailing_to}
@@ -1416,7 +1581,7 @@ function GeneralInfoSection({
                 <CardContent className="space-y-4">
                     <div className="grid gap-4 md:grid-cols-2">
                         <div className="space-y-1">
-                            <Label htmlFor="gi_psc_port" className="text-xs">Port of Last PSC Inspection (text only)</Label>
+                            <Label htmlFor="gi_psc_port" className="text-xs">Port of Last PSC Inspection</Label>
                             <Input
                                 id="gi_psc_port"
                                 value={info.psc_last_port}
@@ -1428,7 +1593,7 @@ function GeneralInfoSection({
                         </div>
 
                         <div className="space-y-1">
-                            <Label htmlFor="gi_psc_date" className="text-xs">Date of Last PSC Inspection (date only)</Label>
+                            <Label htmlFor="gi_psc_date" className="text-xs">Date of Last PSC Inspection</Label>
                             <Input
                                 id="gi_psc_date"
                                 type="date"
@@ -1456,7 +1621,7 @@ function GeneralInfoSection({
 
                     <div className="grid gap-4 md:grid-cols-2 pt-3 border-t">
                         <div className="space-y-1">
-                            <Label htmlFor="gi_dd_last" className="text-xs">Date of Last Dry Dock (date only)</Label>
+                            <Label htmlFor="gi_dd_last" className="text-xs">Date of Last Dry Dock</Label>
                             <Input
                                 id="gi_dd_last"
                                 type="date"
@@ -1468,7 +1633,7 @@ function GeneralInfoSection({
                         </div>
 
                         <div className="space-y-1">
-                            <Label htmlFor="gi_dd_next" className="text-xs">Next Dry Dock Date (date only)</Label>
+                            <Label htmlFor="gi_dd_next" className="text-xs">Next Dry Dock Date</Label>
                             <Input
                                 id="gi_dd_next"
                                 type="date"
@@ -1521,6 +1686,48 @@ function GeneralInfoSection({
                     </div>
                 </CardContent>
             </Card>
+
+            {/* 5. Other Attendance-Related Activities (if available in Chapter 1) */}
+            {attendanceSubgroup && attendanceSubgroup.questions && attendanceSubgroup.questions.length > 0 && (
+                <Card>
+                    <CardHeader className="pb-3">
+                        <div className="flex items-center justify-between">
+                            <CardTitle className="text-sm font-semibold flex items-center gap-2">
+                                <Info className="size-4 text-primary" />
+                                <span>{attendanceSubgroup.title}</span>
+                            </CardTitle>
+                            {!attendanceSubgroup.is_applicable && (
+                                <Badge variant="outline" className="text-[10px] text-amber-600">
+                                    Inapplicable
+                                </Badge>
+                            )}
+                        </div>
+                        <CardDescription className="text-xs">
+                            Verify safety meetings, drills, training, and audits conducted during attendance.
+                        </CardDescription>
+                    </CardHeader>
+                    <CardContent className="space-y-3">
+                        {attendanceSubgroup.questions.filter(filterQuestion).map((q) => (
+                            <QuestionAnswerCard
+                                key={q.id}
+                                question={q}
+                                currentAnswer={answers[q.id]}
+                                isB008={isB008}
+                                answerChoices={answerChoices}
+                                isExpandedGuidance={Boolean(expandedGuidance[q.id])}
+                                saveStatus={saveStatuses[q.id]}
+                                isEditable={isEditable}
+                                onToggleGuidance={() => onToggleGuidance(q.id)}
+                                onSelectAnswer={(val) => onSelectAnswer(q.id, val)}
+                                onSaveExtraValue={(val) => onSaveExtraValue(q.id, val)}
+                                conflict={conflicts[q.id]}
+                                onAcceptServerAnswer={(srv) => onAcceptServerAnswer(q.id, srv)}
+                                onOverwriteAnswer={(srvVer) => onOverwriteAnswer(q.id, srvVer)}
+                            />
+                        ))}
+                    </CardContent>
+                </Card>
+            )}
         </div>
     );
 }

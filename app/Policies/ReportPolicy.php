@@ -18,6 +18,10 @@ class ReportPolicy
     public function before(User $user, string $ability): ?bool
     {
         if ($user->role === 'superadmin') {
+            if ($ability === 'delete') {
+                return null;
+            }
+
             return true;
         }
 
@@ -101,6 +105,10 @@ class ReportPolicy
     {
         if (! in_array($report->status, ['draft', 'in_progress'], true)) {
             return false;
+        }
+
+        if ($user->role === 'superadmin') {
+            return true;
         }
 
         if ($user->role === 'corporate') {
