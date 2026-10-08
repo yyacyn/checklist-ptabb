@@ -175,4 +175,9 @@ class Report extends Model
     {
         return $this->hasMany(ReportAnswer::class);
     }
+
+    public function findings(): HasMany
+    {
+        return $this->hasMany(Finding::class)->orderBy('sort_order')->orderBy('id');
+    }
 }

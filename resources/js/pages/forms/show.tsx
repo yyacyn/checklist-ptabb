@@ -3,6 +3,7 @@ import {
     ArrowDown,
     ArrowRightLeft,
     ArrowUp,
+    Calendar,
     CheckSquare,
     ChevronDown,
     ChevronRight,
@@ -12,11 +13,14 @@ import {
     Edit2,
     Eye,
     EyeOff,
+    FileText,
     Filter,
     FolderPlus,
+    Hash,
     HelpCircle,
     History,
     MoreHorizontal,
+    Paperclip,
     Plus,
     Square,
     Trash2,
@@ -107,6 +111,46 @@ interface Props {
     vessel_types?: VesselTypeItem[];
 }
 
+export function parseQuestionInputType(inputType: string) {
+    const raw = (inputType || 'none').toLowerCase().trim();
+    if (raw === 'none') {
+        return { hasChoices: true, hasText: false, hasDate: false, hasNumber: false, hasFile: false };
+    }
+    const tokens = raw.split(',').map((t) => t.trim());
+    const isPureOnly = tokens.some((t) => t.endsWith('_only'));
+    const hasChoices = !isPureOnly && !tokens.includes('no_choices');
+
+    return {
+        hasChoices,
+        hasText: tokens.includes('text') || tokens.includes('text_only'),
+        hasDate: tokens.includes('date') || tokens.includes('date_only'),
+        hasNumber: tokens.includes('number') || tokens.includes('number_only'),
+        hasFile: tokens.includes('file') || tokens.includes('file_only'),
+    };
+}
+
+export function buildQuestionInputType(flags: {
+    hasChoices: boolean;
+    hasText: boolean;
+    hasDate: boolean;
+    hasNumber: boolean;
+    hasFile: boolean;
+}): string {
+    const types: string[] = [];
+    if (flags.hasText) types.push('text');
+    if (flags.hasDate) types.push('date');
+    if (flags.hasNumber) types.push('number');
+    if (flags.hasFile) types.push('file');
+
+    if (flags.hasChoices) {
+        if (types.length === 0) return 'none';
+        return types.join(',');
+    } else {
+        if (types.length === 0) return 'text_only';
+        return types.map((t) => `${t}_only`).join(',');
+    }
+}
+
 export default function FormShow({
     form,
     chapters = [],
@@ -129,7 +173,11 @@ export default function FormShow({
     const [questionGroupId, setQuestionGroupId] = useState<number | null>(null);
     const [questionText, setQuestionText] = useState('');
     const [questionGuidance, setQuestionGuidance] = useState('');
-    const [questionInputType, setQuestionInputType] = useState('none');
+    const [questionHasChoices, setQuestionHasChoices] = useState(true);
+    const [questionHasText, setQuestionHasText] = useState(false);
+    const [questionHasDate, setQuestionHasDate] = useState(false);
+    const [questionHasNumber, setQuestionHasNumber] = useState(false);
+    const [questionHasFile, setQuestionHasFile] = useState(false);
 
     // Applicability Modal State (Task 2.4)
     const [applicabilityModalOpen, setApplicabilityModalOpen] = useState(false);
@@ -267,7 +315,11 @@ export default function FormShow({
         setQuestionGroupId(groupId);
         setQuestionText('');
         setQuestionGuidance('');
-        setQuestionInputType('none');
+        setQuestionHasChoices(true);
+        setQuestionHasText(false);
+        setQuestionHasDate(false);
+        setQuestionHasNumber(false);
+        setQuestionHasFile(false);
         setQuestionModalOpen(true);
     };
 
@@ -276,17 +328,30 @@ export default function FormShow({
         setQuestionGroupId(null);
         setQuestionText(question.question_text);
         setQuestionGuidance(question.guidance || '');
-        setQuestionInputType(question.input_type);
+        const flags = parseQuestionInputType(question.input_type);
+        setQuestionHasChoices(flags.hasChoices);
+        setQuestionHasText(flags.hasText);
+        setQuestionHasDate(flags.hasDate);
+        setQuestionHasNumber(flags.hasNumber);
+        setQuestionHasFile(flags.hasFile);
         setQuestionModalOpen(true);
     };
 
     const handleSaveQuestion = (e: React.FormEvent) => {
         e.preventDefault();
+        const inputType = buildQuestionInputType({
+            hasChoices: questionHasChoices,
+            hasText: questionHasText,
+            hasDate: questionHasDate,
+            hasNumber: questionHasNumber,
+            hasFile: questionHasFile,
+        });
+
         if (editingQuestion) {
             router.put(`/admin/questions/${editingQuestion.id}`, {
                 question_text: questionText,
                 guidance: questionGuidance || null,
-                input_type: questionInputType,
+                input_type: inputType,
             }, {
                 preserveScroll: true,
                 onSuccess: () => setQuestionModalOpen(false),
@@ -295,7 +360,7 @@ export default function FormShow({
             router.post(`/admin/groups/${questionGroupId}/questions`, {
                 question_text: questionText,
                 guidance: questionGuidance || null,
-                input_type: questionInputType,
+                input_type: inputType,
             }, {
                 preserveScroll: true,
                 onSuccess: () => setQuestionModalOpen(false),
@@ -805,21 +870,93 @@ export default function FormShow({
                             />
                         </div>
 
-                        <div className="space-y-1">
-                            <Label htmlFor="q_input_type">Extra Typed Input</Label>
-                            <Select value={questionInputType} onValueChange={setQuestionInputType}>
-                                <SelectTrigger>
-                                    <SelectValue placeholder="Select extra input type" />
-                                </SelectTrigger>
-                                <SelectContent>
-                                    <SelectItem value="none">None (Standard Yes/No checkboxes)</SelectItem>
-                                    <SelectItem value="text_only">Text Only (no Yes/No checkboxes)</SelectItem>
-                                    <SelectItem value="date_only">Date Only (no Yes/No checkboxes)</SelectItem>
-                                    <SelectItem value="text">Text Input (Yes/No + Text)</SelectItem>
-                                    <SelectItem value="date">Date Input (Yes/No + Date)</SelectItem>
-                                    <SelectItem value="number">Numeric Input (Yes/No + Number)</SelectItem>
-                                </SelectContent>
-                            </Select>
+                        {/* Response & Input Capabilities (All Independent Checkboxes) */}
+                        <div className="space-y-3 rounded-lg border p-3.5 bg-muted/20">
+                            <Label className="text-xs font-semibold text-foreground uppercase tracking-wide">
+                                Response & Input Capabilities
+                            </Label>
+
+                            <div className="space-y-2.5">
+                                {/* Choices Checkbox */}
+                                <div className="flex items-center gap-2.5 pb-2.5 border-b">
+                                    <input
+                                        type="checkbox"
+                                        id="chk_choices"
+                                        checked={questionHasChoices}
+                                        onChange={(e) => setQuestionHasChoices(e.target.checked)}
+                                        className="h-4 w-4 rounded border-gray-300 text-primary focus:ring-primary cursor-pointer"
+                                    />
+                                    <Label htmlFor="chk_choices" className="cursor-pointer text-sm font-semibold">
+                                        Standard Choices (Yes / No / NS / NA buttons)
+                                    </Label>
+                                </div>
+
+                                <Label className="text-xs text-muted-foreground font-medium block pt-0.5">
+                                    Input Fields (Check all that apply)
+                                </Label>
+
+                                <div className="space-y-2 pl-0.5">
+                                    {/* Text Input Checkbox */}
+                                    <div className="flex items-center gap-2.5">
+                                        <input
+                                            type="checkbox"
+                                            id="chk_text"
+                                            checked={questionHasText}
+                                            onChange={(e) => setQuestionHasText(e.target.checked)}
+                                            className="h-4 w-4 rounded border-gray-300 text-primary focus:ring-primary cursor-pointer"
+                                        />
+                                        <Label htmlFor="chk_text" className="cursor-pointer text-xs font-normal text-foreground flex items-center gap-1.5">
+                                            <FileText className="size-3.5 text-muted-foreground shrink-0" />
+                                            <span>Text / Remarks Input (notes, explanation, single-line text)</span>
+                                        </Label>
+                                    </div>
+
+                                    {/* Date Input Checkbox */}
+                                    <div className="flex items-center gap-2.5">
+                                        <input
+                                            type="checkbox"
+                                            id="chk_date"
+                                            checked={questionHasDate}
+                                            onChange={(e) => setQuestionHasDate(e.target.checked)}
+                                            className="h-4 w-4 rounded border-gray-300 text-primary focus:ring-primary cursor-pointer"
+                                        />
+                                        <Label htmlFor="chk_date" className="cursor-pointer text-xs font-normal text-foreground flex items-center gap-1.5">
+                                            <Calendar className="size-3.5 text-muted-foreground shrink-0" />
+                                            <span>Date Input (calendar date picker)</span>
+                                        </Label>
+                                    </div>
+
+                                    {/* Numeric Input Checkbox */}
+                                    <div className="flex items-center gap-2.5">
+                                        <input
+                                            type="checkbox"
+                                            id="chk_number"
+                                            checked={questionHasNumber}
+                                            onChange={(e) => setQuestionHasNumber(e.target.checked)}
+                                            className="h-4 w-4 rounded border-gray-300 text-primary focus:ring-primary cursor-pointer"
+                                        />
+                                        <Label htmlFor="chk_number" className="cursor-pointer text-xs font-normal text-foreground flex items-center gap-1.5">
+                                            <Hash className="size-3.5 text-muted-foreground shrink-0" />
+                                            <span>Numeric Input (measurements, counts, pressure)</span>
+                                        </Label>
+                                    </div>
+
+                                    {/* File Input Checkbox */}
+                                    <div className="flex items-center gap-2.5">
+                                        <input
+                                            type="checkbox"
+                                            id="chk_file"
+                                            checked={questionHasFile}
+                                            onChange={(e) => setQuestionHasFile(e.target.checked)}
+                                            className="h-4 w-4 rounded border-gray-300 text-primary focus:ring-primary cursor-pointer"
+                                        />
+                                        <Label htmlFor="chk_file" className="cursor-pointer text-xs font-normal text-foreground flex items-center gap-1.5">
+                                            <Paperclip className="size-3.5 text-muted-foreground shrink-0" />
+                                            <span>File / Attachment Input (document scan, certificate, photo upload)</span>
+                                        </Label>
+                                    </div>
+                                </div>
+                            </div>
                         </div>
 
                         <DialogFooter className="pt-4">
@@ -1034,9 +1171,13 @@ function QuestionRow({
                             <span className="text-sm text-foreground">{question.question_text}</span>
                             {!question.is_enabled && <Badge variant="destructive" className="text-[10px] px-1 py-0">Disabled</Badge>}
                             {question.input_type !== 'none' && (
-                                <Badge variant="secondary" className="text-[10px] font-mono uppercase px-1.5 py-0">
-                                    {question.input_type}
-                                </Badge>
+                                <div className="inline-flex items-center gap-1 flex-wrap">
+                                    {question.input_type.split(',').map((typeToken) => (
+                                        <Badge key={typeToken} variant="secondary" className="text-[10px] font-mono uppercase px-1.5 py-0">
+                                            {typeToken.replace(/_/g, ' ')}
+                                        </Badge>
+                                    ))}
+                                </div>
                             )}
                             {question.ice_class_only && (
                                 <Badge variant="outline" className="text-[10px] px-1.5 py-0">

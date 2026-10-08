@@ -192,6 +192,19 @@ class FormManagementTest extends TestCase
         $this->assertSame('Are emergency fire pumps tested weekly and logged?', $question->fresh()->question_text);
         // Version must remain unchanged
         $this->assertSame($versionAfterCreate, $form->fresh()->template_version);
+
+        // 3. Multi-input types (e.g. Date + File) can be stored together
+        $this->actingAs($superadmin)->post(route('admin.questions.store', $group), [
+            'question_text' => 'Attach bunker delivery note copy and record delivery date',
+            'guidance' => 'Upload scanned PDF or photo and select delivery date',
+            'input_type' => 'date,file',
+        ])->assertRedirect();
+
+        $this->assertDatabaseHas('form_questions', [
+            'group_id' => $group->id,
+            'question_text' => 'Attach bunker delivery note copy and record delivery date',
+            'input_type' => 'date,file',
+        ]);
     }
 
     public function test_question_duplication(): void

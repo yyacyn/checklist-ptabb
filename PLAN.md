@@ -117,7 +117,7 @@ This is the phase users feel. Budget it properly.
 
 | # | Task | Ref |
 | --- | --- | --- |
-| 4.1 | Chapter 15 Summary of Observations: add/edit/delete observation rows (Chapter, VIQ, Description, Risk Level High/Med/Low, Job Order) | FND-1, INS-9, AUD-9 |
+| 4.1 | Chapter 15 Summary of Observations: add/edit/delete observation rows (Chapter, VIQ, Description, Risk Level High/Med/Low, Job Order) | **done**: dedicated Chapter 15 table matching Form D-062 with Add/Edit/Delete modals, risk stats & pills, `findings` table & `FindingController`, ActivityLog audit, 4 feature tests in `FindingManagementTest.php` (FND-1, INS-9, AUD-9) |
 | 4.2 | Findings list per vessel name with filters, scoped by role | FND-2 |
 | 4.3 | Evidence placeholders, wired for real in Phase 5 | PHO-5 |
 

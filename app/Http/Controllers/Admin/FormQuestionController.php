@@ -25,7 +25,20 @@ class FormQuestionController extends Controller
         $validated = $request->validate([
             'question_text' => ['required', 'string'],
             'guidance' => ['nullable', 'string'],
-            'input_type' => ['required', 'in:none,date,text,number,text_only,date_only'],
+            'input_type' => [
+                'required',
+                'string',
+                'max:255',
+                function ($attribute, $value, $fail) {
+                    $tokens = array_filter(array_map('trim', explode(',', $value)));
+                    $allowed = ['none', 'choices', 'no_choices', 'text', 'date', 'number', 'file', 'text_only', 'date_only', 'number_only', 'file_only'];
+                    foreach ($tokens as $token) {
+                        if (! in_array($token, $allowed, true)) {
+                            $fail("Invalid input type token: {$token}");
+                        }
+                    }
+                },
+            ],
         ]);
 
         DB::transaction(function () use ($group, $validated) {
@@ -60,7 +73,20 @@ class FormQuestionController extends Controller
         $validated = $request->validate([
             'question_text' => ['required', 'string'],
             'guidance' => ['nullable', 'string'],
-            'input_type' => ['required', 'in:none,date,text,number,text_only,date_only'],
+            'input_type' => [
+                'required',
+                'string',
+                'max:255',
+                function ($attribute, $value, $fail) {
+                    $tokens = array_filter(array_map('trim', explode(',', $value)));
+                    $allowed = ['none', 'choices', 'no_choices', 'text', 'date', 'number', 'file', 'text_only', 'date_only', 'number_only', 'file_only'];
+                    foreach ($tokens as $token) {
+                        if (! in_array($token, $allowed, true)) {
+                            $fail("Invalid input type token: {$token}");
+                        }
+                    }
+                },
+            ],
         ]);
 
         $before = [

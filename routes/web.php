@@ -3,6 +3,7 @@
 use App\Http\Controllers\Admin\FormController;
 use App\Http\Controllers\Admin\FormGroupController;
 use App\Http\Controllers\Admin\FormQuestionController;
+use App\Http\Controllers\FindingController;
 use App\Http\Controllers\ReportController;
 use Illuminate\Support\Facades\Route;
 
@@ -22,6 +23,11 @@ Route::middleware(['auth', 'verified'])->group(function () {
     Route::post('reports/{report}/groups/{group}/comments', [ReportController::class, 'saveGroupComments'])->name('reports.groups.comments');
     Route::post('reports/{report}/lock', [ReportController::class, 'acquireLock'])->name('reports.lock.acquire');
     Route::delete('reports/{report}/lock', [ReportController::class, 'releaseLock'])->name('reports.lock.release');
+
+    // Findings & Chapter 15 Summary of Observations (Task 4.1)
+    Route::post('reports/{report}/findings', [FindingController::class, 'store'])->name('reports.findings.store');
+    Route::put('reports/{report}/findings/{finding}', [FindingController::class, 'update'])->name('reports.findings.update');
+    Route::delete('reports/{report}/findings/{finding}', [FindingController::class, 'destroy'])->name('reports.findings.destroy');
 
     Route::middleware('can:manage-forms')->prefix('admin')->name('admin.')->group(function () {
         Route::get('forms', [FormController::class, 'index'])->name('forms.index');

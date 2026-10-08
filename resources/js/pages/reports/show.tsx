@@ -3,21 +3,27 @@ import {
     AlertCircle,
     AlertTriangle,
     ArrowLeft,
+    Calendar,
     Check,
     CheckCircle2,
     ChevronDown,
     ChevronLeft,
     ChevronRight,
     CloudOff,
+    Edit2,
     FileCheck,
+    FileText,
     HelpCircle,
     Info,
     Loader2,
     MessageSquare,
+    Paperclip,
+    Plus,
     RefreshCw,
     RotateCcw,
     Save,
     Search,
+    ShieldAlert,
     Ship,
     SlidersHorizontal,
     Trash2,
@@ -116,6 +122,25 @@ export interface ChapterData {
     subgroups: SubgroupData[];
 }
 
+export interface FindingData {
+    id: number;
+    report_id: number;
+    report_group_id?: number | null;
+    report_question_id?: number | null;
+    chapter_label?: string | null;
+    finding_kind: 'observation' | 'non_conformity';
+    risk?: 'high' | 'medium' | 'low' | null;
+    severity?: string | null;
+    description: string;
+    viq_paragraph?: string | null;
+    job_order_no?: string | null;
+    target_date?: string | null;
+    finding_status: string;
+    sort_order?: number;
+    created_at?: string;
+    updated_at?: string;
+}
+
 export interface ReportData {
     id: number;
     report_type: 'inspection' | 'audit';
@@ -154,6 +179,7 @@ export interface ReportData {
         name: string;
     } | null;
     groups: ChapterData[];
+    findings?: FindingData[];
 }
 
 function formatDate(dateStr: string | null | undefined): string {
@@ -293,6 +319,56 @@ export default function ReportDataEntry({
     // Active Chapter object
     const activeChapter = report.groups.find((g) => g.id === activeChapterId) || report.groups[0];
 
+    const [findings, setFindings] = useState<FindingData[]>(report.findings || []);
+
+    const handleAddFinding = async (data: Partial<FindingData>) => {
+        const res = await fetch(`/reports/${report.id}/findings`, {
+            method: 'POST',
+            headers: {
+                'Content-Type': 'application/json',
+                Accept: 'application/json',
+                ...csrfHeaders(),
+                'X-Requested-With': 'XMLHttpRequest',
+            },
+            body: JSON.stringify(data),
+        });
+        if (res.ok) {
+            const json = await res.json();
+            setFindings((prev) => [...prev, json.finding]);
+        }
+    };
+
+    const handleUpdateFinding = async (id: number, data: Partial<FindingData>) => {
+        const res = await fetch(`/reports/${report.id}/findings/${id}`, {
+            method: 'PUT',
+            headers: {
+                'Content-Type': 'application/json',
+                Accept: 'application/json',
+                ...csrfHeaders(),
+                'X-Requested-With': 'XMLHttpRequest',
+            },
+            body: JSON.stringify(data),
+        });
+        if (res.ok) {
+            const json = await res.json();
+            setFindings((prev) => prev.map((f) => (f.id === id ? json.finding : f)));
+        }
+    };
+
+    const handleDeleteFinding = async (id: number) => {
+        const res = await fetch(`/reports/${report.id}/findings/${id}`, {
+            method: 'DELETE',
+            headers: {
+                Accept: 'application/json',
+                ...csrfHeaders(),
+                'X-Requested-With': 'XMLHttpRequest',
+            },
+        });
+        if (res.ok) {
+            setFindings((prev) => prev.filter((f) => f.id !== id));
+        }
+    };
+
     const otherChapters = useMemo(
         () => report.groups.filter((g) => g.chapter_no !== '1' && g.title !== 'General Information'),
         [report.groups]
@@ -302,6 +378,7 @@ export default function ReportDataEntry({
         () => [
             { id: 0, title: 'General Information & Particulars', chapter_no: '1', sort_order: 1 },
             ...otherChapters,
+            { id: -15, title: 'Summary of Observations', chapter_no: '15', sort_order: 15 },
         ],
         [otherChapters]
     );
@@ -972,6 +1049,47 @@ export default function ReportDataEntry({
                                 </button>
                             );
                         })}
+
+                        {/* Chapter 15: Summary of Observations (Task 4.1, Form D-062) */}
+                        <button
+                            type="button"
+                            onClick={() => handleChapterSwitch(-15)}
+                            className={`w-full text-left rounded-lg p-3 transition-all flex flex-col gap-1.5 ${
+                                activeChapterId === -15
+                                    ? 'bg-card border-2 border-primary shadow-xs ring-1 ring-primary/20'
+                                    : 'border border-transparent hover:bg-card/70'
+                            }`}
+                        >
+                            <div className="flex items-start justify-between gap-2">
+                                <div className="flex items-center gap-1.5 min-w-0">
+                                    <ShieldAlert className="size-4 text-primary shrink-0" />
+                                    <span className="font-semibold text-xs text-foreground truncate">
+                                        15. Summary of Observations
+                                    </span>
+                                </div>
+                                <Badge variant={findings.length > 0 ? 'destructive' : 'secondary'} className="text-[10px] shrink-0 font-mono">
+                                    {findings.length}
+                                </Badge>
+                            </div>
+                            <div className="text-[11px] text-muted-foreground pl-5 truncate flex items-center gap-1.5">
+                                {findings.filter((f) => f.risk === 'high').length > 0 && (
+                                    <span className="text-rose-600 font-bold bg-rose-50 dark:bg-rose-950 px-1 rounded text-[10px]">
+                                        {findings.filter((f) => f.risk === 'high').length} High
+                                    </span>
+                                )}
+                                {findings.filter((f) => f.risk === 'medium').length > 0 && (
+                                    <span className="text-amber-600 font-bold bg-amber-50 dark:bg-amber-950 px-1 rounded text-[10px]">
+                                        {findings.filter((f) => f.risk === 'medium').length} Med
+                                    </span>
+                                )}
+                                {findings.filter((f) => f.risk === 'low').length > 0 && (
+                                    <span className="text-emerald-600 font-bold bg-emerald-50 dark:bg-emerald-950 px-1 rounded text-[10px]">
+                                        {findings.filter((f) => f.risk === 'low').length} Low
+                                    </span>
+                                )}
+                                {findings.length === 0 && 'Deficiencies & Risk Ratings'}
+                            </div>
+                        </button>
                     </aside>
 
                     {/* Right Main Content Area: General Information or Group Form */}
@@ -1004,6 +1122,18 @@ export default function ReportDataEntry({
                                 onAcceptServerAnswer={handleAcceptServerAnswer}
                                 onOverwriteAnswer={handleOverwriteAnswer}
                                 filterQuestion={filterQuestion}
+                            />
+                        ) : activeChapterId === -15 ? (
+                            <ObservationsSection
+                                report={report}
+                                isEditable={is_editable}
+                                findings={findings}
+                                onAddFinding={handleAddFinding}
+                                onUpdateFinding={handleUpdateFinding}
+                                onDeleteFinding={handleDeleteFinding}
+                                prevChapter={prevChapter}
+                                nextChapter={nextChapter}
+                                onChapterSwitch={handleChapterSwitch}
                             />
                         ) : activeChapter ? (
                             <div className="max-w-4xl mx-auto space-y-6">
@@ -1802,6 +1932,491 @@ function GeneralInfoSection({
     );
 }
 
+// Subcomponent: Chapter 15 Summary of Observations (Form D-062 §15, Task 4.1)
+function ObservationsSection({
+    report,
+    isEditable,
+    findings,
+    onAddFinding,
+    onUpdateFinding,
+    onDeleteFinding,
+    prevChapter,
+    nextChapter,
+    onChapterSwitch,
+}: {
+    report: ReportData;
+    isEditable: boolean;
+    findings: FindingData[];
+    onAddFinding: (data: Partial<FindingData>) => Promise<void>;
+    onUpdateFinding: (id: number, data: Partial<FindingData>) => Promise<void>;
+    onDeleteFinding: (id: number) => Promise<void>;
+    prevChapter?: { id: number; title: string; chapter_no?: string | null; sort_order?: number } | null;
+    nextChapter?: { id: number; title: string; chapter_no?: string | null; sort_order?: number } | null;
+    onChapterSwitch: (targetId: number) => void;
+}) {
+    const [isDialogOpen, setIsDialogOpen] = useState(false);
+    const [editingFinding, setEditingFinding] = useState<FindingData | null>(null);
+    const [isDeletingId, setIsDeletingId] = useState<number | null>(null);
+    const [isSubmitting, setIsSubmitting] = useState(false);
+
+    const [formState, setFormState] = useState<{
+        chapter_label: string;
+        viq_paragraph: string;
+        description: string;
+        risk: 'high' | 'medium' | 'low';
+        job_order_no: string;
+    }>({
+        chapter_label: '',
+        viq_paragraph: '',
+        description: '',
+        risk: 'medium',
+        job_order_no: '',
+    });
+
+    const openAddDialog = () => {
+        setEditingFinding(null);
+        setFormState({
+            chapter_label: report.groups.find((g) => g.chapter_no !== '1' && g.title !== 'General Information')?.title
+                ? `${report.groups.find((g) => g.chapter_no !== '1' && g.title !== 'General Information')?.chapter_no || ''}. ${report.groups.find((g) => g.chapter_no !== '1' && g.title !== 'General Information')?.title}`
+                : '',
+            viq_paragraph: '',
+            description: '',
+            risk: 'medium',
+            job_order_no: '',
+        });
+        setIsDialogOpen(true);
+    };
+
+    const openEditDialog = (finding: FindingData) => {
+        setEditingFinding(finding);
+        setFormState({
+            chapter_label: finding.chapter_label || '',
+            viq_paragraph: finding.viq_paragraph || '',
+            description: finding.description || '',
+            risk: (finding.risk as 'high' | 'medium' | 'low') || 'medium',
+            job_order_no: finding.job_order_no || '',
+        });
+        setIsDialogOpen(true);
+    };
+
+    const handleFormSubmit = async (e: React.FormEvent) => {
+        e.preventDefault();
+        if (!formState.description.trim()) return;
+
+        setIsSubmitting(true);
+        try {
+            if (editingFinding) {
+                await onUpdateFinding(editingFinding.id, formState);
+            } else {
+                await onAddFinding(formState);
+            }
+            setIsDialogOpen(false);
+        } finally {
+            setIsSubmitting(false);
+        }
+    };
+
+    const confirmDelete = async () => {
+        if (!isDeletingId) return;
+        setIsSubmitting(true);
+        try {
+            await onDeleteFinding(isDeletingId);
+            setIsDeletingId(null);
+        } finally {
+            setIsSubmitting(false);
+        }
+    };
+
+    const highCount = findings.filter((f) => f.risk === 'high').length;
+    const medCount = findings.filter((f) => f.risk === 'medium').length;
+    const lowCount = findings.filter((f) => f.risk === 'low').length;
+
+    // Available chapter options from report groups
+    const chapterOptions = report.groups
+        .filter((g) => g.chapter_no !== '1' && g.title !== 'General Information')
+        .map((g) => ({
+            value: `${g.chapter_no ? `Chapter ${g.chapter_no}: ` : ''}${g.title}`,
+            label: `${g.chapter_no ? `Chapter ${g.chapter_no}: ` : ''}${g.title}`,
+        }));
+
+    return (
+        <div className="max-w-5xl mx-auto space-y-6">
+            {/* Header Banner */}
+            <div className="border-b pb-4">
+                <div className="flex items-center gap-2 mb-1">
+                    <Badge variant="outline" className="text-xs font-mono">
+                        Chapter 15
+                    </Badge>
+                    <Badge variant="secondary" className="text-xs font-mono">
+                        {report.form.code}
+                    </Badge>
+                </div>
+                <div className="flex items-center justify-between gap-3 flex-wrap">
+                    <div className="flex items-center gap-3 flex-wrap">
+                        <h1 className="text-2xl font-bold tracking-tight text-foreground">
+                            Summary of Observations
+                        </h1>
+                        {prevChapter && (
+                            <Button
+                                type="button"
+                                variant="outline"
+                                size="sm"
+                                onClick={() => onChapterSwitch(prevChapter.id)}
+                                className="h-7 px-2.5 text-xs flex items-center gap-1 text-muted-foreground hover:text-foreground"
+                            >
+                                <ChevronLeft className="size-3.5" />
+                                <span>Previous</span>
+                            </Button>
+                        )}
+                    </div>
+
+                    {isEditable && (
+                        <Button
+                            type="button"
+                            onClick={openAddDialog}
+                            size="sm"
+                            className="flex items-center gap-1.5"
+                        >
+                            <Plus className="size-4" />
+                            <span>Add Observation</span>
+                        </Button>
+                    )}
+                </div>
+                <p className="text-xs text-muted-foreground mt-1">
+                    Deficiencies, non-conformities, and observations identified during inspection (Form D-062 §15).
+                </p>
+            </div>
+
+            {/* Severity & Totals Metrics */}
+            <div className="grid grid-cols-2 md:grid-cols-4 gap-3">
+                <Card className="bg-card border shadow-2xs p-3">
+                    <div className="text-xs text-muted-foreground font-medium">Total Observations</div>
+                    <div className="text-2xl font-bold text-foreground mt-0.5">{findings.length}</div>
+                </Card>
+                <Card className="bg-rose-50/50 border-rose-200 dark:bg-rose-950/20 dark:border-rose-900 shadow-2xs p-3">
+                    <div className="text-xs text-rose-700 dark:text-rose-400 font-medium">High Risk</div>
+                    <div className="text-2xl font-bold text-rose-700 dark:text-rose-400 mt-0.5">{highCount}</div>
+                </Card>
+                <Card className="bg-amber-50/50 border-amber-200 dark:bg-amber-950/20 dark:border-amber-900 shadow-2xs p-3">
+                    <div className="text-xs text-amber-700 dark:text-amber-400 font-medium">Medium Risk</div>
+                    <div className="text-2xl font-bold text-amber-700 dark:text-amber-400 mt-0.5">{medCount}</div>
+                </Card>
+                <Card className="bg-emerald-50/50 border-emerald-200 dark:bg-emerald-950/20 dark:border-emerald-900 shadow-2xs p-3">
+                    <div className="text-xs text-emerald-700 dark:text-emerald-400 font-medium">Low Risk</div>
+                    <div className="text-2xl font-bold text-emerald-700 dark:text-emerald-400 mt-0.5">{lowCount}</div>
+                </Card>
+            </div>
+
+            {/* Observations Table */}
+            <Card className="border shadow-xs">
+                <CardHeader className="pb-3 flex flex-row items-center justify-between">
+                    <div>
+                        <CardTitle className="text-base font-semibold">15. Summary of Observations Table</CardTitle>
+                        <CardDescription className="text-xs">
+                            Formal observation records to be included in the inspection report output.
+                        </CardDescription>
+                    </div>
+                </CardHeader>
+                <CardContent className="p-0">
+                    {findings.length === 0 ? (
+                        <div className="text-center py-12 px-4 space-y-3">
+                            <ShieldAlert className="size-10 text-muted-foreground/50 mx-auto" />
+                            <div className="space-y-1">
+                                <p className="text-sm font-medium text-foreground">No observations recorded yet</p>
+                                <p className="text-xs text-muted-foreground">
+                                    Click the button below to add an observation row for any defects found during attendance.
+                                </p>
+                            </div>
+                            {isEditable && (
+                                <Button
+                                    type="button"
+                                    variant="outline"
+                                    size="sm"
+                                    onClick={openAddDialog}
+                                    className="gap-1.5"
+                                >
+                                    <Plus className="size-3.5" />
+                                    <span>Add Observation Row</span>
+                                </Button>
+                            )}
+                        </div>
+                    ) : (
+                        <div className="overflow-x-auto">
+                            <table className="w-full text-left text-xs border-collapse">
+                                <thead className="bg-muted/50 border-y border-border/80 text-[11px] font-semibold text-muted-foreground uppercase tracking-wider">
+                                    <tr>
+                                        <th className="py-2.5 px-3 w-10 text-center">#</th>
+                                        <th className="py-2.5 px-3 min-w-[140px]">Chapter</th>
+                                        <th className="py-2.5 px-3 min-w-[90px]">VIQ** Para</th>
+                                        <th className="py-2.5 px-3 min-w-[280px]">Observation Description</th>
+                                        <th className="py-2.5 px-3 min-w-[100px] text-center">Risk Mitigation*</th>
+                                        <th className="py-2.5 px-3 min-w-[100px]">Job Order No.</th>
+                                        {isEditable && <th className="py-2.5 px-3 w-20 text-right">Actions</th>}
+                                    </tr>
+                                </thead>
+                                <tbody className="divide-y divide-border/60">
+                                    {findings.map((f, idx) => (
+                                        <tr key={f.id} className="hover:bg-muted/20 transition-colors">
+                                            <td className="py-3 px-3 text-center text-muted-foreground font-mono">
+                                                {idx + 1}
+                                            </td>
+                                            <td className="py-3 px-3 font-medium text-foreground">
+                                                {f.chapter_label || '—'}
+                                            </td>
+                                            <td className="py-3 px-3 font-mono text-muted-foreground">
+                                                {f.viq_paragraph || '—'}
+                                            </td>
+                                            <td className="py-3 px-3 text-foreground whitespace-pre-line leading-relaxed">
+                                                {f.description}
+                                            </td>
+                                            <td className="py-3 px-3 text-center">
+                                                {f.risk === 'high' && (
+                                                    <Badge className="bg-rose-500 hover:bg-rose-600 text-white text-[10px] uppercase font-bold">
+                                                        High
+                                                    </Badge>
+                                                )}
+                                                {f.risk === 'medium' && (
+                                                    <Badge className="bg-amber-500 hover:bg-amber-600 text-white text-[10px] uppercase font-bold">
+                                                        Medium
+                                                    </Badge>
+                                                )}
+                                                {f.risk === 'low' && (
+                                                    <Badge className="bg-emerald-600 hover:bg-emerald-700 text-white text-[10px] uppercase font-bold">
+                                                        Low
+                                                    </Badge>
+                                                )}
+                                                {!f.risk && <span className="text-muted-foreground">—</span>}
+                                            </td>
+                                            <td className="py-3 px-3 font-mono text-xs text-muted-foreground">
+                                                {f.job_order_no || '—'}
+                                            </td>
+                                            {isEditable && (
+                                                <td className="py-3 px-3 text-right whitespace-nowrap">
+                                                    <div className="flex items-center justify-end gap-1">
+                                                        <Button
+                                                            type="button"
+                                                            variant="ghost"
+                                                            size="icon"
+                                                            className="h-7 w-7 text-muted-foreground hover:text-foreground cursor-pointer"
+                                                            onClick={() => openEditDialog(f)}
+                                                            title="Edit observation"
+                                                        >
+                                                            <Edit2 className="size-3.5" />
+                                                        </Button>
+                                                        <Button
+                                                            type="button"
+                                                            variant="ghost"
+                                                            size="icon"
+                                                            className="h-7 w-7 text-muted-foreground hover:text-destructive cursor-pointer"
+                                                            onClick={() => setIsDeletingId(f.id)}
+                                                            title="Delete observation"
+                                                        >
+                                                            <Trash2 className="size-3.5" />
+                                                        </Button>
+                                                    </div>
+                                                </td>
+                                            )}
+                                        </tr>
+                                    ))}
+                                </tbody>
+                            </table>
+                        </div>
+                    )}
+                </CardContent>
+            </Card>
+
+            {/* Note block from Form D-062 */}
+            <div className="rounded-md bg-muted/40 border p-3 text-[11px] text-muted-foreground space-y-1">
+                <p><strong>Note:</strong> Add or remove lines respectively.</p>
+                <p><strong>*</strong>Against a <strong>LOW – MEDIUM – HIGH</strong> severity range.</p>
+                <p><strong>**</strong>Enter relevant reference number from VIQ checklist, or cross-reference to any other Industry standard, which appears not adequately implemented.</p>
+            </div>
+
+            {/* Next Chapter Navigation */}
+            {nextChapter && onChapterSwitch && (
+                <div className="flex justify-end pt-1 pb-4">
+                    <Button
+                        type="button"
+                        onClick={() => onChapterSwitch(nextChapter.id)}
+                        className="flex items-center gap-2 font-medium"
+                    >
+                        <span>
+                            Next: {nextChapter.chapter_no ? `Chapter ${nextChapter.chapter_no} - ${nextChapter.title}` : nextChapter.title}
+                        </span>
+                        <ChevronRight className="size-4" />
+                    </Button>
+                </div>
+            )}
+
+            {/* Add / Edit Dialog */}
+            <Dialog open={isDialogOpen} onOpenChange={(open) => !open && setIsDialogOpen(false)}>
+                <DialogContent className="sm:max-w-lg">
+                    <form onSubmit={handleFormSubmit}>
+                        <DialogHeader>
+                            <DialogTitle>
+                                {editingFinding ? 'Edit Observation' : 'Add Observation'}
+                            </DialogTitle>
+                            <DialogDescription className="text-xs">
+                                Enter the observation details, chapter reference, VIQ paragraph, and risk level.
+                            </DialogDescription>
+                        </DialogHeader>
+
+                        <div className="space-y-4 py-4">
+                            {/* Chapter Reference */}
+                            <div className="space-y-1.5">
+                                <Label htmlFor="obs_chapter" className="text-xs">
+                                    Chapter Reference
+                                </Label>
+                                <Input
+                                    id="obs_chapter"
+                                    list="chapters_datalist"
+                                    value={formState.chapter_label}
+                                    onChange={(e) => setFormState({ ...formState, chapter_label: e.target.value })}
+                                    placeholder="e.g. Chapter 2 - Certification & Documentation"
+                                    className="h-8 text-xs"
+                                />
+                                <datalist id="chapters_datalist">
+                                    {chapterOptions.map((opt) => (
+                                        <option key={opt.value} value={opt.value} />
+                                    ))}
+                                </datalist>
+                            </div>
+
+                            <div className="grid grid-cols-2 gap-3">
+                                {/* VIQ Paragraph */}
+                                <div className="space-y-1.5">
+                                    <Label htmlFor="obs_viq" className="text-xs">
+                                        VIQ Paragraph (i.e. 6.34)
+                                    </Label>
+                                    <Input
+                                        id="obs_viq"
+                                        value={formState.viq_paragraph}
+                                        onChange={(e) => setFormState({ ...formState, viq_paragraph: e.target.value })}
+                                        placeholder="e.g. 6.34"
+                                        className="h-8 text-xs font-mono"
+                                    />
+                                </div>
+
+                                {/* Job Order No. */}
+                                <div className="space-y-1.5">
+                                    <Label htmlFor="obs_jo" className="text-xs">
+                                        Job Order No.
+                                    </Label>
+                                    <Input
+                                        id="obs_jo"
+                                        value={formState.job_order_no}
+                                        onChange={(e) => setFormState({ ...formState, job_order_no: e.target.value })}
+                                        placeholder="e.g. JO-4029"
+                                        className="h-8 text-xs font-mono"
+                                    />
+                                </div>
+                            </div>
+
+                            {/* Risk Mitigation Level */}
+                            <div className="space-y-1.5">
+                                <Label className="text-xs">Risk Mitigation (Severity)</Label>
+                                <div className="grid grid-cols-3 gap-2">
+                                    {(['high', 'medium', 'low'] as const).map((lvl) => {
+                                        const isSelected = formState.risk === lvl;
+                                        return (
+                                            <button
+                                                key={lvl}
+                                                type="button"
+                                                onClick={() => setFormState({ ...formState, risk: lvl })}
+                                                className={`py-1.5 px-3 rounded-md text-xs font-bold uppercase transition-all border cursor-pointer ${
+                                                    isSelected
+                                                        ? lvl === 'high'
+                                                            ? 'bg-rose-600 text-white border-rose-600 shadow-xs'
+                                                            : lvl === 'medium'
+                                                            ? 'bg-amber-500 text-white border-amber-500 shadow-xs'
+                                                            : 'bg-emerald-600 text-white border-emerald-600 shadow-xs'
+                                                        : 'bg-muted/40 text-muted-foreground border-border hover:bg-muted'
+                                                }`}
+                                            >
+                                                {lvl}
+                                            </button>
+                                        );
+                                    })}
+                                </div>
+                            </div>
+
+                            {/* Observation Description */}
+                            <div className="space-y-1.5">
+                                <Label htmlFor="obs_desc" className="text-xs">
+                                    Observation Description <span className="text-rose-500">*</span>
+                                </Label>
+                                <textarea
+                                    id="obs_desc"
+                                    rows={4}
+                                    required
+                                    value={formState.description}
+                                    onChange={(e) => setFormState({ ...formState, description: e.target.value })}
+                                    placeholder="Enter complete description of the observed deficiency, condition, or non-compliance..."
+                                    className="w-full rounded-md border border-input bg-transparent px-3 py-2 text-xs shadow-xs placeholder:text-muted-foreground focus-visible:outline-none focus-visible:ring-1 focus-visible:ring-ring"
+                                />
+                            </div>
+                        </div>
+
+                        <DialogFooter>
+                            <Button
+                                type="button"
+                                variant="outline"
+                                size="sm"
+                                onClick={() => setIsDialogOpen(false)}
+                                disabled={isSubmitting}
+                            >
+                                Cancel
+                            </Button>
+                            <Button type="submit" size="sm" disabled={isSubmitting}>
+                                {isSubmitting ? (
+                                    <>
+                                        <Loader2 className="size-3.5 mr-1.5 animate-spin" />
+                                        Saving...
+                                    </>
+                                ) : (
+                                    'Save Observation'
+                                )}
+                            </Button>
+                        </DialogFooter>
+                    </form>
+                </DialogContent>
+            </Dialog>
+
+            {/* Delete Confirmation Dialog */}
+            <Dialog open={isDeletingId !== null} onOpenChange={(open) => !open && setIsDeletingId(null)}>
+                <DialogContent className="sm:max-w-md">
+                    <DialogHeader>
+                        <DialogTitle>Delete Observation</DialogTitle>
+                        <DialogDescription className="text-xs">
+                            Are you sure you want to remove this observation row from the report? This action cannot be undone.
+                        </DialogDescription>
+                    </DialogHeader>
+                    <DialogFooter>
+                        <Button
+                            type="button"
+                            variant="outline"
+                            size="sm"
+                            onClick={() => setIsDeletingId(null)}
+                            disabled={isSubmitting}
+                        >
+                            Cancel
+                        </Button>
+                        <Button
+                            type="button"
+                            variant="destructive"
+                            size="sm"
+                            onClick={confirmDelete}
+                            disabled={isSubmitting}
+                        >
+                            {isSubmitting ? 'Deleting...' : 'Delete Row'}
+                        </Button>
+                    </DialogFooter>
+                </DialogContent>
+            </Dialog>
+        </div>
+    );
+}
+
 function getQuestionInputMeta(question: QuestionData): { label: string; placeholder: string } {
     const text = (question.question_text || '').toUpperCase();
 
@@ -1845,7 +2460,28 @@ function getQuestionInputMeta(question: QuestionData): { label: string; placehol
     if (question.input_type === 'number') {
         return { label: 'VALUE:', placeholder: 'Enter number...' };
     }
+    if (question.input_type === 'file' || question.input_type === 'file_only') {
+        return { label: 'ATTACHMENT / FILE REFERENCE:', placeholder: 'Enter file name, document ID, or upload reference...' };
+    }
     return { label: 'COMMENTS / DETAILS:', placeholder: 'Enter details...' };
+}
+
+export function parseQuestionInputType(inputType: string) {
+    const raw = (inputType || 'none').toLowerCase().trim();
+    if (raw === 'none') {
+        return { hasChoices: true, hasText: false, hasDate: false, hasNumber: false, hasFile: false };
+    }
+    const tokens = raw.split(',').map((t) => t.trim());
+    const isPureOnly = tokens.some((t) => t.endsWith('_only'));
+    const hasChoices = !isPureOnly && !tokens.includes('no_choices');
+
+    return {
+        hasChoices,
+        hasText: tokens.includes('text') || tokens.includes('text_only'),
+        hasDate: tokens.includes('date') || tokens.includes('date_only'),
+        hasNumber: tokens.includes('number') || tokens.includes('number_only'),
+        hasFile: tokens.includes('file') || tokens.includes('file_only'),
+    };
 }
 
 // Subcomponent: Individual Question Answer Row (Task 3.3, 3.6)
@@ -1880,9 +2516,10 @@ function QuestionAnswerCard({
 }) {
     const selectedAnswer = currentAnswer?.answer;
     const isLockedNA = !question.is_applicable;
-    const isTextOnly = question.input_type === 'text_only';
-    const isDateOnly = question.input_type === 'date_only';
-    const isPureInput = isTextOnly || isDateOnly;
+    const flags = parseQuestionInputType(question.input_type);
+    const isPureInput = !flags.hasChoices;
+    const extraCount = (flags.hasDate ? 1 : 0) + (flags.hasFile ? 1 : 0) + ((flags.hasText || flags.hasNumber) ? 1 : 0);
+    const hasAnyExtra = extraCount > 0;
     const inputMeta = getQuestionInputMeta(question);
 
     // Internal buffered inputs for extra values with debounced autosave (NFR-1)
@@ -1912,6 +2549,36 @@ function QuestionAnswerCard({
                 onSaveExtraValue(val);
             }
         }, 1500);
+    };
+
+    const parseExtraData = (raw: string): Record<string, string> => {
+        if (!raw) return {};
+        if (raw.startsWith('{')) {
+            try {
+                return JSON.parse(raw) as Record<string, string>;
+            } catch {
+                return { text: raw };
+            }
+        }
+        if (flags.hasDate && !flags.hasFile && !flags.hasText && !flags.hasNumber) return { date: raw };
+        if (flags.hasFile && !flags.hasDate && !flags.hasText && !flags.hasNumber) return { file: raw };
+        return { text: raw };
+    };
+
+    const getFieldValue = (key: 'text' | 'date' | 'file') => {
+        const data = parseExtraData(extraBuffer);
+        return data[key] || '';
+    };
+
+    const setFieldValue = (key: 'text' | 'date' | 'file', val: string) => {
+        if (extraCount <= 1) {
+            handleExtraChange(val);
+        } else {
+            const current = parseExtraData(extraBuffer);
+            const next = { ...current, [key]: val };
+            const hasAny = Object.values(next).some((v) => Boolean(v && v.trim()));
+            handleExtraChange(hasAny ? JSON.stringify(next) : '');
+        }
     };
 
     const [undoTarget, setUndoTarget] = useState<string | null | undefined>(undefined);
@@ -2029,20 +2696,8 @@ function QuestionAnswerCard({
                         </Button>
                     )}
 
-                    {/* Answer Segmented Buttons OR Pure Input (Text Only / Date Only) */}
-                    {isPureInput ? (
-                        <div className="w-full md:w-64 shrink-0">
-                            <Input
-                                type={isDateOnly ? 'date' : 'text'}
-                                value={extraBuffer}
-                                disabled={!isEditable || isLockedNA}
-                                onChange={(e) => handleExtraChange(e.target.value)}
-                                onBlur={flushExtra}
-                                className="h-8 text-xs bg-background"
-                                placeholder={inputMeta.placeholder}
-                            />
-                        </div>
-                    ) : (
+                    {/* Answer Segmented Buttons (if choices enabled) */}
+                    {flags.hasChoices && (
                         <div className="inline-flex rounded-md border p-0.5 bg-muted/30">
                             {answerChoices.map((choice) => {
                                 const isSelected = selectedAnswer === choice.value;
@@ -2068,21 +2723,63 @@ function QuestionAnswerCard({
                 </div>
             </div>
 
-            {/* Extra input field if question has dual typed input (text, date, number alongside Yes/No) */}
-            {!isPureInput && question.input_type && question.input_type !== 'none' && (
-                <div className="mt-3 pt-2.5 border-t border-border/40 space-y-1.5">
-                    <Label className="text-xs text-muted-foreground font-medium block">
-                        {inputMeta.label}
-                    </Label>
-                    <Input
-                        type={question.input_type === 'date' ? 'date' : 'text'}
-                        value={extraBuffer}
-                        disabled={!isEditable || isLockedNA}
-                        onChange={(e) => handleExtraChange(e.target.value)}
-                        onBlur={flushExtra}
-                        className="h-8 text-xs w-full bg-background"
-                        placeholder={inputMeta.placeholder}
-                    />
+            {/* Additional Input Fields (Text, Date, Number, File) */}
+            {hasAnyExtra && (
+                <div className="mt-3 pt-2.5 border-t border-border/40 space-y-3">
+                    <div className="grid gap-3 sm:grid-cols-2">
+                        {flags.hasDate && (
+                            <div className="space-y-1">
+                                <Label className="text-xs text-muted-foreground font-medium flex items-center gap-1.5">
+                                    <Calendar className="size-3.5 text-primary shrink-0" />
+                                    <span>Date:</span>
+                                </Label>
+                                <Input
+                                    type="date"
+                                    value={getFieldValue('date')}
+                                    disabled={!isEditable || isLockedNA}
+                                    onChange={(e) => setFieldValue('date', e.target.value)}
+                                    onBlur={flushExtra}
+                                    className="h-8 text-xs w-full bg-background"
+                                />
+                            </div>
+                        )}
+
+                        {flags.hasFile && (
+                            <div className="space-y-1">
+                                <Label className="text-xs text-muted-foreground font-medium flex items-center gap-1.5">
+                                    <Paperclip className="size-3.5 text-primary shrink-0" />
+                                    <span>Attachment / File Reference:</span>
+                                </Label>
+                                <Input
+                                    type="text"
+                                    value={getFieldValue('file')}
+                                    disabled={!isEditable || isLockedNA}
+                                    onChange={(e) => setFieldValue('file', e.target.value)}
+                                    onBlur={flushExtra}
+                                    className="h-8 text-xs w-full bg-background"
+                                    placeholder="Enter document / certificate reference or file name..."
+                                />
+                            </div>
+                        )}
+
+                        {(flags.hasText || flags.hasNumber) && (
+                            <div className={`space-y-1 ${flags.hasDate && flags.hasFile ? 'sm:col-span-2' : ''}`}>
+                                <Label className="text-xs text-muted-foreground font-medium flex items-center gap-1.5">
+                                    <FileText className="size-3.5 text-primary shrink-0" />
+                                    <span>{inputMeta.label}</span>
+                                </Label>
+                                <Input
+                                    type={flags.hasNumber && !flags.hasText ? 'number' : 'text'}
+                                    value={getFieldValue('text')}
+                                    disabled={!isEditable || isLockedNA}
+                                    onChange={(e) => setFieldValue('text', e.target.value)}
+                                    onBlur={flushExtra}
+                                    className="h-8 text-xs w-full bg-background"
+                                    placeholder={inputMeta.placeholder}
+                                />
+                            </div>
+                        )}
+                    </div>
                 </div>
             )}
 

@@ -213,6 +213,7 @@ class ReportController extends Controller
             'groups.questions.answer.answeredBy:id,name',
             'groups.subgroups.questions' => fn ($q) => $q->orderBy('sort_order'),
             'groups.subgroups.questions.answer.answeredBy:id,name',
+            'findings' => fn ($q) => $q->orderBy('sort_order')->orderBy('id'),
         ]);
 
         $isEditable = Gate::allows('update', $report);
