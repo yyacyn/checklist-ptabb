@@ -232,7 +232,7 @@ export default function ReportsIndex({ reports }: Props) {
                         />
                     </div>
 
-                    <DialogFooter className="gap-2 sm:gap-0">
+                    <DialogFooter className="gap-2">
                         <Button
                             type="button"
                             variant="outline"

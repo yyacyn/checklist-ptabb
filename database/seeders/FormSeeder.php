@@ -115,12 +115,83 @@ class FormSeeder extends Seeder
         $header = fgetcsv($handle);
         // Rows are keyed by header name once combined below.
 
+        $summarySchema = $code === 'D-062' ? [
+            'enabled' => true,
+            'title' => 'Summary & Observations',
+            'has_ratings_matrix' => true,
+            'rating_options' => [
+                ['value' => 'very_good', 'label' => 'Very Good'],
+                ['value' => 'satisfactory', 'label' => 'Satisfactory'],
+                ['value' => 'unsatisfactory', 'label' => 'Unsatisfactory'],
+            ],
+            'text_fields' => [
+                [
+                    'key' => 'summary_comments_no',
+                    'label' => "1. Comments / Remarks for items marked 'NO'",
+                    'placeholder' => "Provide explanatory remarks, root causes, or mitigation notes for items marked 'NO' across chapters...",
+                    'rows' => 3,
+                    'span' => 'full',
+                ],
+                [
+                    'key' => 'summary_safety_meetings',
+                    'label' => '2. Safety Meetings / Interviews / Drills Held',
+                    'placeholder' => 'Details of safety meetings, master/officer interviews, and emergency drills conducted...',
+                    'rows' => 3,
+                    'span' => 'half',
+                ],
+                [
+                    'key' => 'summary_participants',
+                    'label' => '3. Participants',
+                    'placeholder' => 'List of attendees, ranks, and participants involved in meetings and drill debriefs...',
+                    'rows' => 3,
+                    'span' => 'half',
+                ],
+                [
+                    'key' => 'summary_concept_understanding',
+                    'label' => '4. Understanding the Concept of Safety/Environmental Excellence & Continuous Improvement',
+                    'placeholder' => 'Observations regarding crew familiarity and engagement with company safety culture...',
+                    'rows' => 3,
+                    'span' => 'full',
+                ],
+                [
+                    'key' => 'summary_training_needs',
+                    'label' => '5. Training Needs Identified',
+                    'placeholder' => 'Specify training needs, skill gaps identified during inspection...',
+                    'rows' => 3,
+                    'span' => 'full',
+                ],
+            ],
+            'has_findings_register' => true,
+        ] : [
+            'enabled' => true,
+            'title' => 'Audit Summary & NCRs',
+            'has_ratings_matrix' => false,
+            'text_fields' => [
+                [
+                    'key' => 'summary_auditors_comments_positive',
+                    'label' => "1. Auditors' General Comments (Positive / Commendable Areas)",
+                    'placeholder' => 'Record positive observations, exemplary safety practices, and commendable crew performance...',
+                    'rows' => 3,
+                    'span' => 'full',
+                ],
+                [
+                    'key' => 'summary_auditors_comments_negative',
+                    'label' => '2. Areas for Improvement / Deficiencies',
+                    'placeholder' => 'Key concerns, systemic issues, or overall follow-up recommendations noted during the audit...',
+                    'rows' => 3,
+                    'span' => 'full',
+                ],
+            ],
+            'has_findings_register' => true,
+        ];
+
         $form = Form::query()->updateOrCreate(
             ['code' => $code],
             [
                 'name' => $code === 'D-062' ? 'Vessel Inspection Report' : 'Vessel Internal Audit Checklist',
                 'form_version' => $code === 'D-062' ? 'v01.01' : 'v00.00',
                 'answer_set' => $code === 'D-062' ? 'd062_yes_no_ns_na' : 'b008_yes_no_ns',
+                'summary_schema' => $summarySchema,
             ],
         );
         $summary['forms']++;

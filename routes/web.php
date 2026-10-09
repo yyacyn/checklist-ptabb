@@ -19,7 +19,9 @@ Route::middleware(['auth', 'verified'])->group(function () {
     Route::get('reports/{report}', [ReportController::class, 'show'])->name('reports.show');
     Route::delete('reports/{report}', [ReportController::class, 'destroy'])->name('reports.destroy');
     Route::post('reports/{report}/questions/{question}/answer', [ReportController::class, 'saveAnswer'])->name('reports.answers.save');
+    Route::post('reports/{report}/questions/{question}/attachment', [ReportController::class, 'uploadAttachment'])->name('reports.questions.attachment');
     Route::put('reports/{report}/general-info', [ReportController::class, 'updateGeneralInfo'])->name('reports.general-info.update');
+    Route::put('reports/{report}/summary', [ReportController::class, 'updateSummary'])->name('reports.summary.update');
     Route::post('reports/{report}/groups/{group}/comments', [ReportController::class, 'saveGroupComments'])->name('reports.groups.comments');
     Route::post('reports/{report}/lock', [ReportController::class, 'acquireLock'])->name('reports.lock.acquire');
     Route::delete('reports/{report}/lock', [ReportController::class, 'releaseLock'])->name('reports.lock.release');
@@ -32,6 +34,7 @@ Route::middleware(['auth', 'verified'])->group(function () {
     Route::middleware('can:manage-forms')->prefix('admin')->name('admin.')->group(function () {
         Route::get('forms', [FormController::class, 'index'])->name('forms.index');
         Route::get('forms/{form}', [FormController::class, 'show'])->name('forms.show');
+        Route::put('forms/{form}/summary-schema', [FormController::class, 'updateSummarySchema'])->name('forms.summary-schema.update');
 
         // Groups (Task 2.1, 2.3, 2.4, 2.6)
         Route::post('forms/{form}/groups', [FormGroupController::class, 'store'])->name('groups.store');

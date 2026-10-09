@@ -162,11 +162,56 @@ class FormController extends Controller
                 'form_version' => $form->form_version,
                 'template_version' => $form->template_version,
                 'answer_set' => $form->answer_set,
+                'summary_schema' => $form->summary_schema,
             ],
             'chapters' => $chapters,
             'all_groups' => $flatGroups,
             'flat_groups' => $flatGroups,
             'vessel_types' => $vesselTypes,
         ]);
+    }
+
+    /**
+     * Update the form's summary schema (SRS FM-7b, Task 4.1).
+     */
+    public function updateSummarySchema(Request $request, Form $form)
+    {
+        $payload = $request->has('summary_schema') && is_array($request->input('summary_schema'))
+            ? $request->input('summary_schema')
+            : $request->all();
+
+        $validated = \Illuminate\Support\Facades\Validator::make($payload, [
+            'enabled' => ['required', 'boolean'],
+            'title' => ['required', 'string', 'max:255'],
+            'has_ratings_matrix' => ['nullable', 'boolean'],
+            'rating_options' => ['nullable', 'array'],
+            'rating_options.*.value' => ['required_with:rating_options', 'string'],
+            'rating_options.*.label' => ['required_with:rating_options', 'string'],
+            'rating_options.*.color' => ['nullable', 'string'],
+            'text_fields' => ['nullable', 'array'],
+            'text_fields.*.key' => ['required_with:text_fields', 'string'],
+            'text_fields.*.label' => ['required_with:text_fields', 'string'],
+            'text_fields.*.placeholder' => ['nullable', 'string'],
+            'text_fields.*.rows' => ['nullable', 'integer', 'min:1', 'max:12'],
+            'text_fields.*.span' => ['nullable', 'string', 'in:full,half'],
+            'text_fields.*.description' => ['nullable', 'string'],
+            'has_findings_register' => ['nullable', 'boolean'],
+        ])->validate();
+
+        $form->update([
+            'summary_schema' => $validated,
+        ]);
+
+        $form->bumpTemplateVersion();
+
+        if ($request->wantsJson()) {
+            return response()->json([
+                'status' => 'saved',
+                'summary_schema' => $form->summary_schema,
+                'template_version' => $form->template_version,
+            ]);
+        }
+
+        return back()->with('success', 'Summary chapter settings updated successfully.');
     }
 }

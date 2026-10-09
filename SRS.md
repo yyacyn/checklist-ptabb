@@ -98,6 +98,7 @@ This follows the files. B-008 groups are flat sections. D-062 has chapters with 
 - FM-6: Bulk actions: disable a whole group, move questions between groups, duplicate a question.
 - FM-7: Template change history (who changed what, when).
 - FM-7a: Every group has a built-in comments/remarks box, as in both forms. It is not a question, so it is not edited in the question list. It appears automatically on every group in every report. One box per group or chapter, shown after its questions. Subgroups do not get their own box, matching the form.
+- FM-7b: **Schema-Driven Summary Chapter**: Each form template defines its own summary configuration via `summary_schema` (JSON). This specifies whether the form includes a summary chapter, its title (e.g. "Summary & Observations" or "Audit Summary & NCRs"), whether it has a ratings matrix and what rating options are valid, which dynamic executive textareas to render, and whether to include the findings/deficiency register. This removes all hardcoded form branches and lets any new form define its own custom summary layout dynamically.
 
 ### 4.3 Rules to protect old reports (important)
 
@@ -199,13 +200,10 @@ Read with `spikes/s1-parser/FINDINGS.md`, which lists what still needs a human d
 - INS-6: One comments/remarks box per group (the form's "Comments/Remarks"). The form tells inspectors to list Not Seen and Not Applicable items here, so the app shows a hint under the box when any item in the group is marked NS or NA.
 - INS-7: Extra typed inputs (dates, spaces protected) where the question has them.
 - INS-8: Progress per group (answered / total) and a filter for unanswered.
-- INS-9: Checklist questions (Chapters 2 to 13) remain streamlined with direct Yes / No / NS / NA choices. Chapter 15 ("Summary of Observations") operates as a dedicated findings section where observation rows (Chapter, VIQ paragraph, Observation description, Risk mitigation High/Medium/Low, Job Order No.) are recorded and managed directly, faithful to Form D-062.
-
-### 6.3 Summary and sign-off
-
-- INS-10: Report Summary: each chapter 1 to 13 gets a rating (Very Good / Satisfactory / Unsatisfactory). **Chosen manually by the inspector.** The app shows the count of No and NS answers next to each chapter as information only.
-- INS-11: Counts of High / Medium / Low observations calculated automatically.
-- INS-12: Text sections: comments on items marked No, safety meetings/interviews/drills held, participants, understanding of safety and environmental excellence, training needs identified.
+- INS-9: Checklist questions remain streamlined with direct Yes / No / NS / NA choices. The final chapter operates as the template-configured **Summary Chapter** (e.g. `Chapter 15: Summary & Observations` for D-062, `Chapter 18: Audit Summary & NCRs` for B-008), driven entirely by the form's dynamic `summary_schema` definition.
+- INS-10: Schema-Driven Report Summary: forms with `has_ratings_matrix: true` dynamically render the performance ratings matrix across all non-general chapters with configurable rating options (Very Good / Satisfactory / Unsatisfactory for D-062). **Chosen manually by the inspector/auditor.** The app dynamically calculates and shows the live count of No and NS answers next to each chapter as reference information.
+- INS-11: Counts of High / Medium / Low observations calculated automatically from findings register records.
+- INS-12: Dynamic Executive Summary Fields: configured via `forms.summary_schema.text_fields` (e.g. Comments on items marked No, safety meetings/interviews/drills held, participants, understanding of safety and environmental excellence, training needs identified for D-062; positive/negative general comments for B-008). Live debounced autosave into `reports.summary_data`.
 - INS-13: Ten attendance questions (safety meeting held, safety drill conducted, training seminars, PMS training, PMS records compared with actual condition, critical equipment tested, work/rest hours cross-checked, risk assessments reviewed, near misses identified, crew appraisals attached, verification of pending works). Each is Yes/No plus detail.
 - INS-14: Best practices (free text).
 - INS-15: Appraisal of Senior Officers: Master, Chief Engineer, Chief Officer, Second Engineer. Appraised yes/no, name, comments, optional file attachment.

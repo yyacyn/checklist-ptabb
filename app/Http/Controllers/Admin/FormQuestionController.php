@@ -31,7 +31,7 @@ class FormQuestionController extends Controller
                 'max:255',
                 function ($attribute, $value, $fail) {
                     $tokens = array_filter(array_map('trim', explode(',', $value)));
-                    $allowed = ['none', 'choices', 'no_choices', 'text', 'date', 'number', 'file', 'text_only', 'date_only', 'number_only', 'file_only'];
+                    $allowed = ['none', 'choices', 'no_choices', 'text', 'date', 'file', 'text_only', 'date_only', 'file_only'];
                     foreach ($tokens as $token) {
                         if (! in_array($token, $allowed, true)) {
                             $fail("Invalid input type token: {$token}");
@@ -79,7 +79,7 @@ class FormQuestionController extends Controller
                 'max:255',
                 function ($attribute, $value, $fail) {
                     $tokens = array_filter(array_map('trim', explode(',', $value)));
-                    $allowed = ['none', 'choices', 'no_choices', 'text', 'date', 'number', 'file', 'text_only', 'date_only', 'number_only', 'file_only'];
+                    $allowed = ['none', 'choices', 'no_choices', 'text', 'date', 'file', 'text_only', 'date_only', 'file_only'];
                     foreach ($tokens as $token) {
                         if (! in_array($token, $allowed, true)) {
                             $fail("Invalid input type token: {$token}");

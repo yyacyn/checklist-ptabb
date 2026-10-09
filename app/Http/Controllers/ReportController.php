@@ -204,7 +204,7 @@ class ReportController extends Controller
         Gate::authorize('view', $report);
 
         $report->load([
-            'form:id,code,name,answer_set',
+            'form:id,code,name,answer_set,summary_schema',
             'vesselType:id,name',
             'lockOwner:id,name',
             'groups' => fn ($q) => $q->whereNull('parent_id')->orderBy('sort_order'),
@@ -282,9 +282,13 @@ class ReportController extends Controller
 
         // Stale row_version conflict detection (NFR-15):
         // If an answer already exists in the database and the client provided base_row_version,
-        // refuse if the client's base_row_version is different from the current row_version on the server.
+        // refuse only if the answer was modified by ANOTHER user and the base_row_version is stale.
+        // Sequential/rapid saves or offline retries by the same user should not trigger false edit conflicts.
         if ($existing && array_key_exists('base_row_version', $validated) && $validated['base_row_version'] !== null) {
-            if ((int) $validated['base_row_version'] !== (int) $existing->row_version) {
+            $lastAnsweredBy = $existing->answered_by;
+            $currentUserId = $request->user()->id;
+
+            if ($lastAnsweredBy !== null && (int) $lastAnsweredBy !== (int) $currentUserId && (int) $validated['base_row_version'] !== (int) $existing->row_version) {
                 return response()->json([
                     'error' => 'conflict',
                     'message' => 'Conflict detected: this question was modified by another user or session.',
@@ -515,6 +519,59 @@ class ReportController extends Controller
         return response()->json([
             'status' => 'saved',
             'report' => $report->fresh(),
+        ]);
+    }
+
+    /**
+     * Update Report Summary ratings and text blocks (Form D-062 Report Summary, INS-10, INS-12).
+     */
+    public function updateSummary(Request $request, Report $report): JsonResponse
+    {
+        Gate::authorize('update', $report);
+
+        $validated = $request->validate([
+            'summary_ratings' => ['nullable', 'array'],
+            'summary_data' => ['nullable', 'array'],
+            'summary_comments_no' => ['nullable', 'string'],
+            'summary_safety_meetings' => ['nullable', 'string'],
+            'summary_participants' => ['nullable', 'string'],
+            'summary_concept_understanding' => ['nullable', 'string'],
+            'summary_training_needs' => ['nullable', 'string'],
+        ]);
+
+        $report->update($validated);
+
+        return response()->json([
+            'status' => 'saved',
+            'report' => $report->fresh(),
+        ]);
+    }
+
+    /**
+     * Upload an attachment for a question (Form D-062).
+     */
+    public function uploadAttachment(Request $request, Report $report, ReportQuestion $question): JsonResponse
+    {
+        Gate::authorize('update', $report);
+
+        if ($question->report_id !== $report->id) {
+            abort(404, 'Question does not belong to this report.');
+        }
+
+        $request->validate([
+            'file' => ['required', 'file', 'max:25600'], // 25MB max
+        ]);
+
+        $file = $request->file('file');
+        $filename = time().'_'.preg_replace('/[^a-zA-Z0-9._-]/', '_', $file->getClientOriginalName());
+        $path = $file->storeAs("attachments/{$report->id}", $filename, 'public');
+
+        return response()->json([
+            'status' => 'uploaded',
+            'url' => asset("storage/{$path}"),
+            'path' => $path,
+            'name' => $file->getClientOriginalName(),
+            'size' => $file->getSize(),
         ]);
     }
 

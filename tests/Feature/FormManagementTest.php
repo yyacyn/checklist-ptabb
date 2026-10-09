@@ -408,4 +408,42 @@ class FormManagementTest extends TestCase
         $this->assertSame('updated', $data[0]['action']);
         $this->assertSame($superadmin->id, $data[0]['user_id']);
     }
+
+    public function test_superadmin_can_update_summary_schema_via_form_editor(): void
+    {
+        $this->seedCatalogue();
+        $superadmin = User::factory()->create(['role' => 'superadmin']);
+        $form = Form::query()->where('code', 'D-062')->firstOrFail();
+
+        $newSchema = [
+            'enabled' => true,
+            'title' => 'Custom Executive Summary & Observations',
+            'has_ratings_matrix' => true,
+            'rating_options' => [
+                ['value' => 'excellent', 'label' => 'Excellent'],
+                ['value' => 'acceptable', 'label' => 'Acceptable'],
+                ['value' => 'unacceptable', 'label' => 'Unacceptable'],
+            ],
+            'text_fields' => [
+                [
+                    'key' => 'general_comments',
+                    'label' => 'General Inspection Comments',
+                    'placeholder' => 'Enter comments...',
+                    'rows' => 4,
+                    'span' => 'full',
+                ],
+            ],
+            'has_findings_register' => true,
+        ];
+
+        $response = $this->actingAs($superadmin)->put(route('admin.forms.summary-schema.update', $form), [
+            'summary_schema' => $newSchema,
+        ]);
+
+        $response->assertRedirect();
+        $form->refresh();
+        $this->assertSame('Custom Executive Summary & Observations', $form->summary_schema['title']);
+        $this->assertSame('excellent', $form->summary_schema['rating_options'][0]['value']);
+        $this->assertSame('general_comments', $form->summary_schema['text_fields'][0]['key']);
+    }
 }

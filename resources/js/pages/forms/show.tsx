@@ -16,7 +16,6 @@ import {
     FileText,
     Filter,
     FolderPlus,
-    Hash,
     HelpCircle,
     History,
     MoreHorizontal,
@@ -30,6 +29,7 @@ import Heading from '@/components/heading';
 import { Badge } from '@/components/ui/badge';
 import { Button } from '@/components/ui/button';
 import { Card, CardContent, CardHeader } from '@/components/ui/card';
+import { Checkbox } from '@/components/ui/checkbox';
 import { Dialog, DialogContent, DialogFooter, DialogHeader, DialogTitle } from '@/components/ui/dialog';
 import {
     DropdownMenu,
@@ -69,6 +69,28 @@ interface GroupData {
     subgroups?: GroupData[];
 }
 
+export interface SummarySchemaRatingOption {
+    value: string;
+    label: string;
+}
+
+export interface SummarySchemaTextField {
+    key: string;
+    label: string;
+    placeholder?: string;
+    rows?: number;
+    span?: 'full' | 'half';
+}
+
+export interface SummarySchema {
+    enabled: boolean;
+    title: string;
+    has_ratings_matrix?: boolean;
+    rating_options?: SummarySchemaRatingOption[];
+    text_fields?: SummarySchemaTextField[];
+    has_findings_register?: boolean;
+}
+
 interface FormData {
     id: number;
     code: string;
@@ -76,6 +98,7 @@ interface FormData {
     form_version: string;
     template_version: number;
     answer_set: string;
+    summary_schema?: SummarySchema | null;
 }
 
 interface VesselTypeItem {
@@ -114,7 +137,7 @@ interface Props {
 export function parseQuestionInputType(inputType: string) {
     const raw = (inputType || 'none').toLowerCase().trim();
     if (raw === 'none') {
-        return { hasChoices: true, hasText: false, hasDate: false, hasNumber: false, hasFile: false };
+        return { hasChoices: true, hasText: false, hasDate: false, hasFile: false };
     }
     const tokens = raw.split(',').map((t) => t.trim());
     const isPureOnly = tokens.some((t) => t.endsWith('_only'));
@@ -124,7 +147,6 @@ export function parseQuestionInputType(inputType: string) {
         hasChoices,
         hasText: tokens.includes('text') || tokens.includes('text_only'),
         hasDate: tokens.includes('date') || tokens.includes('date_only'),
-        hasNumber: tokens.includes('number') || tokens.includes('number_only'),
         hasFile: tokens.includes('file') || tokens.includes('file_only'),
     };
 }
@@ -133,13 +155,11 @@ export function buildQuestionInputType(flags: {
     hasChoices: boolean;
     hasText: boolean;
     hasDate: boolean;
-    hasNumber: boolean;
     hasFile: boolean;
 }): string {
     const types: string[] = [];
     if (flags.hasText) types.push('text');
     if (flags.hasDate) types.push('date');
-    if (flags.hasNumber) types.push('number');
     if (flags.hasFile) types.push('file');
 
     if (flags.hasChoices) {
@@ -176,7 +196,6 @@ export default function FormShow({
     const [questionHasChoices, setQuestionHasChoices] = useState(true);
     const [questionHasText, setQuestionHasText] = useState(false);
     const [questionHasDate, setQuestionHasDate] = useState(false);
-    const [questionHasNumber, setQuestionHasNumber] = useState(false);
     const [questionHasFile, setQuestionHasFile] = useState(false);
 
     // Applicability Modal State (Task 2.4)
@@ -195,6 +214,37 @@ export default function FormShow({
     const [historyLoading, setHistoryLoading] = useState(false);
     const [historyTitle, setHistoryTitle] = useState('');
     const [historyItems, setHistoryItems] = useState<HistoryItem[]>([]);
+
+    // Summary Chapter State
+    const [summaryChapterCollapsed, setSummaryChapterCollapsed] = useState(false);
+    const [summaryFormState, setSummaryFormState] = useState<SummarySchema>(() => ({
+        enabled: form.summary_schema?.enabled ?? true,
+        title: form.summary_schema?.title ?? 'Summary & Observations',
+        has_ratings_matrix: form.summary_schema?.has_ratings_matrix ?? false,
+        rating_options: form.summary_schema?.rating_options ?? [
+            { value: 'very_good', label: 'Very Good' },
+            { value: 'satisfactory', label: 'Satisfactory' },
+            { value: 'unsatisfactory', label: 'Unsatisfactory' },
+        ],
+        text_fields: form.summary_schema?.text_fields ?? [],
+        has_findings_register: form.summary_schema?.has_findings_register ?? true,
+    }));
+    const [isSavingSummary, setIsSavingSummary] = useState(false);
+    const [activeNavChapterId, setActiveNavChapterId] = useState<number | 'summary' | null>(null);
+
+    const scrollToChapter = (id: number | 'summary') => {
+        setActiveNavChapterId(id);
+        const elementId = id === 'summary' ? 'summary-chapter' : `chapter-${id}`;
+        const el = document.getElementById(elementId);
+        if (el) {
+            if (id === 'summary') {
+                setSummaryChapterCollapsed(false);
+            } else {
+                setCollapsedChapters((prev) => ({ ...prev, [id]: false }));
+            }
+            el.scrollIntoView({ behavior: 'smooth', block: 'start' });
+        }
+    };
 
     // Expanded guidance state
     const [expandedGuidance, setExpandedGuidance] = useState<Record<number, boolean>>({});
@@ -215,6 +265,7 @@ export default function FormShow({
     const expandAll = () => {
         setCollapsedChapters({});
         setCollapsedSubgroups({});
+        setSummaryChapterCollapsed(false);
     };
 
     const collapseAll = () => {
@@ -228,6 +279,7 @@ export default function FormShow({
         });
         setCollapsedChapters(chMap);
         setCollapsedSubgroups(subMap);
+        setSummaryChapterCollapsed(true);
     };
 
     const toggleGuidance = (id: number) => {
@@ -318,7 +370,6 @@ export default function FormShow({
         setQuestionHasChoices(true);
         setQuestionHasText(false);
         setQuestionHasDate(false);
-        setQuestionHasNumber(false);
         setQuestionHasFile(false);
         setQuestionModalOpen(true);
     };
@@ -332,7 +383,6 @@ export default function FormShow({
         setQuestionHasChoices(flags.hasChoices);
         setQuestionHasText(flags.hasText);
         setQuestionHasDate(flags.hasDate);
-        setQuestionHasNumber(flags.hasNumber);
         setQuestionHasFile(flags.hasFile);
         setQuestionModalOpen(true);
     };
@@ -343,7 +393,6 @@ export default function FormShow({
             hasChoices: questionHasChoices,
             hasText: questionHasText,
             hasDate: questionHasDate,
-            hasNumber: questionHasNumber,
             hasFile: questionHasFile,
         });
 
@@ -473,6 +522,99 @@ export default function FormShow({
         }
     };
 
+    const handleSaveSummarySchema = (e?: React.FormEvent) => {
+        if (e) e.preventDefault();
+        setIsSavingSummary(true);
+        router.put(
+            `/admin/forms/${form.id}/summary-schema`,
+            { summary_schema: summaryFormState as any },
+            {
+                preserveScroll: true,
+                onSuccess: () => {
+                    setIsSavingSummary(false);
+                },
+                onError: () => {
+                    setIsSavingSummary(false);
+                },
+            }
+        );
+    };
+
+    const handleAddRatingOption = () => {
+        setSummaryFormState((prev) => ({
+            ...prev,
+            rating_options: [
+                ...(prev.rating_options || []),
+                { value: `opt_${Date.now()}`, label: 'New Option' },
+            ],
+        }));
+    };
+
+    const handleRemoveRatingOption = (idx: number) => {
+        setSummaryFormState((prev) => ({
+            ...prev,
+            rating_options: (prev.rating_options || []).filter((_, i) => i !== idx),
+        }));
+    };
+
+    const handleUpdateRatingOption = (idx: number, field: 'value' | 'label', val: string) => {
+        setSummaryFormState((prev) => ({
+            ...prev,
+            rating_options: (prev.rating_options || []).map((opt, i) =>
+                i === idx ? { ...opt, [field]: val } : opt
+            ),
+        }));
+    };
+
+    const handleAddTextField = () => {
+        const count = (summaryFormState.text_fields || []).length + 1;
+        setSummaryFormState((prev) => ({
+            ...prev,
+            text_fields: [
+                ...(prev.text_fields || []),
+                {
+                    key: `field_${Date.now()}`,
+                    label: `${count}. Custom Observation Field`,
+                    placeholder: 'Enter comments or observations...',
+                    rows: 3,
+                    span: 'full',
+                },
+            ],
+        }));
+    };
+
+    const handleRemoveTextField = (idx: number) => {
+        setSummaryFormState((prev) => ({
+            ...prev,
+            text_fields: (prev.text_fields || []).filter((_, i) => i !== idx),
+        }));
+    };
+
+    const handleUpdateTextField = (
+        idx: number,
+        field: keyof SummarySchemaTextField,
+        val: any
+    ) => {
+        setSummaryFormState((prev) => ({
+            ...prev,
+            text_fields: (prev.text_fields || []).map((tf, i) =>
+                i === idx ? { ...tf, [field]: val } : tf
+            ),
+        }));
+    };
+
+    const handleMoveTextField = (idx: number, direction: 'up' | 'down') => {
+        setSummaryFormState((prev) => {
+            const list = [...(prev.text_fields || [])];
+            const targetIdx = direction === 'up' ? idx - 1 : idx + 1;
+            if (targetIdx < 0 || targetIdx >= list.length) return prev;
+            const temp = list[idx];
+            list[idx] = list[targetIdx];
+            list[targetIdx] = temp;
+            return { ...prev, text_fields: list };
+        });
+    };
+
     return (
         <>
             <Head title={`Template Editor: ${form.code}`} />
@@ -485,7 +627,7 @@ export default function FormShow({
                             <Badge variant="outline" className="text-sm font-bold">
                                 {form.code}
                             </Badge>
-                            <Badge variant="default">Template v{form.template_version}</Badge>
+                            <Badge variant="default">{form.code} v{form.template_version}</Badge>
                             <span className="text-xs text-muted-foreground">(Paper {form.form_version})</span>
                         </div>
                         <Heading title={form.name} description="Superadmin template editor: live changes update future reports immediately." />
@@ -513,19 +655,117 @@ export default function FormShow({
                     </div>
                 </div>
 
-                {/* Chapter Tree */}
-                <div className="space-y-6">
-                    {chapters.map((chapter) => {
-                        const chapterQuestionIds = getAllGroupQuestionIds(chapter);
-                        const isChapterAllSelected =
-                            chapterQuestionIds.length > 0 &&
-                            chapterQuestionIds.every((id) => selectedQuestionIds.includes(id));
-                        const isChapterCollapsed = Boolean(collapsedChapters[chapter.id]);
+                {/* 2-Column Split: Sticky Table of Chapters Sidebar (Left) + Chapter Tree (Right) */}
+                <div className="flex flex-col lg:flex-row gap-6 items-start">
+                    {/* Left Sticky Table of Chapters Sidebar */}
+                    <aside className="w-full lg:w-72 lg:shrink-0 lg:sticky lg:top-6 max-h-[calc(100vh-8rem)] overflow-y-auto rounded-xl border bg-muted/20 p-3 space-y-2">
+                        <div className="flex items-center justify-between px-2 pb-2 border-b border-border/60">
+                            <span className="text-xs font-semibold uppercase tracking-wider text-muted-foreground">
+                                Table of Chapters
+                            </span>
+                            <Badge variant="outline" className="text-[10px] font-mono">
+                                {chapters.length + (summaryFormState.enabled ? 1 : 0)} Chapters
+                            </Badge>
+                        </div>
 
-                        return (
-                            <Card key={chapter.id} className={`gap-0 overflow-hidden py-0 ${!chapter.is_enabled ? 'opacity-60 bg-muted/20' : ''}`}>
-                                <CardHeader className="border-b bg-muted/40 p-4">
-                                    <div className="flex flex-col gap-3 md:flex-row md:items-center md:justify-between">
+                        <div className="space-y-1">
+                            {chapters.map((chapter) => {
+                                const totalQuestions = getAllGroupQuestionIds(chapter).length;
+                                const totalSubgroups = (chapter.subgroups || []).length;
+                                const isCurrent = activeNavChapterId === chapter.id;
+
+                                return (
+                                    <button
+                                        key={chapter.id}
+                                        type="button"
+                                        onClick={() => scrollToChapter(chapter.id)}
+                                        className={`w-full text-left rounded-lg p-2.5 transition-all flex flex-col gap-1 ${
+                                            isCurrent
+                                                ? 'bg-card border-2 border-primary shadow-xs ring-1 ring-primary/20'
+                                                : 'border border-transparent hover:bg-card/70'
+                                        } ${!chapter.is_enabled ? 'opacity-60' : ''}`}
+                                    >
+                                        <div className="flex items-start justify-between gap-1.5">
+                                            <span className="font-semibold text-xs text-foreground truncate flex-1">
+                                                {chapter.chapter_no ? `${chapter.chapter_no}. ` : ''}{chapter.title}
+                                            </span>
+                                            {!chapter.is_enabled ? (
+                                                <Badge variant="destructive" className="text-[9px] px-1 py-0 shrink-0">
+                                                    Off
+                                                </Badge>
+                                            ) : chapter.ice_class_only ? (
+                                                <Badge variant="outline" className="text-[9px] px-1 py-0 shrink-0">
+                                                    Ice
+                                                </Badge>
+                                            ) : null}
+                                        </div>
+                                        <div className="text-[11px] text-muted-foreground flex items-center justify-between">
+                                            <span>
+                                                {totalQuestions} question{totalQuestions !== 1 ? 's' : ''}
+                                            </span>
+                                            {totalSubgroups > 0 && (
+                                                <span className="text-[10px] font-mono text-muted-foreground/80">
+                                                    {totalSubgroups} sub
+                                                </span>
+                                            )}
+                                        </div>
+                                    </button>
+                                );
+                            })}
+
+                            {/* Summary Chapter in Table of Chapters */}
+                            <button
+                                type="button"
+                                onClick={() => scrollToChapter('summary')}
+                                className={`w-full text-left rounded-lg p-2.5 transition-all flex flex-col gap-1 border-t mt-2 pt-2.5 ${
+                                    activeNavChapterId === 'summary'
+                                        ? 'bg-card border-2 border-primary shadow-xs ring-1 ring-primary/20'
+                                        : 'border border-transparent hover:bg-card/70'
+                                } ${!summaryFormState.enabled ? 'opacity-60' : ''}`}
+                            >
+                                <div className="flex items-start justify-between gap-1.5">
+                                    <div className="flex items-center gap-1.5 min-w-0 flex-1">
+                                        <FileText className="size-3.5 text-primary shrink-0" />
+                                        <span className="font-semibold text-xs text-foreground truncate">
+                                            {summaryFormState.title || 'Summary & Observations'}
+                                        </span>
+                                    </div>
+                                    {summaryFormState.enabled ? (
+                                        <Badge variant="outline" className="text-[9px] px-1 py-0 text-emerald-600 border-emerald-500/30 shrink-0 font-medium">
+                                            Active
+                                        </Badge>
+                                    ) : (
+                                        <Badge variant="destructive" className="text-[9px] px-1 py-0 shrink-0">
+                                            Off
+                                        </Badge>
+                                    )}
+                                </div>
+                                <div className="text-[11px] text-muted-foreground truncate pl-5">
+                                    {summaryFormState.has_ratings_matrix ? 'Ratings, ' : ''}
+                                    {(summaryFormState.text_fields || []).length} text area{((summaryFormState.text_fields || []).length !== 1) ? 's' : ''}
+                                    {summaryFormState.has_findings_register ? ', Findings' : ''}
+                                </div>
+                            </button>
+                        </div>
+                    </aside>
+
+                    {/* Right Main Column: Chapter Tree */}
+                    <div className="flex-1 min-w-0 space-y-6">
+                        {chapters.map((chapter) => {
+                            const chapterQuestionIds = getAllGroupQuestionIds(chapter);
+                            const isChapterAllSelected =
+                                chapterQuestionIds.length > 0 &&
+                                chapterQuestionIds.every((id) => selectedQuestionIds.includes(id));
+                            const isChapterCollapsed = Boolean(collapsedChapters[chapter.id]);
+
+                            return (
+                                <Card
+                                    key={chapter.id}
+                                    id={`chapter-${chapter.id}`}
+                                    className={`scroll-mt-6 gap-0 overflow-hidden py-0 ${!chapter.is_enabled ? 'opacity-60 bg-muted/20' : ''}`}
+                                >
+                                    <CardHeader className="border-b bg-muted/40 p-4">
+                                        <div className="flex flex-col gap-3 md:flex-row md:items-center md:justify-between">
                                         <div className="flex items-center gap-2 flex-wrap min-w-0">
                                             <button
                                                 type="button"
@@ -786,11 +1026,363 @@ export default function FormShow({
                             </Card>
                         );
                     })}
+
+                    {/* Summary Chapter Card */}
+                    <Card
+                        id="summary-chapter"
+                        className={`scroll-mt-6 gap-0 overflow-hidden py-0 ${!summaryFormState.enabled ? 'opacity-70 bg-muted/20' : 'border-primary/40 shadow-xs'}`}
+                    >
+                        <CardHeader className="border-b bg-muted/40 p-4">
+                            <div className="flex flex-col gap-3 md:flex-row md:items-center md:justify-between">
+                                <div className="flex items-center gap-2 flex-wrap min-w-0">
+                                    <button
+                                        type="button"
+                                        onClick={() => setSummaryChapterCollapsed(!summaryChapterCollapsed)}
+                                        className="text-muted-foreground hover:text-foreground shrink-0 p-0.5"
+                                        title={summaryChapterCollapsed ? 'Expand Summary Chapter' : 'Collapse Summary Chapter'}
+                                    >
+                                        {summaryChapterCollapsed ? (
+                                            <ChevronRight className="size-4" />
+                                        ) : (
+                                            <ChevronDown className="size-4" />
+                                        )}
+                                    </button>
+                                    <h3
+                                        className="font-semibold text-lg cursor-pointer select-none flex items-center gap-2"
+                                        onClick={() => setSummaryChapterCollapsed(!summaryChapterCollapsed)}
+                                    >
+                                        <FileText className="size-4.5 text-primary shrink-0" />
+                                        <span>{summaryFormState.title || 'Summary & Observations'}</span>
+                                    </h3>
+                                    <Badge variant="secondary" className="text-xs font-semibold">
+                                        Summary Chapter
+                                    </Badge>
+                                    {summaryFormState.enabled ? (
+                                        <Badge variant="outline" className="text-emerald-600 dark:text-emerald-400 border-emerald-500/30 text-xs">
+                                            Enabled
+                                        </Badge>
+                                    ) : (
+                                        <Badge variant="destructive" className="text-xs">
+                                            Disabled
+                                        </Badge>
+                                    )}
+                                </div>
+
+                                <div className="flex items-center gap-2 shrink-0">
+                                    <Button
+                                        size="sm"
+                                        variant="ghost"
+                                        title={summaryFormState.enabled ? 'Disable Summary Chapter' : 'Enable Summary Chapter'}
+                                        onClick={() =>
+                                            setSummaryFormState((prev) => ({ ...prev, enabled: !prev.enabled }))
+                                        }
+                                    >
+                                        {summaryFormState.enabled ? <Eye className="size-4 text-emerald-600" /> : <EyeOff className="size-4 text-muted-foreground" />}
+                                    </Button>
+                                    <Button
+                                        size="sm"
+                                        onClick={() => handleSaveSummarySchema()}
+                                        disabled={isSavingSummary}
+                                        className="text-xs h-8"
+                                    >
+                                        {isSavingSummary ? 'Saving...' : 'Save Summary Chapter'}
+                                    </Button>
+                                </div>
+                            </div>
+                        </CardHeader>
+
+                        {!summaryChapterCollapsed && (
+                            <CardContent className="p-4 space-y-6">
+                                {/* General Configuration */}
+                                <div className="rounded-lg border p-4 space-y-4 bg-background">
+                                    <div className="flex items-center space-x-2">
+                                        <Checkbox
+                                            id="summary_enabled"
+                                            checked={summaryFormState.enabled}
+                                            onCheckedChange={(checked) =>
+                                                setSummaryFormState((prev) => ({ ...prev, enabled: Boolean(checked) }))
+                                            }
+                                        />
+                                        <Label htmlFor="summary_enabled" className="text-sm font-semibold cursor-pointer">
+                                            Enable Dedicated Summary Chapter for this Form
+                                        </Label>
+                                    </div>
+                                    <p className="text-xs text-muted-foreground">
+                                        When enabled, this chapter is automatically appended to reports for executive summaries, chapter ratings, and findings registers.
+                                    </p>
+
+                                    {summaryFormState.enabled && (
+                                        <div className="space-y-2 pt-2 border-t">
+                                            <Label htmlFor="summary_title">Summary Chapter Title</Label>
+                                            <Input
+                                                id="summary_title"
+                                                value={summaryFormState.title}
+                                                onChange={(e) =>
+                                                    setSummaryFormState((prev) => ({ ...prev, title: e.target.value }))
+                                                }
+                                                placeholder="e.g. Summary & Observations"
+                                                required
+                                            />
+                                        </div>
+                                    )}
+                                </div>
+
+                                {summaryFormState.enabled && (
+                                    <>
+                                        {/* Ratings Matrix Section */}
+                                        <div className="rounded-lg border p-4 space-y-3 bg-background">
+                                            <div className="flex items-center space-x-2">
+                                                <Checkbox
+                                                    id="summary_has_ratings"
+                                                    checked={Boolean(summaryFormState.has_ratings_matrix)}
+                                                    onCheckedChange={(checked) =>
+                                                        setSummaryFormState((prev) => ({
+                                                            ...prev,
+                                                            has_ratings_matrix: Boolean(checked),
+                                                        }))
+                                                    }
+                                                />
+                                                <Label htmlFor="summary_has_ratings" className="font-semibold text-sm cursor-pointer">
+                                                    Include Chapter Ratings Matrix
+                                                </Label>
+                                            </div>
+                                            <p className="text-xs text-muted-foreground">
+                                                Inspectors will evaluate each chapter (e.g. Very Good, Satisfactory, Unsatisfactory) in a summary matrix.
+                                            </p>
+
+                                            {summaryFormState.has_ratings_matrix && (
+                                                <div className="space-y-3 pt-3 border-t">
+                                                    <div className="flex items-center justify-between">
+                                                        <Label className="text-xs font-semibold uppercase text-muted-foreground">
+                                                            Rating Options
+                                                        </Label>
+                                                        <Button
+                                                            type="button"
+                                                            size="sm"
+                                                            variant="outline"
+                                                            className="h-7 text-xs"
+                                                            onClick={handleAddRatingOption}
+                                                        >
+                                                            <Plus className="size-3 mr-1" /> Add Option
+                                                        </Button>
+                                                    </div>
+
+                                                    <div className="space-y-2">
+                                                        {(summaryFormState.rating_options || []).map((opt, idx) => (
+                                                            <div key={idx} className="flex items-center gap-2">
+                                                                <Input
+                                                                    value={opt.value}
+                                                                    onChange={(e) =>
+                                                                        handleUpdateRatingOption(idx, 'value', e.target.value)
+                                                                    }
+                                                                    placeholder="value (e.g. very_good)"
+                                                                    className="w-1/3 font-mono text-xs"
+                                                                />
+                                                                <Input
+                                                                    value={opt.label}
+                                                                    onChange={(e) =>
+                                                                        handleUpdateRatingOption(idx, 'label', e.target.value)
+                                                                    }
+                                                                    placeholder="Label (e.g. Very Good)"
+                                                                    className="flex-1 text-xs"
+                                                                />
+                                                                <Button
+                                                                    type="button"
+                                                                    size="sm"
+                                                                    variant="ghost"
+                                                                    className="h-8 w-8 p-0 text-destructive hover:bg-destructive/10"
+                                                                    onClick={() => handleRemoveRatingOption(idx)}
+                                                                    disabled={(summaryFormState.rating_options || []).length <= 1}
+                                                                >
+                                                                    <Trash2 className="size-3.5" />
+                                                                </Button>
+                                                            </div>
+                                                        ))}
+                                                    </div>
+                                                </div>
+                                            )}
+                                        </div>
+
+                                        {/* Executive / Custom Text Fields Section */}
+                                        <div className="rounded-lg border p-4 space-y-3 bg-background">
+                                            <div className="flex items-center justify-between">
+                                                <div>
+                                                    <Label className="font-semibold text-sm">
+                                                        Custom Executive & Observation Text Fields
+                                                    </Label>
+                                                    <p className="text-xs text-muted-foreground">
+                                                        Configure multi-line observation areas (e.g. "Comments for NO items", "Positive Comments", etc.)
+                                                    </p>
+                                                </div>
+                                                <Button
+                                                    type="button"
+                                                    size="sm"
+                                                    variant="outline"
+                                                    className="h-8 text-xs shrink-0"
+                                                    onClick={handleAddTextField}
+                                                >
+                                                    <Plus className="size-3.5 mr-1" /> Add Field
+                                                </Button>
+                                            </div>
+
+                                            <div className="space-y-3 pt-2">
+                                                {(summaryFormState.text_fields || []).length === 0 && (
+                                                    <p className="text-xs text-muted-foreground italic py-2 text-center">
+                                                        No custom text fields configured yet. Click "Add Field" to add one.
+                                                    </p>
+                                                )}
+                                                {(summaryFormState.text_fields || []).map((tf, idx) => (
+                                                    <div key={idx} className="rounded border bg-muted/20 p-3 space-y-2">
+                                                        <div className="flex items-center justify-between gap-2">
+                                                            <div className="flex items-center gap-1.5 flex-1">
+                                                                <span className="text-xs font-mono text-muted-foreground">#{idx + 1}</span>
+                                                                <Input
+                                                                    value={tf.label}
+                                                                    onChange={(e) =>
+                                                                        handleUpdateTextField(idx, 'label', e.target.value)
+                                                                    }
+                                                                    placeholder="Field Label / Title"
+                                                                    className="text-xs font-medium"
+                                                                />
+                                                            </div>
+                                                            <div className="flex items-center gap-1 shrink-0">
+                                                                <Button
+                                                                    type="button"
+                                                                    size="sm"
+                                                                    variant="ghost"
+                                                                    className="h-7 w-7 p-0"
+                                                                    disabled={idx === 0}
+                                                                    onClick={() => handleMoveTextField(idx, 'up')}
+                                                                    title="Move Up"
+                                                                >
+                                                                    <ArrowUp className="size-3.5" />
+                                                                </Button>
+                                                                <Button
+                                                                    type="button"
+                                                                    size="sm"
+                                                                    variant="ghost"
+                                                                    className="h-7 w-7 p-0"
+                                                                    disabled={idx === (summaryFormState.text_fields || []).length - 1}
+                                                                    onClick={() => handleMoveTextField(idx, 'down')}
+                                                                    title="Move Down"
+                                                                >
+                                                                    <ArrowDown className="size-3.5" />
+                                                                </Button>
+                                                                <Button
+                                                                    type="button"
+                                                                    size="sm"
+                                                                    variant="ghost"
+                                                                    className="h-7 w-7 p-0 text-destructive hover:bg-destructive/10"
+                                                                    onClick={() => handleRemoveTextField(idx)}
+                                                                    title="Delete Field"
+                                                                >
+                                                                    <Trash2 className="size-3.5" />
+                                                                </Button>
+                                                            </div>
+                                                        </div>
+
+                                                        <div className="grid grid-cols-1 md:grid-cols-3 gap-2 pt-1">
+                                                            <div>
+                                                                <Label className="text-[11px] text-muted-foreground">Field Key (Identifier)</Label>
+                                                                <Input
+                                                                    value={tf.key}
+                                                                    onChange={(e) =>
+                                                                        handleUpdateTextField(idx, 'key', e.target.value.toLowerCase().replace(/[^a-z0-9_]/g, '_'))
+                                                                    }
+                                                                    placeholder="e.g. comments_no"
+                                                                    className="text-xs font-mono h-8"
+                                                                />
+                                                            </div>
+                                                            <div>
+                                                                <Label className="text-[11px] text-muted-foreground">Width Layout</Label>
+                                                                <Select
+                                                                    value={tf.span || 'full'}
+                                                                    onValueChange={(val: 'full' | 'half') =>
+                                                                        handleUpdateTextField(idx, 'span', val)
+                                                                    }
+                                                                >
+                                                                    <SelectTrigger className="h-8 text-xs">
+                                                                        <SelectValue />
+                                                                    </SelectTrigger>
+                                                                    <SelectContent>
+                                                                        <SelectItem value="full">Full Width (1 Column)</SelectItem>
+                                                                        <SelectItem value="half">Half Width (2 Columns)</SelectItem>
+                                                                    </SelectContent>
+                                                                </Select>
+                                                            </div>
+                                                            <div>
+                                                                <Label className="text-[11px] text-muted-foreground">Default Height (Rows)</Label>
+                                                                <Input
+                                                                    type="number"
+                                                                    min={2}
+                                                                    max={12}
+                                                                    value={tf.rows || 3}
+                                                                    onChange={(e) =>
+                                                                        handleUpdateTextField(idx, 'rows', parseInt(e.target.value) || 3)
+                                                                    }
+                                                                    className="text-xs h-8"
+                                                                />
+                                                            </div>
+                                                        </div>
+
+                                                        <div>
+                                                            <Label className="text-[11px] text-muted-foreground">Placeholder Guide Text (Optional)</Label>
+                                                            <Input
+                                                                value={tf.placeholder || ''}
+                                                                onChange={(e) =>
+                                                                    handleUpdateTextField(idx, 'placeholder', e.target.value)
+                                                                }
+                                                                placeholder="e.g. Chapter / Item / Observation comments..."
+                                                                className="text-xs h-8"
+                                                            />
+                                                        </div>
+                                                    </div>
+                                                ))}
+                                            </div>
+                                        </div>
+
+                                        {/* Findings Register Section */}
+                                        <div className="rounded-lg border p-4 space-y-2 bg-background">
+                                            <div className="flex items-center space-x-2">
+                                                <Checkbox
+                                                    id="summary_has_findings"
+                                                    checked={Boolean(summaryFormState.has_findings_register)}
+                                                    onCheckedChange={(checked) =>
+                                                        setSummaryFormState((prev) => ({
+                                                            ...prev,
+                                                            has_findings_register: Boolean(checked),
+                                                        }))
+                                                    }
+                                                />
+                                                <Label htmlFor="summary_has_findings" className="font-semibold text-sm cursor-pointer">
+                                                    Include Summary Findings Register
+                                                </Label>
+                                            </div>
+                                            <p className="text-xs text-muted-foreground">
+                                                Automatically compiles negative answers/findings into an executive findings register table with corrective action tracking.
+                                            </p>
+                                        </div>
+                                    </>
+                                )}
+
+                                <div className="pt-2 flex justify-end">
+                                    <Button
+                                        type="button"
+                                        onClick={() => handleSaveSummarySchema()}
+                                        disabled={isSavingSummary}
+                                    >
+                                        {isSavingSummary ? 'Saving Summary Chapter...' : 'Save Summary Chapter Settings'}
+                                    </Button>
+                                </div>
+                            </CardContent>
+                        )}
+                    </Card>
                 </div>
             </div>
+        </div>
 
-            {/* Group Dialog */}
-            <Dialog open={groupModalOpen} onOpenChange={setGroupModalOpen}>
+        {/* Group Dialog */}
+        <Dialog open={groupModalOpen} onOpenChange={setGroupModalOpen}>
                 <DialogContent>
                     <DialogHeader>
                         <DialogTitle>{editingGroup ? 'Edit Group / Chapter' : groupParentId ? 'Add Subgroup' : 'Add Chapter / Section'}</DialogTitle>
@@ -926,20 +1518,6 @@ export default function FormShow({
                                         </Label>
                                     </div>
 
-                                    {/* Numeric Input Checkbox */}
-                                    <div className="flex items-center gap-2.5">
-                                        <input
-                                            type="checkbox"
-                                            id="chk_number"
-                                            checked={questionHasNumber}
-                                            onChange={(e) => setQuestionHasNumber(e.target.checked)}
-                                            className="h-4 w-4 rounded border-gray-300 text-primary focus:ring-primary cursor-pointer"
-                                        />
-                                        <Label htmlFor="chk_number" className="cursor-pointer text-xs font-normal text-foreground flex items-center gap-1.5">
-                                            <Hash className="size-3.5 text-muted-foreground shrink-0" />
-                                            <span>Numeric Input (measurements, counts, pressure)</span>
-                                        </Label>
-                                    </div>
 
                                     {/* File Input Checkbox */}
                                     <div className="flex items-center gap-2.5">

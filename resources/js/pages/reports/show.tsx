@@ -11,6 +11,8 @@ import {
     ChevronRight,
     CloudOff,
     Edit2,
+    ExternalLink,
+    File,
     FileCheck,
     FileText,
     HelpCircle,
@@ -27,8 +29,10 @@ import {
     Ship,
     SlidersHorizontal,
     Trash2,
+    Upload,
     Users,
     WifiOff,
+    X,
 } from 'lucide-react';
 import React, { useCallback, useEffect, useMemo, useRef, useState } from 'react';
 import Heading from '@/components/heading';
@@ -141,6 +145,30 @@ export interface FindingData {
     updated_at?: string;
 }
 
+export interface SummarySchemaTextField {
+    key: string;
+    label: string;
+    placeholder?: string;
+    rows?: number;
+    span?: 'full' | 'half';
+    description?: string;
+}
+
+export interface SummarySchemaRatingOption {
+    value: string;
+    label: string;
+    color?: string;
+}
+
+export interface SummarySchema {
+    enabled: boolean;
+    title?: string;
+    has_ratings_matrix?: boolean;
+    rating_options?: SummarySchemaRatingOption[];
+    text_fields?: SummarySchemaTextField[];
+    has_findings_register?: boolean;
+}
+
 export interface ReportData {
     id: number;
     report_type: 'inspection' | 'audit';
@@ -173,6 +201,7 @@ export interface ReportData {
         code: string;
         name: string;
         answer_set: string;
+        summary_schema?: SummarySchema | null;
     };
     vessel_type?: {
         id: number;
@@ -180,6 +209,13 @@ export interface ReportData {
     } | null;
     groups: ChapterData[];
     findings?: FindingData[];
+    summary_ratings?: Record<string, 'very_good' | 'satisfactory' | 'unsatisfactory'> | null;
+    summary_comments_no?: string | null;
+    summary_safety_meetings?: string | null;
+    summary_participants?: string | null;
+    summary_concept_understanding?: string | null;
+    summary_training_needs?: string | null;
+    summary_data?: Record<string, string> | null;
 }
 
 function formatDate(dateStr: string | null | undefined): string {
@@ -222,8 +258,26 @@ export default function ReportDataEntry({
     // Question edit conflicts state (NFR-15): questionId -> ConflictData
     const [conflicts, setConflicts] = useState<Record<number, ConflictData>>({});
 
-    // Current Active Chapter (0 = 1. General Information & Particulars, >0 = Form Groups)
-    const [activeChapterId, setActiveChapterId] = useState<number>(0);
+    // Current Active Chapter (0 = 1. General Information & Particulars, >0 = Form Groups, -15 = Summary of Observations)
+    const [activeChapterId, setActiveChapterId] = useState<number>(() => {
+        if (typeof window === 'undefined') return 0;
+        try {
+            const urlParams = new URLSearchParams(window.location.search);
+            const urlChapter = urlParams.get('chapter');
+            if (urlChapter !== null) {
+                const parsed = parseInt(urlChapter, 10);
+                if (!isNaN(parsed)) return parsed;
+            }
+            const saved = localStorage.getItem(`report_${report.id}_active_chapter`);
+            if (saved !== null) {
+                const parsed = parseInt(saved, 10);
+                if (!isNaN(parsed)) return parsed;
+            }
+        } catch {
+            // fallback
+        }
+        return 0;
+    });
 
     // Filter states (Task 3.2: unanswered filter, search-jump)
     const [showUnansweredOnly, setShowUnansweredOnly] = useState(false);
@@ -374,14 +428,36 @@ export default function ReportDataEntry({
         [report.groups]
     );
 
-    const navChapters = useMemo(
-        () => [
+    const summarySchema: SummarySchema = useMemo(() => {
+        if (report.form.summary_schema) {
+            return report.form.summary_schema;
+        }
+        return {
+            enabled: true,
+            title: report.form.code === 'B-008' ? 'Audit Summary & NCRs' : 'Summary & Observations',
+            has_ratings_matrix: report.form.code === 'D-062',
+            has_findings_register: true,
+        };
+    }, [report.form.summary_schema, report.form.code]);
+
+    const summaryChapterNo = String(otherChapters.length + 2);
+    const summaryChapterTitle = summarySchema.title || 'Summary & Observations';
+
+    const navChapters = useMemo(() => {
+        const list = [
             { id: 0, title: 'General Information & Particulars', chapter_no: '1', sort_order: 1 },
             ...otherChapters,
-            { id: -15, title: 'Summary of Observations', chapter_no: '15', sort_order: 15 },
-        ],
-        [otherChapters]
-    );
+        ];
+        if (summarySchema.enabled !== false) {
+            list.push({
+                id: -999,
+                title: summaryChapterTitle,
+                chapter_no: summaryChapterNo,
+                sort_order: list.length + 1,
+            });
+        }
+        return list;
+    }, [otherChapters, summarySchema, summaryChapterTitle, summaryChapterNo]);
 
     const currentChapterIdx = navChapters.findIndex((c) => c.id === activeChapterId);
     const prevChapter = currentChapterIdx > 0 ? navChapters[currentChapterIdx - 1] : null;
@@ -749,10 +825,31 @@ export default function ReportDataEntry({
             await flushPendingComments(activeChapterId);
         }
         setActiveChapterId(targetChapterId);
+        try {
+            localStorage.setItem(`report_${report.id}_active_chapter`, String(targetChapterId));
+            const url = new URL(window.location.href);
+            url.searchParams.set('chapter', String(targetChapterId));
+            window.history.replaceState(null, '', url.toString());
+        } catch {
+            // ignore
+        }
         if (mainContentRef.current) {
             mainContentRef.current.scrollTo({ top: 0, behavior: 'smooth' });
         }
     };
+
+    // Keep URL in sync on mount / change
+    useEffect(() => {
+        try {
+            const url = new URL(window.location.href);
+            if (url.searchParams.get('chapter') !== String(activeChapterId)) {
+                url.searchParams.set('chapter', String(activeChapterId));
+                window.history.replaceState(null, '', url.toString());
+            }
+        } catch {
+            // ignore
+        }
+    }, [activeChapterId]);
 
     // Filter questions based on search & unanswered filter
     const filterQuestion = (q: QuestionData): boolean => {
@@ -823,7 +920,7 @@ export default function ReportDataEntry({
                                     </Badge>
                                 </div>
                                 <p className="text-[11px] text-muted-foreground truncate">
-                                    Inspection Date: {formatDate(report.report_date)} • Template v{report.template_version}
+                                    Inspection Date: {formatDate(report.report_date)} • {report.form.code} v{report.template_version}
                                 </p>
                             </div>
                         </div>
@@ -1050,46 +1147,56 @@ export default function ReportDataEntry({
                             );
                         })}
 
-                        {/* Chapter 15: Summary of Observations (Task 4.1, Form D-062) */}
-                        <button
-                            type="button"
-                            onClick={() => handleChapterSwitch(-15)}
-                            className={`w-full text-left rounded-lg p-3 transition-all flex flex-col gap-1.5 ${
-                                activeChapterId === -15
-                                    ? 'bg-card border-2 border-primary shadow-xs ring-1 ring-primary/20'
-                                    : 'border border-transparent hover:bg-card/70'
-                            }`}
-                        >
-                            <div className="flex items-start justify-between gap-2">
-                                <div className="flex items-center gap-1.5 min-w-0">
-                                    <ShieldAlert className="size-4 text-primary shrink-0" />
-                                    <span className="font-semibold text-xs text-foreground truncate">
-                                        15. Summary of Observations
-                                    </span>
+                        {/* Dynamic Summary Chapter (Schema-Driven, Task 4.1) */}
+                        {summarySchema.enabled !== false && (
+                            <button
+                                type="button"
+                                onClick={() => handleChapterSwitch(-999)}
+                                className={`w-full text-left rounded-lg p-3 transition-all flex flex-col gap-1.5 ${
+                                    activeChapterId === -999 || activeChapterId === -15
+                                        ? 'bg-card border-2 border-primary shadow-xs ring-1 ring-primary/20'
+                                        : 'border border-transparent hover:bg-card/70'
+                                }`}
+                            >
+                                <div className="flex items-start justify-between gap-2">
+                                    <div className="flex items-center gap-1.5 min-w-0">
+                                        <ShieldAlert className="size-4 text-primary shrink-0" />
+                                        <span className="font-semibold text-xs text-foreground truncate">
+                                            {summaryChapterNo}. {summaryChapterTitle}
+                                        </span>
+                                    </div>
+                                    {summarySchema.has_findings_register !== false && (
+                                        <Badge variant={findings.length > 0 ? 'destructive' : 'secondary'} className="text-[10px] shrink-0 font-mono">
+                                            {findings.length}
+                                        </Badge>
+                                    )}
                                 </div>
-                                <Badge variant={findings.length > 0 ? 'destructive' : 'secondary'} className="text-[10px] shrink-0 font-mono">
-                                    {findings.length}
-                                </Badge>
-                            </div>
-                            <div className="text-[11px] text-muted-foreground pl-5 truncate flex items-center gap-1.5">
-                                {findings.filter((f) => f.risk === 'high').length > 0 && (
-                                    <span className="text-rose-600 font-bold bg-rose-50 dark:bg-rose-950 px-1 rounded text-[10px]">
-                                        {findings.filter((f) => f.risk === 'high').length} High
-                                    </span>
-                                )}
-                                {findings.filter((f) => f.risk === 'medium').length > 0 && (
-                                    <span className="text-amber-600 font-bold bg-amber-50 dark:bg-amber-950 px-1 rounded text-[10px]">
-                                        {findings.filter((f) => f.risk === 'medium').length} Med
-                                    </span>
-                                )}
-                                {findings.filter((f) => f.risk === 'low').length > 0 && (
-                                    <span className="text-emerald-600 font-bold bg-emerald-50 dark:bg-emerald-950 px-1 rounded text-[10px]">
-                                        {findings.filter((f) => f.risk === 'low').length} Low
-                                    </span>
-                                )}
-                                {findings.length === 0 && 'Deficiencies & Risk Ratings'}
-                            </div>
-                        </button>
+                                <div className="text-[11px] text-muted-foreground pl-5 truncate flex items-center gap-1.5">
+                                    {summarySchema.has_findings_register !== false ? (
+                                        <>
+                                            {findings.filter((f) => f.risk === 'high').length > 0 && (
+                                                <span className="text-rose-600 font-bold bg-rose-50 dark:bg-rose-950 px-1 rounded text-[10px]">
+                                                    {findings.filter((f) => f.risk === 'high').length} High
+                                                </span>
+                                            )}
+                                            {findings.filter((f) => f.risk === 'medium').length > 0 && (
+                                                <span className="text-amber-600 font-bold bg-amber-50 dark:bg-amber-950 px-1 rounded text-[10px]">
+                                                    {findings.filter((f) => f.risk === 'medium').length} Med
+                                                </span>
+                                            )}
+                                            {findings.filter((f) => f.risk === 'low').length > 0 && (
+                                                <span className="text-emerald-600 font-bold bg-emerald-50 dark:bg-emerald-950 px-1 rounded text-[10px]">
+                                                    {findings.filter((f) => f.risk === 'low').length} Low
+                                                </span>
+                                            )}
+                                            {findings.length === 0 && (summarySchema.has_ratings_matrix ? 'Ratings & Observations' : 'Findings & Deficiencies')}
+                                        </>
+                                    ) : (
+                                        'Executive Summary & Assessment'
+                                    )}
+                                </div>
+                            </button>
+                        )}
                     </aside>
 
                     {/* Right Main Content Area: General Information or Group Form */}
@@ -1123,11 +1230,12 @@ export default function ReportDataEntry({
                                 onOverwriteAnswer={handleOverwriteAnswer}
                                 filterQuestion={filterQuestion}
                             />
-                        ) : activeChapterId === -15 ? (
+                        ) : activeChapterId === -999 || activeChapterId === -15 ? (
                             <ObservationsSection
                                 report={report}
                                 isEditable={is_editable}
                                 findings={findings}
+                                chapterStats={chapterStats}
                                 onAddFinding={handleAddFinding}
                                 onUpdateFinding={handleUpdateFinding}
                                 onDeleteFinding={handleDeleteFinding}
@@ -1137,29 +1245,6 @@ export default function ReportDataEntry({
                             />
                         ) : activeChapter ? (
                             <div className="max-w-4xl mx-auto space-y-6">
-                                {/* VSAT Offline Buffer Banner (NFR-2) */}
-                                {pendingQueueCount > 0 && (
-                                    <div className="rounded-lg border border-amber-200 bg-amber-50/90 p-3 text-xs text-amber-900 dark:border-amber-900/60 dark:bg-amber-950/40 dark:text-amber-300 flex items-center justify-between gap-3 shadow-xs">
-                                        <div className="flex items-center gap-2.5">
-                                            <CloudOff className="size-4 text-amber-600 shrink-0" />
-                                            <span>
-                                                <strong>VSAT Offline Buffer:</strong> {pendingQueueCount} change(s) stored locally in browser IndexedDB. Will auto-sync when connection restores.
-                                            </span>
-                                        </div>
-                                        <Button
-                                            size="sm"
-                                            variant="outline"
-                                            type="button"
-                                            onClick={triggerManualQueueFlush}
-                                            disabled={isFlushingQueue}
-                                            className="h-7 text-xs border-amber-300 dark:border-amber-800 hover:bg-amber-100 dark:hover:bg-amber-900/60 shrink-0"
-                                        >
-                                            <RefreshCw className={`size-3 mr-1.5 ${isFlushingQueue ? 'animate-spin' : ''}`} />
-                                            Retry Sync
-                                        </Button>
-                                    </div>
-                                )}
-
                                 {/* Chapter Title Banner */}
                                 <div className="border-b pb-4">
                                     <div className="flex items-center gap-2 mb-1">
@@ -1199,6 +1284,7 @@ export default function ReportDataEntry({
                                         {activeChapter.questions.filter(filterQuestion).map((q) => (
                                             <QuestionAnswerCard
                                                 key={q.id}
+                                                reportId={report.id}
                                                 question={q}
                                                 currentAnswer={answers[q.id]}
                                                 isB008={isB008}
@@ -1252,6 +1338,7 @@ export default function ReportDataEntry({
                                                         {visibleQuestions.map((q) => (
                                                             <QuestionAnswerCard
                                                                 key={q.id}
+                                                                reportId={report.id}
                                                                 question={q}
                                                                 currentAnswer={answers[q.id]}
                                                                 isB008={isB008}
@@ -1894,6 +1981,7 @@ function GeneralInfoSection({
                         {attendanceSubgroup.questions.filter(filterQuestion).map((q) => (
                             <QuestionAnswerCard
                                 key={q.id}
+                                reportId={report.id}
                                 question={q}
                                 currentAnswer={answers[q.id]}
                                 isB008={isB008}
@@ -1932,11 +2020,12 @@ function GeneralInfoSection({
     );
 }
 
-// Subcomponent: Chapter 15 Summary of Observations (Form D-062 §15, Task 4.1)
+// Subcomponent: Dynamic Schema-Driven Summary & Observations Chapter (Task 4.1, FM-7b)
 function ObservationsSection({
     report,
     isEditable,
     findings,
+    chapterStats,
     onAddFinding,
     onUpdateFinding,
     onDeleteFinding,
@@ -1947,6 +2036,10 @@ function ObservationsSection({
     report: ReportData;
     isEditable: boolean;
     findings: FindingData[];
+    chapterStats?: Record<
+        number,
+        { total: number; applicable: number; answered: number; noCount: number; nsCount: number }
+    >;
     onAddFinding: (data: Partial<FindingData>) => Promise<void>;
     onUpdateFinding: (id: number, data: Partial<FindingData>) => Promise<void>;
     onDeleteFinding: (id: number) => Promise<void>;
@@ -1954,6 +2047,139 @@ function ObservationsSection({
     nextChapter?: { id: number; title: string; chapter_no?: string | null; sort_order?: number } | null;
     onChapterSwitch: (targetId: number) => void;
 }) {
+    const summarySchema: SummarySchema = useMemo(() => {
+        if (report.form.summary_schema) {
+            return report.form.summary_schema;
+        }
+        return {
+            enabled: true,
+            title: report.form.code === 'B-008' ? 'Audit Summary & NCRs' : 'Summary & Observations',
+            has_ratings_matrix: report.form.code === 'D-062',
+            has_findings_register: true,
+        };
+    }, [report.form.summary_schema, report.form.code]);
+
+    // --- Report Summary State & Autosave ---
+    const [summaryRatings, setSummaryRatings] = useState<Record<string, string>>(
+        report.summary_ratings || {}
+    );
+
+    // Dynamic key-value summary data dictionary
+    const [summaryData, setSummaryData] = useState<Record<string, string>>(() => {
+        const initial: Record<string, string> = { ...(report.summary_data || {}) };
+        if (report.summary_comments_no && !initial.summary_comments_no) {
+            initial.summary_comments_no = report.summary_comments_no;
+        }
+        if (report.summary_safety_meetings && !initial.summary_safety_meetings) {
+            initial.summary_safety_meetings = report.summary_safety_meetings;
+        }
+        if (report.summary_participants && !initial.summary_participants) {
+            initial.summary_participants = report.summary_participants;
+        }
+        if (report.summary_concept_understanding && !initial.summary_concept_understanding) {
+            initial.summary_concept_understanding = report.summary_concept_understanding;
+        }
+        if (report.summary_training_needs && !initial.summary_training_needs) {
+            initial.summary_training_needs = report.summary_training_needs;
+        }
+        return initial;
+    });
+
+    const [summarySaveStatus, setSummarySaveStatus] = useState<'saved' | 'saving' | 'error'>('saved');
+    const summaryDebounceTimer = useRef<ReturnType<typeof setTimeout> | null>(null);
+
+    const saveSummaryToServer = async (payload: {
+        summary_ratings?: Record<string, string>;
+        summary_data?: Record<string, string>;
+        summary_comments_no?: string;
+        summary_safety_meetings?: string;
+        summary_participants?: string;
+        summary_concept_understanding?: string;
+        summary_training_needs?: string;
+    }) => {
+        setSummarySaveStatus('saving');
+        try {
+            const res = await fetch(`/reports/${report.id}/summary`, {
+                method: 'PUT',
+                headers: {
+                    'Content-Type': 'application/json',
+                    Accept: 'application/json',
+                    ...csrfHeaders(),
+                    'X-Requested-With': 'XMLHttpRequest',
+                },
+                body: JSON.stringify(payload),
+            });
+            if (res.ok) {
+                setSummarySaveStatus('saved');
+            } else {
+                setSummarySaveStatus('error');
+            }
+        } catch {
+            setSummarySaveStatus('error');
+        }
+    };
+
+    const triggerDebouncedSave = (updatedData: Record<string, string>) => {
+        if (summaryDebounceTimer.current) clearTimeout(summaryDebounceTimer.current);
+        summaryDebounceTimer.current = setTimeout(() => {
+            saveSummaryToServer({
+                summary_ratings: summaryRatings,
+                summary_data: updatedData,
+                summary_comments_no: updatedData.summary_comments_no,
+                summary_safety_meetings: updatedData.summary_safety_meetings,
+                summary_participants: updatedData.summary_participants,
+                summary_concept_understanding: updatedData.summary_concept_understanding,
+                summary_training_needs: updatedData.summary_training_needs,
+            });
+        }, 1200);
+    };
+
+    const handleRatingChange = (chKey: string, ratingVal: string) => {
+        if (!isEditable) return;
+        const newRatings: Record<string, string> = { ...summaryRatings };
+        if (newRatings[chKey] === ratingVal) {
+            delete newRatings[chKey];
+        } else {
+            newRatings[chKey] = ratingVal;
+        }
+        setSummaryRatings(newRatings);
+        saveSummaryToServer({
+            summary_ratings: newRatings,
+            summary_data: summaryData,
+            summary_comments_no: summaryData.summary_comments_no,
+            summary_safety_meetings: summaryData.summary_safety_meetings,
+            summary_participants: summaryData.summary_participants,
+            summary_concept_understanding: summaryData.summary_concept_understanding,
+            summary_training_needs: summaryData.summary_training_needs,
+        });
+    };
+
+    const handleFieldChange = (key: string, val: string) => {
+        const next = { ...summaryData, [key]: val };
+        setSummaryData(next);
+        triggerDebouncedSave(next);
+    };
+
+    // Default rating options if not explicitly specified in schema
+    const ratingOptions = useMemo(() => {
+        if (summarySchema.rating_options && summarySchema.rating_options.length > 0) {
+            return summarySchema.rating_options;
+        }
+        return [
+            { value: 'very_good', label: 'Very Good' },
+            { value: 'satisfactory', label: 'Satisfactory' },
+            { value: 'unsatisfactory', label: 'Unsatisfactory' },
+        ];
+    }, [summarySchema.rating_options]);
+
+    // Chapters list for the rating matrix derived dynamically from report groups
+    const ratingGroups = useMemo(() => {
+        return report.groups.filter(
+            (g) => g.chapter_no !== '1' && g.title !== 'General Information'
+        );
+    }, [report.groups]);
+
+    // --- Observations Table State ---
     const [isDialogOpen, setIsDialogOpen] = useState(false);
     const [editingFinding, setEditingFinding] = useState<FindingData | null>(null);
     const [isDeletingId, setIsDeletingId] = useState<number | null>(null);
@@ -2040,21 +2266,43 @@ function ObservationsSection({
         }));
 
     return (
-        <div className="max-w-5xl mx-auto space-y-6">
+        <div className="max-w-5xl mx-auto space-y-8">
             {/* Header Banner */}
             <div className="border-b pb-4">
                 <div className="flex items-center gap-2 mb-1">
                     <Badge variant="outline" className="text-xs font-mono">
-                        Chapter 15
+                        {summarySchema.title || 'Summary & Observations'}
                     </Badge>
                     <Badge variant="secondary" className="text-xs font-mono">
                         {report.form.code}
                     </Badge>
+                    <span className="text-xs text-muted-foreground ml-auto flex items-center gap-1.5">
+                        {summarySaveStatus === 'saving' && (
+                            <>
+                                <Loader2 className="size-3.5 text-primary animate-spin" />
+                                <span className="text-[11px] font-medium">Saving summary...</span>
+                            </>
+                        )}
+                        {summarySaveStatus === 'saved' && (
+                            <>
+                                <CheckCircle2 className="size-3.5 text-emerald-500" />
+                                <span className="text-[11px] font-medium text-emerald-600 dark:text-emerald-400">
+                                    Summary Saved
+                                </span>
+                            </>
+                        )}
+                        {summarySaveStatus === 'error' && (
+                            <>
+                                <AlertCircle className="size-3.5 text-rose-500" />
+                                <span className="text-[11px] font-medium text-rose-600">Save failed</span>
+                            </>
+                        )}
+                    </span>
                 </div>
                 <div className="flex items-center justify-between gap-3 flex-wrap">
                     <div className="flex items-center gap-3 flex-wrap">
                         <h1 className="text-2xl font-bold tracking-tight text-foreground">
-                            Summary of Observations
+                            {summarySchema.title || 'Summary & Observations'}
                         </h1>
                         {prevChapter && (
                             <Button
@@ -2069,6 +2317,172 @@ function ObservationsSection({
                             </Button>
                         )}
                     </div>
+                </div>
+                <p className="text-xs text-muted-foreground mt-1">
+                    {report.form.name} summary assessment, executive evaluation, and observations register.
+                </p>
+            </div>
+
+            {/* ========================================================================= */}
+            {/* SECTION 1: REPORT SUMMARY - RATINGS MATRIX (DYNAMIC)                       */}
+            {/* ========================================================================= */}
+            {summarySchema.has_ratings_matrix && (
+                <Card className="border shadow-xs">
+                    <CardHeader className="pb-3 border-b bg-muted/20">
+                        <div className="flex items-center justify-between">
+                            <div>
+                                <CardTitle className="text-base font-semibold">
+                                    Chapter Performance Ratings Matrix
+                                </CardTitle>
+                                <CardDescription className="text-xs">
+                                    Overall assessment rating per chapter based on checklist results and onboard findings.
+                                </CardDescription>
+                            </div>
+                            <Badge variant="outline" className="text-[11px] font-mono">
+                                {report.form.code}
+                            </Badge>
+                        </div>
+                    </CardHeader>
+                    <CardContent className="p-0">
+                        <div className="overflow-x-auto">
+                            <table className="w-full text-left text-xs border-collapse">
+                                <thead className="bg-muted/50 border-b border-border text-[11px] font-semibold text-muted-foreground uppercase tracking-wider">
+                                    <tr>
+                                        <th className="py-2.5 px-3 w-12 text-center">Ch.</th>
+                                        <th className="py-2.5 px-3 min-w-[220px]">Chapter Title</th>
+                                        <th className="py-2.5 px-3 w-32 text-center">Deficiency Flags</th>
+                                        <th className="py-2.5 px-3 min-w-[300px] text-center">Rating</th>
+                                    </tr>
+                                </thead>
+                                <tbody className="divide-y divide-border/60">
+                                    {ratingGroups.map((grp) => {
+                                        const stats = chapterStats ? chapterStats[grp.id] : null;
+                                        const chKey = `chapter_${grp.chapter_no || grp.id}`;
+                                        const currentRating = summaryRatings[chKey];
+
+                                        return (
+                                            <tr key={grp.id} className="hover:bg-muted/20 transition-colors">
+                                                <td className="py-2.5 px-3 text-center font-mono font-semibold text-muted-foreground">
+                                                    {grp.chapter_no || grp.sort_order}
+                                                </td>
+                                                <td className="py-2.5 px-3 font-medium text-foreground">
+                                                    {grp.title}
+                                                </td>
+                                                <td className="py-2.5 px-3 text-center">
+                                                    {stats && (stats.noCount > 0 || stats.nsCount > 0) ? (
+                                                        <div className="flex items-center justify-center gap-1.5">
+                                                            {stats.noCount > 0 && (
+                                                                <span className="font-bold text-rose-600 bg-rose-50 dark:bg-rose-950 px-1.5 py-0.5 rounded text-[10px]">
+                                                                    {stats.noCount} No
+                                                                </span>
+                                                            )}
+                                                            {stats.nsCount > 0 && (
+                                                                <span className="font-bold text-amber-600 bg-amber-50 dark:bg-amber-950 px-1.5 py-0.5 rounded text-[10px]">
+                                                                    {stats.nsCount} NS
+                                                                </span>
+                                                            )}
+                                                        </div>
+                                                    ) : (
+                                                        <span className="text-muted-foreground/60 text-[11px]">—</span>
+                                                    )}
+                                                </td>
+                                                <td className="py-2.5 px-3">
+                                                    <div className="flex items-center justify-center gap-1.5">
+                                                        {ratingOptions.map((opt) => {
+                                                            const isSelected = currentRating === opt.value;
+                                                            return (
+                                                                <button
+                                                                    key={opt.value}
+                                                                    type="button"
+                                                                    disabled={!isEditable}
+                                                                    onClick={() => handleRatingChange(chKey, opt.value)}
+                                                                    className={`px-2.5 py-1 rounded text-[11px] font-semibold transition-all border ${
+                                                                        isSelected
+                                                                            ? opt.value === 'very_good'
+                                                                                ? 'bg-emerald-600 text-white border-emerald-600 shadow-xs ring-1 ring-emerald-500'
+                                                                                : opt.value === 'satisfactory'
+                                                                                ? 'bg-blue-600 text-white border-blue-600 shadow-xs ring-1 ring-blue-500'
+                                                                                : 'bg-rose-600 text-white border-rose-600 shadow-xs ring-1 ring-rose-500'
+                                                                            : 'bg-background hover:bg-muted/60 text-muted-foreground border-border'
+                                                                    } ${isEditable ? 'cursor-pointer' : 'cursor-default opacity-80'}`}
+                                                                >
+                                                                    {opt.label}
+                                                                </button>
+                                                            );
+                                                        })}
+                                                    </div>
+                                                </td>
+                                            </tr>
+                                        );
+                                    })}
+                                </tbody>
+                            </table>
+                        </div>
+                    </CardContent>
+                </Card>
+            )}
+
+            {/* ========================================================================= */}
+            {/* SECTION 2: REPORT SUMMARY - DYNAMIC EXECUTIVE TEXTAREAS                   */}
+            {/* ========================================================================= */}
+            {summarySchema.text_fields && summarySchema.text_fields.length > 0 && (
+                <Card className="border shadow-xs">
+                    <CardHeader className="pb-3 border-b bg-muted/20">
+                        <CardTitle className="text-base font-semibold">
+                            Executive Summary & Evaluation
+                        </CardTitle>
+                        <CardDescription className="text-xs">
+                            Review notes, general observations, and executive comments for this {report.form.name}.
+                        </CardDescription>
+                    </CardHeader>
+                    <CardContent className="p-4 sm:p-6">
+                        <div className="grid grid-cols-1 md:grid-cols-2 gap-5">
+                            {summarySchema.text_fields.map((field) => {
+                                const isFull = field.span === 'full' || !field.span;
+                                return (
+                                    <div
+                                        key={field.key}
+                                        className={`space-y-1.5 ${isFull ? 'md:col-span-2' : 'md:col-span-1'}`}
+                                    >
+                                        <Label
+                                            htmlFor={`sum_${field.key}`}
+                                            className="text-xs font-semibold text-foreground flex items-center justify-between"
+                                        >
+                                            <span>{field.label}</span>
+                                            <span className="text-[11px] text-muted-foreground font-normal">Autosaved</span>
+                                        </Label>
+                                        {field.description && (
+                                            <p className="text-[11px] text-muted-foreground">{field.description}</p>
+                                        )}
+                                        <textarea
+                                            id={`sum_${field.key}`}
+                                            rows={field.rows || 3}
+                                            disabled={!isEditable}
+                                            value={summaryData[field.key] || ''}
+                                            onChange={(e) => handleFieldChange(field.key, e.target.value)}
+                                            placeholder={field.placeholder || `Enter ${field.label}...`}
+                                            className="w-full rounded-md border border-input bg-transparent px-3 py-2 text-xs shadow-xs placeholder:text-muted-foreground focus-visible:outline-none focus-visible:ring-1 focus-visible:ring-ring disabled:opacity-60 leading-relaxed"
+                                        />
+                                    </div>
+                                );
+                            })}
+                        </div>
+                    </CardContent>
+                </Card>
+            )}
+
+            {/* ========================================================================= */}
+            {/* SECTION 3: SUMMARY OF OBSERVATIONS TABLE                                  */}
+            {/* ========================================================================= */}
+            {summarySchema.has_findings_register !== false && (
+                <div className="space-y-4">
+                    <div className="flex items-center justify-between gap-3 flex-wrap">
+                    <div>
+                        <h2 className="text-lg font-bold text-foreground">Summary of Observations</h2>
+                        <p className="text-xs text-muted-foreground">
+                            Specific deficiencies, condition notes, and observation records to be included in the inspection report.
+                        </p>
+                    </div>
 
                     {isEditable && (
                         <Button
@@ -2082,155 +2496,145 @@ function ObservationsSection({
                         </Button>
                     )}
                 </div>
-                <p className="text-xs text-muted-foreground mt-1">
-                    Deficiencies, non-conformities, and observations identified during inspection (Form D-062 §15).
-                </p>
-            </div>
 
-            {/* Severity & Totals Metrics */}
-            <div className="grid grid-cols-2 md:grid-cols-4 gap-3">
-                <Card className="bg-card border shadow-2xs p-3">
-                    <div className="text-xs text-muted-foreground font-medium">Total Observations</div>
-                    <div className="text-2xl font-bold text-foreground mt-0.5">{findings.length}</div>
-                </Card>
-                <Card className="bg-rose-50/50 border-rose-200 dark:bg-rose-950/20 dark:border-rose-900 shadow-2xs p-3">
-                    <div className="text-xs text-rose-700 dark:text-rose-400 font-medium">High Risk</div>
-                    <div className="text-2xl font-bold text-rose-700 dark:text-rose-400 mt-0.5">{highCount}</div>
-                </Card>
-                <Card className="bg-amber-50/50 border-amber-200 dark:bg-amber-950/20 dark:border-amber-900 shadow-2xs p-3">
-                    <div className="text-xs text-amber-700 dark:text-amber-400 font-medium">Medium Risk</div>
-                    <div className="text-2xl font-bold text-amber-700 dark:text-amber-400 mt-0.5">{medCount}</div>
-                </Card>
-                <Card className="bg-emerald-50/50 border-emerald-200 dark:bg-emerald-950/20 dark:border-emerald-900 shadow-2xs p-3">
-                    <div className="text-xs text-emerald-700 dark:text-emerald-400 font-medium">Low Risk</div>
-                    <div className="text-2xl font-bold text-emerald-700 dark:text-emerald-400 mt-0.5">{lowCount}</div>
-                </Card>
-            </div>
+                {/* Severity & Totals Metrics */}
+                <div className="grid grid-cols-2 md:grid-cols-4 gap-3">
+                    <Card className="bg-card border shadow-2xs p-3">
+                        <div className="text-xs text-muted-foreground font-medium">Total Observations</div>
+                        <div className="text-2xl font-bold text-foreground mt-0.5">{findings.length}</div>
+                    </Card>
+                    <Card className="bg-rose-50/50 border-rose-200 dark:bg-rose-950/20 dark:border-rose-900 shadow-2xs p-3">
+                        <div className="text-xs text-rose-700 dark:text-rose-400 font-medium">High Risk</div>
+                        <div className="text-2xl font-bold text-rose-700 dark:text-rose-400 mt-0.5">{highCount}</div>
+                    </Card>
+                    <Card className="bg-amber-50/50 border-amber-200 dark:bg-amber-950/20 dark:border-amber-900 shadow-2xs p-3">
+                        <div className="text-xs text-amber-700 dark:text-amber-400 font-medium">Medium Risk</div>
+                        <div className="text-2xl font-bold text-amber-700 dark:text-amber-400 mt-0.5">{medCount}</div>
+                    </Card>
+                    <Card className="bg-emerald-50/50 border-emerald-200 dark:bg-emerald-950/20 dark:border-emerald-900 shadow-2xs p-3">
+                        <div className="text-xs text-emerald-700 dark:text-emerald-400 font-medium">Low Risk</div>
+                        <div className="text-2xl font-bold text-emerald-700 dark:text-emerald-400 mt-0.5">{lowCount}</div>
+                    </Card>
+                </div>
 
-            {/* Observations Table */}
-            <Card className="border shadow-xs">
-                <CardHeader className="pb-3 flex flex-row items-center justify-between">
-                    <div>
-                        <CardTitle className="text-base font-semibold">15. Summary of Observations Table</CardTitle>
-                        <CardDescription className="text-xs">
-                            Formal observation records to be included in the inspection report output.
-                        </CardDescription>
-                    </div>
-                </CardHeader>
-                <CardContent className="p-0">
-                    {findings.length === 0 ? (
-                        <div className="text-center py-12 px-4 space-y-3">
-                            <ShieldAlert className="size-10 text-muted-foreground/50 mx-auto" />
-                            <div className="space-y-1">
-                                <p className="text-sm font-medium text-foreground">No observations recorded yet</p>
-                                <p className="text-xs text-muted-foreground">
-                                    Click the button below to add an observation row for any defects found during attendance.
-                                </p>
+                {/* Observations Table */}
+                <Card className="border shadow-xs">
+                    <CardContent className="p-0">
+                        {findings.length === 0 ? (
+                            <div className="text-center py-12 px-4 space-y-3">
+                                <ShieldAlert className="size-10 text-muted-foreground/50 mx-auto" />
+                                <div className="space-y-1">
+                                    <p className="text-sm font-medium text-foreground">No observations recorded yet</p>
+                                    <p className="text-xs text-muted-foreground">
+                                        Click the button below to add an observation row for any defects found during attendance.
+                                    </p>
+                                </div>
+                                {isEditable && (
+                                    <Button
+                                        type="button"
+                                        variant="outline"
+                                        size="sm"
+                                        onClick={openAddDialog}
+                                        className="gap-1.5"
+                                    >
+                                        <Plus className="size-3.5" />
+                                        <span>Add Observation Row</span>
+                                    </Button>
+                                )}
                             </div>
-                            {isEditable && (
-                                <Button
-                                    type="button"
-                                    variant="outline"
-                                    size="sm"
-                                    onClick={openAddDialog}
-                                    className="gap-1.5"
-                                >
-                                    <Plus className="size-3.5" />
-                                    <span>Add Observation Row</span>
-                                </Button>
-                            )}
-                        </div>
-                    ) : (
-                        <div className="overflow-x-auto">
-                            <table className="w-full text-left text-xs border-collapse">
-                                <thead className="bg-muted/50 border-y border-border/80 text-[11px] font-semibold text-muted-foreground uppercase tracking-wider">
-                                    <tr>
-                                        <th className="py-2.5 px-3 w-10 text-center">#</th>
-                                        <th className="py-2.5 px-3 min-w-[140px]">Chapter</th>
-                                        <th className="py-2.5 px-3 min-w-[90px]">VIQ** Para</th>
-                                        <th className="py-2.5 px-3 min-w-[280px]">Observation Description</th>
-                                        <th className="py-2.5 px-3 min-w-[100px] text-center">Risk Mitigation*</th>
-                                        <th className="py-2.5 px-3 min-w-[100px]">Job Order No.</th>
-                                        {isEditable && <th className="py-2.5 px-3 w-20 text-right">Actions</th>}
-                                    </tr>
-                                </thead>
-                                <tbody className="divide-y divide-border/60">
-                                    {findings.map((f, idx) => (
-                                        <tr key={f.id} className="hover:bg-muted/20 transition-colors">
-                                            <td className="py-3 px-3 text-center text-muted-foreground font-mono">
-                                                {idx + 1}
-                                            </td>
-                                            <td className="py-3 px-3 font-medium text-foreground">
-                                                {f.chapter_label || '—'}
-                                            </td>
-                                            <td className="py-3 px-3 font-mono text-muted-foreground">
-                                                {f.viq_paragraph || '—'}
-                                            </td>
-                                            <td className="py-3 px-3 text-foreground whitespace-pre-line leading-relaxed">
-                                                {f.description}
-                                            </td>
-                                            <td className="py-3 px-3 text-center">
-                                                {f.risk === 'high' && (
-                                                    <Badge className="bg-rose-500 hover:bg-rose-600 text-white text-[10px] uppercase font-bold">
-                                                        High
-                                                    </Badge>
-                                                )}
-                                                {f.risk === 'medium' && (
-                                                    <Badge className="bg-amber-500 hover:bg-amber-600 text-white text-[10px] uppercase font-bold">
-                                                        Medium
-                                                    </Badge>
-                                                )}
-                                                {f.risk === 'low' && (
-                                                    <Badge className="bg-emerald-600 hover:bg-emerald-700 text-white text-[10px] uppercase font-bold">
-                                                        Low
-                                                    </Badge>
-                                                )}
-                                                {!f.risk && <span className="text-muted-foreground">—</span>}
-                                            </td>
-                                            <td className="py-3 px-3 font-mono text-xs text-muted-foreground">
-                                                {f.job_order_no || '—'}
-                                            </td>
-                                            {isEditable && (
-                                                <td className="py-3 px-3 text-right whitespace-nowrap">
-                                                    <div className="flex items-center justify-end gap-1">
-                                                        <Button
-                                                            type="button"
-                                                            variant="ghost"
-                                                            size="icon"
-                                                            className="h-7 w-7 text-muted-foreground hover:text-foreground cursor-pointer"
-                                                            onClick={() => openEditDialog(f)}
-                                                            title="Edit observation"
-                                                        >
-                                                            <Edit2 className="size-3.5" />
-                                                        </Button>
-                                                        <Button
-                                                            type="button"
-                                                            variant="ghost"
-                                                            size="icon"
-                                                            className="h-7 w-7 text-muted-foreground hover:text-destructive cursor-pointer"
-                                                            onClick={() => setIsDeletingId(f.id)}
-                                                            title="Delete observation"
-                                                        >
-                                                            <Trash2 className="size-3.5" />
-                                                        </Button>
-                                                    </div>
-                                                </td>
-                                            )}
+                        ) : (
+                            <div className="overflow-x-auto">
+                                <table className="w-full text-left text-xs border-collapse">
+                                    <thead className="bg-muted/50 border-y border-border/80 text-[11px] font-semibold text-muted-foreground uppercase tracking-wider">
+                                        <tr>
+                                            <th className="py-2.5 px-3 w-10 text-center">#</th>
+                                            <th className="py-2.5 px-3 min-w-[140px]">Chapter</th>
+                                            <th className="py-2.5 px-3 min-w-[90px]">VIQ** Para</th>
+                                            <th className="py-2.5 px-3 min-w-[280px]">Observation Description</th>
+                                            <th className="py-2.5 px-3 min-w-[100px] text-center">Risk Mitigation*</th>
+                                            <th className="py-2.5 px-3 min-w-[100px]">Job Order No.</th>
+                                            {isEditable && <th className="py-2.5 px-3 w-20 text-right">Actions</th>}
                                         </tr>
-                                    ))}
-                                </tbody>
-                            </table>
-                        </div>
-                    )}
-                </CardContent>
-            </Card>
+                                    </thead>
+                                    <tbody className="divide-y divide-border/60">
+                                        {findings.map((f, idx) => (
+                                            <tr key={f.id} className="hover:bg-muted/20 transition-colors">
+                                                <td className="py-3 px-3 text-center text-muted-foreground font-mono">
+                                                    {idx + 1}
+                                                </td>
+                                                <td className="py-3 px-3 font-medium text-foreground">
+                                                    {f.chapter_label || '—'}
+                                                </td>
+                                                <td className="py-3 px-3 font-mono text-muted-foreground">
+                                                    {f.viq_paragraph || '—'}
+                                                </td>
+                                                <td className="py-3 px-3 text-foreground whitespace-pre-line leading-relaxed">
+                                                    {f.description}
+                                                </td>
+                                                <td className="py-3 px-3 text-center">
+                                                    {f.risk === 'high' && (
+                                                        <Badge className="bg-rose-500 hover:bg-rose-600 text-white text-[10px] uppercase font-bold">
+                                                            High
+                                                        </Badge>
+                                                    )}
+                                                    {f.risk === 'medium' && (
+                                                        <Badge className="bg-amber-500 hover:bg-amber-600 text-white text-[10px] uppercase font-bold">
+                                                            Medium
+                                                        </Badge>
+                                                    )}
+                                                    {f.risk === 'low' && (
+                                                        <Badge className="bg-emerald-600 hover:bg-emerald-700 text-white text-[10px] uppercase font-bold">
+                                                            Low
+                                                        </Badge>
+                                                    )}
+                                                    {!f.risk && <span className="text-muted-foreground">—</span>}
+                                                </td>
+                                                <td className="py-3 px-3 font-mono text-xs text-muted-foreground">
+                                                    {f.job_order_no || '—'}
+                                                </td>
+                                                {isEditable && (
+                                                    <td className="py-3 px-3 text-right whitespace-nowrap">
+                                                        <div className="flex items-center justify-end gap-1">
+                                                            <Button
+                                                                type="button"
+                                                                variant="ghost"
+                                                                size="icon"
+                                                                className="h-7 w-7 text-muted-foreground hover:text-foreground cursor-pointer"
+                                                                onClick={() => openEditDialog(f)}
+                                                                title="Edit observation"
+                                                            >
+                                                                <Edit2 className="size-3.5" />
+                                                            </Button>
+                                                            <Button
+                                                                type="button"
+                                                                variant="ghost"
+                                                                size="icon"
+                                                                className="h-7 w-7 text-muted-foreground hover:text-destructive cursor-pointer"
+                                                                onClick={() => setIsDeletingId(f.id)}
+                                                                title="Delete observation"
+                                                            >
+                                                                <Trash2 className="size-3.5" />
+                                                            </Button>
+                                                        </div>
+                                                    </td>
+                                                )}
+                                            </tr>
+                                        ))}
+                                    </tbody>
+                                </table>
+                            </div>
+                        )}
+                    </CardContent>
+                </Card>
 
-            {/* Note block from Form D-062 */}
-            <div className="rounded-md bg-muted/40 border p-3 text-[11px] text-muted-foreground space-y-1">
-                <p><strong>Note:</strong> Add or remove lines respectively.</p>
-                <p><strong>*</strong>Against a <strong>LOW – MEDIUM – HIGH</strong> severity range.</p>
-                <p><strong>**</strong>Enter relevant reference number from VIQ checklist, or cross-reference to any other Industry standard, which appears not adequately implemented.</p>
+                {/* Note block from Form D-062 */}
+                <div className="rounded-md bg-muted/40 border p-3 text-[11px] text-muted-foreground space-y-1">
+                    <p><strong>Note:</strong> Add or remove lines respectively.</p>
+                    <p><strong>*</strong>Against a <strong>LOW – MEDIUM – HIGH</strong> severity range.</p>
+                    <p><strong>**</strong>Enter relevant reference number from VIQ checklist, or cross-reference to any other Industry standard, which appears not adequately implemented.</p>
+                </div>
             </div>
+            )}
 
             {/* Next Chapter Navigation */}
             {nextChapter && onChapterSwitch && (
@@ -2365,6 +2769,7 @@ function ObservationsSection({
                                 onClick={() => setIsDialogOpen(false)}
                                 disabled={isSubmitting}
                             >
+                                <X className="size-3.5 mr-1" />
                                 Cancel
                             </Button>
                             <Button type="submit" size="sm" disabled={isSubmitting}>
@@ -2457,9 +2862,6 @@ function getQuestionInputMeta(question: QuestionData): { label: string; placehol
     if (question.input_type === 'date' || question.input_type === 'date_only') {
         return { label: 'DATE:', placeholder: 'Select date...' };
     }
-    if (question.input_type === 'number') {
-        return { label: 'VALUE:', placeholder: 'Enter number...' };
-    }
     if (question.input_type === 'file' || question.input_type === 'file_only') {
         return { label: 'ATTACHMENT / FILE REFERENCE:', placeholder: 'Enter file name, document ID, or upload reference...' };
     }
@@ -2469,7 +2871,7 @@ function getQuestionInputMeta(question: QuestionData): { label: string; placehol
 export function parseQuestionInputType(inputType: string) {
     const raw = (inputType || 'none').toLowerCase().trim();
     if (raw === 'none') {
-        return { hasChoices: true, hasText: false, hasDate: false, hasNumber: false, hasFile: false };
+        return { hasChoices: true, hasText: false, hasDate: false, hasFile: false };
     }
     const tokens = raw.split(',').map((t) => t.trim());
     const isPureOnly = tokens.some((t) => t.endsWith('_only'));
@@ -2479,13 +2881,29 @@ export function parseQuestionInputType(inputType: string) {
         hasChoices,
         hasText: tokens.includes('text') || tokens.includes('text_only'),
         hasDate: tokens.includes('date') || tokens.includes('date_only'),
-        hasNumber: tokens.includes('number') || tokens.includes('number_only'),
         hasFile: tokens.includes('file') || tokens.includes('file_only'),
     };
 }
 
+export function formatExtraDisplay(raw: string): string {
+    if (!raw) return '';
+    if (raw.startsWith('{')) {
+        try {
+            const parsed = JSON.parse(raw) as Record<string, string>;
+            return Object.entries(parsed)
+                .filter(([_, v]) => Boolean(v))
+                .map(([k, v]) => `${k.toUpperCase()}: ${v}`)
+                .join(', ');
+        } catch {
+            return raw;
+        }
+    }
+    return raw;
+}
+
 // Subcomponent: Individual Question Answer Row (Task 3.3, 3.6)
 function QuestionAnswerCard({
+    reportId,
     question,
     currentAnswer,
     isB008,
@@ -2500,6 +2918,7 @@ function QuestionAnswerCard({
     onAcceptServerAnswer,
     onOverwriteAnswer,
 }: {
+    reportId: number;
     question: QuestionData;
     currentAnswer?: AnswerData;
     isB008: boolean;
@@ -2518,7 +2937,7 @@ function QuestionAnswerCard({
     const isLockedNA = !question.is_applicable;
     const flags = parseQuestionInputType(question.input_type);
     const isPureInput = !flags.hasChoices;
-    const extraCount = (flags.hasDate ? 1 : 0) + (flags.hasFile ? 1 : 0) + ((flags.hasText || flags.hasNumber) ? 1 : 0);
+    const extraCount = (flags.hasDate ? 1 : 0) + (flags.hasFile ? 1 : 0) + (flags.hasText ? 1 : 0);
     const hasAnyExtra = extraCount > 0;
     const inputMeta = getQuestionInputMeta(question);
 
@@ -2526,6 +2945,10 @@ function QuestionAnswerCard({
     const [extraBuffer, setExtraBuffer] = useState(currentAnswer?.extra_value || '');
     const extraDebounceTimer = useRef<ReturnType<typeof setTimeout> | null>(null);
     const lastSavedExtra = useRef(currentAnswer?.extra_value || '');
+    const extraBufferRef = useRef(extraBuffer);
+    extraBufferRef.current = extraBuffer;
+    const onSaveExtraValueRef = useRef(onSaveExtraValue);
+    onSaveExtraValueRef.current = onSaveExtraValue;
 
     useEffect(() => {
         setExtraBuffer(currentAnswer?.extra_value || '');
@@ -2560,8 +2983,11 @@ function QuestionAnswerCard({
                 return { text: raw };
             }
         }
-        if (flags.hasDate && !flags.hasFile && !flags.hasText && !flags.hasNumber) return { date: raw };
-        if (flags.hasFile && !flags.hasDate && !flags.hasText && !flags.hasNumber) return { file: raw };
+        if (/^\d{4}-\d{2}-\d{2}$/.test(raw.trim())) {
+            return { date: raw.trim() };
+        }
+        if (flags.hasDate && !flags.hasFile && !flags.hasText) return { date: raw };
+        if (flags.hasFile && !flags.hasDate && !flags.hasText) return { file: raw };
         return { text: raw };
     };
 
@@ -2604,15 +3030,90 @@ function QuestionAnswerCard({
         onSelectAnswer(target ?? '');
     };
 
+    // Unmount-only flush (empty dependency array so it does NOT fire on every keystroke)
     useEffect(() => {
         return () => {
             if (extraDebounceTimer.current) clearTimeout(extraDebounceTimer.current);
             if (undoTimerRef.current) clearTimeout(undoTimerRef.current);
-            if (extraBuffer !== lastSavedExtra.current) {
-                onSaveExtraValue(extraBuffer);
+            if (extraBufferRef.current !== lastSavedExtra.current) {
+                lastSavedExtra.current = extraBufferRef.current;
+                onSaveExtraValueRef.current(extraBufferRef.current);
             }
         };
-    }, [extraBuffer, onSaveExtraValue]);
+    }, []);
+
+    const fileInputRef = useRef<HTMLInputElement | null>(null);
+    const [isUploadingFile, setIsUploadingFile] = useState(false);
+
+    const handleFileUpload = async (e: React.ChangeEvent<HTMLInputElement>) => {
+        const files = e.target.files;
+        if (!files || files.length === 0) return;
+        const file = files[0];
+        setIsUploadingFile(true);
+
+        const formData = new FormData();
+        formData.append('file', file);
+
+        try {
+            const res = await fetch(`/reports/${reportId}/questions/${question.id}/attachment`, {
+                method: 'POST',
+                headers: {
+                    Accept: 'application/json',
+                    ...csrfHeaders(),
+                    'X-Requested-With': 'XMLHttpRequest',
+                },
+                body: formData,
+            });
+
+            const fileName = res.ok ? ((await res.json()).name || file.name) : file.name;
+
+            if (extraCount <= 1 && flags.hasFile && !flags.hasDate && !flags.hasText) {
+                setExtraBuffer(fileName);
+                lastSavedExtra.current = fileName;
+                if (extraDebounceTimer.current) clearTimeout(extraDebounceTimer.current);
+                onSaveExtraValue(fileName);
+            } else {
+                const current = parseExtraData(extraBuffer);
+                const next = { ...current, file: fileName };
+                const newExtra = JSON.stringify(next);
+                setExtraBuffer(newExtra);
+                lastSavedExtra.current = newExtra;
+                if (extraDebounceTimer.current) clearTimeout(extraDebounceTimer.current);
+                onSaveExtraValue(newExtra);
+            }
+        } catch {
+            // If upload network fails, still preserve file name locally
+            const fileName = file.name;
+            const current = parseExtraData(extraBuffer);
+            const next = { ...current, file: fileName };
+            const newExtra = JSON.stringify(next);
+            setExtraBuffer(newExtra);
+            lastSavedExtra.current = newExtra;
+            if (extraDebounceTimer.current) clearTimeout(extraDebounceTimer.current);
+            onSaveExtraValue(newExtra);
+        } finally {
+            setIsUploadingFile(false);
+            if (fileInputRef.current) fileInputRef.current.value = '';
+        }
+    };
+
+    const handleRemoveFile = () => {
+        if (extraCount <= 1 && flags.hasFile && !flags.hasDate && !flags.hasText) {
+            setExtraBuffer('');
+            lastSavedExtra.current = '';
+            if (extraDebounceTimer.current) clearTimeout(extraDebounceTimer.current);
+            onSaveExtraValue('');
+        } else {
+            const current = parseExtraData(extraBuffer);
+            const next = { ...current, file: '' };
+            const hasAny = Object.values(next).some((v) => Boolean(v && v.trim()));
+            const newExtra = hasAny ? JSON.stringify(next) : '';
+            setExtraBuffer(newExtra);
+            lastSavedExtra.current = newExtra;
+            if (extraDebounceTimer.current) clearTimeout(extraDebounceTimer.current);
+            onSaveExtraValue(newExtra);
+        }
+    };
 
     return (
         <div
@@ -2723,12 +3224,12 @@ function QuestionAnswerCard({
                 </div>
             </div>
 
-            {/* Additional Input Fields (Text, Date, Number, File) */}
+            {/* Additional Input Fields (Date, File Attachment, Text/Remarks) */}
             {hasAnyExtra && (
                 <div className="mt-3 pt-2.5 border-t border-border/40 space-y-3">
-                    <div className="grid gap-3 sm:grid-cols-2">
+                    <div className="flex flex-wrap items-end gap-3">
                         {flags.hasDate && (
-                            <div className="space-y-1">
+                            <div className="space-y-1 w-44 shrink-0">
                                 <Label className="text-xs text-muted-foreground font-medium flex items-center gap-1.5">
                                     <Calendar className="size-3.5 text-primary shrink-0" />
                                     <span>Date:</span>
@@ -2745,31 +3246,70 @@ function QuestionAnswerCard({
                         )}
 
                         {flags.hasFile && (
-                            <div className="space-y-1">
+                            <div className="space-y-1 min-w-[220px] flex-1">
                                 <Label className="text-xs text-muted-foreground font-medium flex items-center gap-1.5">
                                     <Paperclip className="size-3.5 text-primary shrink-0" />
-                                    <span>Attachment / File Reference:</span>
+                                    <span>File / Attachment:</span>
                                 </Label>
-                                <Input
-                                    type="text"
-                                    value={getFieldValue('file')}
-                                    disabled={!isEditable || isLockedNA}
-                                    onChange={(e) => setFieldValue('file', e.target.value)}
-                                    onBlur={flushExtra}
-                                    className="h-8 text-xs w-full bg-background"
-                                    placeholder="Enter document / certificate reference or file name..."
+
+                                <input
+                                    type="file"
+                                    ref={fileInputRef}
+                                    onChange={handleFileUpload}
+                                    className="hidden"
+                                    disabled={!isEditable || isLockedNA || isUploadingFile}
                                 />
+
+                                {getFieldValue('file') ? (
+                                    <div className="flex items-center gap-2 rounded-md border bg-muted/40 px-2.5 py-1 text-xs h-8">
+                                        <File className="size-3.5 text-primary shrink-0" />
+                                        <span className="font-medium text-foreground truncate max-w-[220px]" title={getFieldValue('file')}>
+                                            {getFieldValue('file')}
+                                        </span>
+                                        {isEditable && !isLockedNA && (
+                                            <button
+                                                type="button"
+                                                onClick={handleRemoveFile}
+                                                className="ml-auto text-muted-foreground hover:text-destructive p-0.5 cursor-pointer"
+                                                title="Remove file"
+                                            >
+                                                <X className="size-3.5" />
+                                            </button>
+                                        )}
+                                    </div>
+                                ) : (
+                                    <Button
+                                        type="button"
+                                        variant="outline"
+                                        size="sm"
+                                        disabled={!isEditable || isLockedNA || isUploadingFile}
+                                        onClick={() => fileInputRef.current?.click()}
+                                        className="h-8 text-xs gap-1.5 w-full justify-start text-muted-foreground hover:text-foreground"
+                                    >
+                                        {isUploadingFile ? (
+                                            <>
+                                                <Loader2 className="size-3.5 animate-spin text-primary" />
+                                                <span>Uploading file...</span>
+                                            </>
+                                        ) : (
+                                            <>
+                                                <Upload className="size-3.5 text-primary" />
+                                                <span>Choose File / Document to Attach</span>
+                                            </>
+                                        )}
+                                    </Button>
+                                )}
                             </div>
                         )}
 
-                        {(flags.hasText || flags.hasNumber) && (
-                            <div className={`space-y-1 ${flags.hasDate && flags.hasFile ? 'sm:col-span-2' : ''}`}>
+                        {flags.hasText && (
+                            <div className="space-y-1 w-full">
                                 <Label className="text-xs text-muted-foreground font-medium flex items-center gap-1.5">
                                     <FileText className="size-3.5 text-primary shrink-0" />
                                     <span>{inputMeta.label}</span>
                                 </Label>
                                 <Input
-                                    type={flags.hasNumber && !flags.hasText ? 'number' : 'text'}
+                                    type="text"
                                     value={getFieldValue('text')}
                                     disabled={!isEditable || isLockedNA}
                                     onChange={(e) => setFieldValue('text', e.target.value)}
@@ -2815,7 +3355,7 @@ function QuestionAnswerCard({
                                         {conflict.server_answer.answer || 'Unanswered'}
                                     </Badge>
                                     {conflict.server_answer.note ? ` — Note: "${conflict.server_answer.note}"` : ''}
-                                    {conflict.server_answer.extra_value ? ` — Extra: "${conflict.server_answer.extra_value}"` : ''}
+                                    {conflict.server_answer.extra_value ? ` — Details: "${formatExtraDisplay(conflict.server_answer.extra_value)}"` : ''}
                                 </div>
                             </div>
                         </div>

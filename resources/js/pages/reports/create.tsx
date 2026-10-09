@@ -183,7 +183,7 @@ export default function ReportCreate({
                                         <div className="mt-3 flex items-center gap-2 text-xs text-muted-foreground">
                                             <span>Paper: {f.form_version}</span>
                                             <span>•</span>
-                                            <span>Template: v{f.template_version}</span>
+                                            <span>{f.code} v{f.template_version}</span>
                                         </div>
                                     </div>
                                 ))}

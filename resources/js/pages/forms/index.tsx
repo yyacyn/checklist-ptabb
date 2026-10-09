@@ -42,7 +42,7 @@ export default function FormsIndex({ forms }: Props) {
                                     </Badge>
                                     <div className="flex items-center gap-2">
                                         <Badge variant="secondary">Paper {form.form_version}</Badge>
-                                        <Badge variant="default">Template v{form.template_version}</Badge>
+                                        <Badge variant="default">{form.code} v{form.template_version}</Badge>
                                     </div>
                                 </div>
                                 <CardTitle className="mt-3 text-xl">{form.name}</CardTitle>

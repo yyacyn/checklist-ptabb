@@ -621,5 +621,107 @@ class ReportDataEntryTest extends TestCase
         $this->assertEquals($rowVersion1, $rowVersion2);
         $this->assertEquals(1, ReportAnswer::where('report_question_id', $question->id)->count());
     }
+
+    public function test_user_can_update_report_summary(): void
+    {
+        $user = User::factory()->create([
+            'role' => 'corporate',
+            'is_active' => true,
+        ]);
+
+        $form = Form::where('code', 'D-062')->firstOrFail();
+
+        $report = app(ReportSnapshot::class)->createReport($form, [
+            'vessel_name' => 'MV Summary Test',
+            'report_date' => now()->toDateString(),
+            'created_by' => $user->id,
+            'status' => 'draft',
+        ]);
+
+        $payload = [
+            'summary_ratings' => [
+                'chapter_1' => 'very_good',
+                'chapter_2' => 'satisfactory',
+                'chapter_3' => 'unsatisfactory',
+            ],
+            'summary_comments_no' => 'Remarks on deficiency items.',
+            'summary_safety_meetings' => 'Held safety meeting on bridge.',
+            'summary_participants' => 'Master, Chief Engineer, Chief Officer.',
+            'summary_concept_understanding' => 'Good safety awareness observed.',
+            'summary_training_needs' => 'Lifeboat drill training required.',
+        ];
+
+        $response = $this->actingAs($user)
+            ->putJson(route('reports.summary.update', $report->id), $payload);
+
+        $response->assertOk()
+            ->assertJson([
+                'status' => 'saved',
+                'report' => [
+                    'summary_ratings' => [
+                        'chapter_1' => 'very_good',
+                        'chapter_2' => 'satisfactory',
+                        'chapter_3' => 'unsatisfactory',
+                    ],
+                    'summary_comments_no' => 'Remarks on deficiency items.',
+                    'summary_safety_meetings' => 'Held safety meeting on bridge.',
+                    'summary_participants' => 'Master, Chief Engineer, Chief Officer.',
+                    'summary_concept_understanding' => 'Good safety awareness observed.',
+                    'summary_training_needs' => 'Lifeboat drill training required.',
+                ],
+            ]);
+
+        $report->refresh();
+        $this->assertEquals($payload['summary_ratings'], $report->summary_ratings);
+        $this->assertEquals('Remarks on deficiency items.', $report->summary_comments_no);
+        $this->assertEquals('Held safety meeting on bridge.', $report->summary_safety_meetings);
+        $this->assertEquals('Master, Chief Engineer, Chief Officer.', $report->summary_participants);
+        $this->assertEquals('Good safety awareness observed.', $report->summary_concept_understanding);
+        $this->assertEquals('Lifeboat drill training required.', $report->summary_training_needs);
+    }
+
+    public function test_user_can_update_schema_driven_summary_data_on_audit_report(): void
+    {
+        $user = User::factory()->create([
+            'role' => 'vessel',
+            'vessel_name' => 'MV Oceanic Star',
+            'is_active' => true,
+        ]);
+
+        $form = Form::where('code', 'B-008')->firstOrFail();
+
+        $report = app(ReportSnapshot::class)->createReport($form, [
+            'vessel_name' => 'MV Oceanic Star',
+            'report_date' => now()->toDateString(),
+            'created_by' => $user->id,
+            'status' => 'draft',
+        ]);
+
+        $payload = [
+            'summary_data' => [
+                'summary_auditors_comments_positive' => 'Bridge team showed outstanding compliance with passage planning SMS checklist.',
+                'summary_auditors_comments_negative' => 'Engine room oil record book entries had minor timestamp inconsistencies.',
+            ],
+        ];
+
+        $response = $this->actingAs($user)
+            ->putJson(route('reports.summary.update', $report->id), $payload);
+
+        $response->assertOk()
+            ->assertJson([
+                'status' => 'saved',
+                'report' => [
+                    'summary_data' => [
+                        'summary_auditors_comments_positive' => 'Bridge team showed outstanding compliance with passage planning SMS checklist.',
+                        'summary_auditors_comments_negative' => 'Engine room oil record book entries had minor timestamp inconsistencies.',
+                    ],
+                ],
+            ]);
+
+        $report->refresh();
+        $this->assertEquals($payload['summary_data'], $report->summary_data);
+    }
 }
+
+
 

@@ -76,6 +76,13 @@ use Illuminate\Database\Eloquent\SoftDeletes;
     'drydock_last_date',
     'drydock_next_date',
     'operations',
+    'summary_ratings',
+    'summary_comments_no',
+    'summary_safety_meetings',
+    'summary_participants',
+    'summary_concept_understanding',
+    'summary_training_needs',
+    'summary_data',
     'delete_reason',
 ])]
 class Report extends Model
@@ -124,6 +131,8 @@ class Report extends Model
             'drydock_last_date' => 'date:Y-m-d',
             'drydock_next_date' => 'date:Y-m-d',
             'operations' => 'array',
+            'summary_ratings' => 'array',
+            'summary_data' => 'array',
             'current_version' => 'integer',
             'submitted_at' => 'datetime',
             'closed_at' => 'datetime',
