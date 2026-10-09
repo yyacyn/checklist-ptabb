@@ -118,26 +118,27 @@ This is the phase users feel. Budget it properly.
 | # | Task | Ref |
 | --- | --- | --- |
 | 4.1 | **Schema-Driven Summary Chapter & Findings**: (1) Dynamic `forms.summary_schema` defining form-specific summary layout (ratings matrix, custom executive textareas, findings register, custom titles), (2) Observation rows CRUD (Chapter, VIQ, Description, Risk Level High/Med/Low, Job Order No.), (3) Flexible `reports.summary_data` (JSON) storage with debounced autosave, (4) In-tree Summary Chapter Builder in Form Editor | **done**: dynamic schema configuration on `Form`, in-tree summary chapter card in Form Editor (`forms/show.tsx`), dynamic summary renderer in `reports/show.tsx`, `findings` table, `FindingController`, `updateSummary` endpoint, ActivityLog audit (INS-10, INS-11, INS-12, FND-1, INS-9, AUD-9, FM-7b) |
-| 4.2 | Findings list per vessel name with filters, scoped by role | FND-2 |
-| 4.3 | Evidence placeholders, wired for real in Phase 5 | PHO-5 |
+| 4.2 | Findings list per vessel name with filters, scoped by role | **done**: centralized Findings Register (`/findings`), role-scoping for vessel users (`SRS §2.1`), filters (vessel, risk, status, form, dates, search), KPI summary cards, sidebar navigation (FND-2) |
+| 4.3 | Photo & Evidence schema: `photos` entity with report, question, and finding relations; schema-driven Photo Chapter definition on forms | PHO-0, PHO-2, PHO-5 |
 
 ---
 
-## Phase 5 — Photos (8 to 10 days)
+## Phase 5 — Photo Chapter & Photographic Records Engine (8 to 10 days)
 
 | # | Task | Ref |
 | --- | --- | --- |
-| 5.1 | Category CRUD, seeded with the seven categories | §8.1 |
-| 5.2 | Capture and multi-upload with the browser queue: queued, uploading, processing, done, failed, retry | PHO-1, IMG-7 |
-| 5.3 | Client resize and orientation fix, longest edge 2000 px, quality 80 | IMG-2 |
-| 5.4 | HEIC conversion in the browser; unsupported files refused with a message | IMG-2a, IMG-4 |
-| 5.5 | Upload endpoint: 20–25 MB accepted, checksum, dedupe | IMG-1 |
-| 5.6 | Queued optimiser job: auto-orient, resize, recompress, strip metadata, 400 px thumbnail, discard original | IMG-3, IMG-5, IMG-6 |
-| 5.7 | Gallery with vessel, category, date and report filters; role scoping | PHO-4, PHO-8 |
-| 5.8 | Attach to question or finding in one action | PHO-5, AUD-10 |
-| 5.9 | Chapter 16 selection by the inspector | PHO-6, REP-3 |
-| 5.10 | Soft delete with reason, locked at `submitted` | PHO-7, RLS-4 |
-| 5.11 | Tests against the S3 numbers | IMG-8 |
+| 5.1 | Photo Category CRUD (Hull, Deck, Engine Room, Bridge, Navigational, Safety, Room, etc.), seeded with standard categories | §8.1 |
+| 5.2 | **In-Tree Photo Chapter Builder in Form Editor**: Superadmin can attach and configure a dedicated Photo Chapter (e.g., Chapter 16 Photographic Records in D-062, or custom photo chapter in any form) with custom title and instructions | PHO-0 |
+| 5.3 | **Multi-Photo Structured Form & Upload Queue**: User can upload multiple photos with structured inputs (Number, Title/Caption, Category, Description/Remarks) in the Photo Chapter and reports | PHO-1, IMG-7 |
+| 5.4 | Client-side image resize & auto-orient (longest edge 2000 px, quality 80) to protect VSAT satellite bandwidth | IMG-2 |
+| 5.5 | In-browser HEIC to JPEG conversion for mobile Safari / iOS photos; clear rejection for unsupported files | IMG-2a, IMG-4 |
+| 5.6 | Upload API endpoint: 20–25 MB client accept, checksum deduplication, and payload protection | IMG-1 |
+| 5.7 | Queued optimizer job: auto-orient, recompress, metadata strip, 400 px thumbnail generation | IMG-3, IMG-5, IMG-6 |
+| 5.8 | **Fleet Photo Gallery (`/photos`)**: Browse, search, and filter photos by vessel, category, date, and report; role-scoped for vessel users | PHO-4, PHO-8 |
+| 5.9 | **Cross-Form Attachment**: 1-click attach/link photo records to checklist questions (as evidence) or findings (as defect/closeout proof) | PHO-5, AUD-10 |
+| 5.10 | Chapter 16 Photo ordering and selection by inspector for PDF export appendix | PHO-6, REP-3 |
+| 5.11 | Soft delete with reason, photo record locking at `submitted` status | PHO-7, RLS-4 |
+| 5.12 | Comprehensive test suite (upload limits, multi-upload queues, thumbnail generation, role scoping) | IMG-8 |
 
 ---
 

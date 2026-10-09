@@ -1,5 +1,5 @@
 import { Link, usePage } from '@inertiajs/react';
-import { BookOpen, ClipboardList, FolderGit2, LayoutGrid } from 'lucide-react';
+import { BookOpen, ClipboardList, FolderGit2, LayoutGrid, ShieldAlert } from 'lucide-react';
 import AppLogo from '@/components/app-logo';
 import { NavFooter } from '@/components/nav-footer';
 import { NavMain } from '@/components/nav-main';
@@ -44,6 +44,11 @@ export function AppSidebar() {
             title: 'Reports & Audits',
             href: '/reports',
             icon: ClipboardList,
+        },
+        {
+            title: 'Findings Register',
+            href: '/findings',
+            icon: ShieldAlert,
         },
         ...(isSuperadmin
             ? [

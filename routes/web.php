@@ -26,7 +26,8 @@ Route::middleware(['auth', 'verified'])->group(function () {
     Route::post('reports/{report}/lock', [ReportController::class, 'acquireLock'])->name('reports.lock.acquire');
     Route::delete('reports/{report}/lock', [ReportController::class, 'releaseLock'])->name('reports.lock.release');
 
-    // Findings & Chapter 15 Summary of Observations (Task 4.1)
+    // Findings & Chapter 15 Summary of Observations (Task 4.1, 4.2)
+    Route::get('findings', [FindingController::class, 'index'])->name('findings.index');
     Route::post('reports/{report}/findings', [FindingController::class, 'store'])->name('reports.findings.store');
     Route::put('reports/{report}/findings/{finding}', [FindingController::class, 'update'])->name('reports.findings.update');
     Route::delete('reports/{report}/findings/{finding}', [FindingController::class, 'destroy'])->name('reports.findings.destroy');

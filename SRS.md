@@ -252,7 +252,7 @@ Note on the audit design: B-008 is built around independent auditors and auditee
 
 ---
 
-## 8. Photographic records
+## 8. Photographic records & Photo Chapters
 
 ### 8.1 Categories
 
@@ -268,15 +268,21 @@ Managed by the superadmin (add, rename, disable). Seeded with:
 
 "Room condition" has no matching section in the forms, so it is a photo-only category. Which room it is goes in the photo's location field (free text, see PHO-2).
 
-### 8.2 Requirements
+### 8.2 Requirements & Photo Form Architecture
 
-- PHO-1: Capture from the phone camera or upload from the device. Multiple photos per upload.
-- PHO-2: Each photo has a vessel name, a category, and a caption. The vessel name comes from the report the photo is taken for, or is typed when a photo is uploaded on its own. Optional links: an inspection or audit, a specific question, a finding, and a location on the ship (free text, for example "port side aft").
-- PHO-3: Capture time and uploader are recorded automatically and cannot be edited.
-- PHO-4: Gallery filtered by vessel name, category, date range, and report.
-- PHO-5: Photos attach to findings as evidence in one action.
-- PHO-6: For an inspection, the inspector chooses which photos go into chapter 16 of the PDF. Photos are grouped by category with captions. Audit findings can include photos as an appendix.
-- PHO-7: When a report is submitted, its photos are locked (see the lifecycle in section 10). Before that, deletion is a soft delete and is logged.
+- PHO-0: **Photo Chapter Component in Form Templates**: Superadmin can attach a dedicated Photo Chapter (e.g. Chapter 16 Photographic Records in D-062, or a custom Photo Chapter in B-008 and new forms) into any Form Template via the Form Editor. The chapter configuration defines chapter title, instructions, and default categories.
+- PHO-1: **Multi-Photo Upload & Structured Entry**: Users can upload multiple photos at once. Each photo entry captures:
+  - Resized and compressed image file (with preview and thumbnail)
+  - Number / Title / Caption (e.g., `1. Emergency Fire Pump Pressure Gauge`)
+  - Category (from active categories list)
+  - Description / Remarks (free text for context or defect details)
+  - Vessel Name & Inspection Date (auto-inherited from current report, or entered on standalone uploads)
+- PHO-2: Each photo record is a reusable first-class entity. Optional links: an inspection or audit report (as Chapter 16 / Photo Chapter), a specific checklist question (as question evidence), a finding/observation (as defect proof or close-out verification), and a location on the ship (free text, e.g. "Upper deck port side aft").
+- PHO-3: Capture time, file metadata, and uploader are recorded automatically in `activity_log` and cannot be edited.
+- PHO-4: Centralized Fleet Photo Gallery (`/photos`) filtered by vessel name, category, date range, and report.
+- PHO-5: Photos attach/link to findings and question answers in one action from the Photo Library or direct upload.
+- PHO-6: For inspection and audit reports, photos in the Photo Chapter are rendered sequentially with their numbers, titles, and descriptions, and printed in the PDF appendix.
+- PHO-7: When a report is submitted, its attached photos are locked (see the lifecycle in section 10). Before that, deletion is a soft delete and is logged.
 - PHO-8: Vessel Users can only upload and view photos whose vessel name matches their own account (section 2.1). Corporate Users see all.
 
 ### 8.3 Image optimizer
