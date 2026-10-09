@@ -16,7 +16,7 @@ import {
     X,
 } from 'lucide-react';
 import React, { useState, useRef } from 'react';
-import { compressImage } from '@/lib/image-compressor';
+import { compressImage, formatFileSize } from '@/lib/image-compressor';
 import { Badge } from '@/components/ui/badge';
 import { Button } from '@/components/ui/button';
 import { Card, CardContent, CardHeader, CardTitle } from '@/components/ui/card';
@@ -125,13 +125,16 @@ export function PhotoChapterSection({
     const handleUploadForSlot = async (slotNo: number, slotTitle: string, file: File) => {
         setIsUploading(true);
         setUploadingSlot(slotNo);
-        setUploadProgress(`Compressing and uploading photo for ${slotTitle}...`);
+        setUploadProgress(`Optimizing photo for "${slotTitle}"...`);
 
         try {
-            const { file: optimizedFile } = await compressImage(file, {
+            const { file: optimizedFile, originalSize, compressedSize, savingsPercent } = await compressImage(file, {
                 maxEdge: 2000,
                 quality: 0.8,
+                onStatus: (status) => setUploadProgress(status),
             });
+
+            setUploadProgress(`Uploading ${formatFileSize(compressedSize)} (${savingsPercent}% saved)...`);
 
             const formData = new FormData();
             formData.append('file', optimizedFile);
@@ -150,7 +153,8 @@ export function PhotoChapterSection({
             });
 
             if (!response.ok) {
-                throw new Error(`Upload failed with status ${response.status}`);
+                const errData = await response.json().catch(() => null);
+                throw new Error(errData?.message || `Upload failed with status ${response.status}`);
             }
 
             const data = await response.json();
@@ -166,9 +170,9 @@ export function PhotoChapterSection({
                 setPhotoList(updatedList);
                 onPhotosChange?.(updatedList);
             }
-        } catch (err) {
+        } catch (err: any) {
             console.error('Upload error:', err);
-            alert('Failed to upload photo. Please try again.');
+            alert(err?.message || 'Failed to upload photo. Please try again.');
         } finally {
             setIsUploading(false);
             setUploadingSlot(null);
@@ -184,13 +188,16 @@ export function PhotoChapterSection({
         if (!addFile || !addTitle.trim()) return;
 
         setIsUploading(true);
-        setUploadProgress('Compressing and uploading photo...');
+        setUploadProgress('Optimizing image for VSAT bandwidth...');
 
         try {
-            const { file: optimizedFile } = await compressImage(addFile, {
+            const { file: optimizedFile, compressedSize, savingsPercent } = await compressImage(addFile, {
                 maxEdge: 2000,
                 quality: 0.8,
+                onStatus: (status) => setUploadProgress(status),
             });
+
+            setUploadProgress(`Uploading ${formatFileSize(compressedSize)} (${savingsPercent}% saved)...`);
 
             const nextItemNo = photoList.length + 1;
             const formData = new FormData();
@@ -210,7 +217,8 @@ export function PhotoChapterSection({
             });
 
             if (!response.ok) {
-                throw new Error(`Upload failed with status ${response.status}`);
+                const errData = await response.json().catch(() => null);
+                throw new Error(errData?.message || `Upload failed with status ${response.status}`);
             }
 
             const data = await response.json();
@@ -222,9 +230,9 @@ export function PhotoChapterSection({
                 setAddTitle('');
                 setAddFile(null);
             }
-        } catch (err) {
+        } catch (err: any) {
             console.error('Photo upload error:', err);
-            alert('Failed to upload photo.');
+            alert(err?.message || 'Failed to upload photo.');
         } finally {
             setIsUploading(false);
             setUploadProgress(null);
@@ -308,7 +316,7 @@ export function PhotoChapterSection({
     const hasConfiguredSlots = Boolean(schemaItems && schemaItems.length > 0);
 
     return (
-        <Card id="photo-chapter" className="overflow-hidden border shadow-sm">
+        <Card id="photo-chapter" className="gap-0 overflow-hidden py-0 border shadow-sm">
             <CardHeader className="bg-muted/30 border-b p-4 sm:p-5">
                 <div className="flex flex-col gap-3 sm:flex-row sm:items-center sm:justify-between">
                     <div>
@@ -348,7 +356,7 @@ export function PhotoChapterSection({
 
                 {/* Case 1: Template has defined Photo Fields (Slots) */}
                 {hasConfiguredSlots ? (
-                    <div className="grid grid-cols-1 md:grid-cols-2 gap-4 sm:gap-5">
+                    <div className="space-y-4">
                         {schemaItems.map((slot, idx) => {
                             const slotNo = idx + 1;
                             const matchedPhoto = photoList.find((p) => p.item_no === slotNo || (p.title && p.title.toLowerCase() === slot.title.toLowerCase()));
@@ -356,110 +364,45 @@ export function PhotoChapterSection({
                             return (
                                 <div
                                     key={slot.id || idx}
-                                    className="rounded-xl border bg-card overflow-hidden shadow-2xs flex flex-col justify-between"
+                                    className="rounded-xl border bg-card overflow-hidden shadow-2xs flex flex-col"
                                 >
-                                    <div className="p-3.5 border-b bg-muted/20 flex items-start justify-between gap-2">
-                                        <div className="min-w-0 flex-1">
-                                            <div className="flex items-center gap-1.5">
-                                                <Badge variant="outline" className="text-[10px] font-mono shrink-0">
-                                                    #{slotNo}
-                                                </Badge>
-                                                <h4 className="font-semibold text-xs text-foreground truncate">
-                                                    {slot.title}
-                                                </h4>
-                                            </div>
-                                            {slot.description && (
-                                                <p className="text-[11px] text-muted-foreground mt-0.5 truncate">
-                                                    {slot.description}
-                                                </p>
-                                            )}
-                                        </div>
-                                        {matchedPhoto && (
-                                            <Badge variant="outline" className="text-emerald-600 border-emerald-500/30 text-[10px] font-medium shrink-0">
-                                                Uploaded
+                                    {/* Row 1: Information, status, and action buttons */}
+                                    <div className="p-3.5 sm:p-4 border-b bg-muted/20 flex flex-col sm:flex-row sm:items-center justify-between gap-3">
+                                        <div className="flex items-start gap-2.5 min-w-0 flex-1">
+                                            <Badge variant="outline" className="text-xs font-mono shrink-0 mt-0.5">
+                                                #{slotNo}
                                             </Badge>
-                                        )}
-                                    </div>
-
-                                    <div className="p-3.5 flex-1 flex flex-col justify-center">
-                                        {matchedPhoto ? (
-                                            <div className="space-y-3">
-                                                <div className="relative aspect-4/3 rounded-lg overflow-hidden border bg-muted group">
-                                                    <img
-                                                        src={matchedPhoto.thumbnail_url || matchedPhoto.file_url}
-                                                        alt={matchedPhoto.title || slot.title}
-                                                        className="w-full h-full object-cover cursor-pointer group-hover:scale-105 transition-transform duration-200"
-                                                        onClick={() => setPreviewPhoto(matchedPhoto)}
-                                                    />
-                                                    <button
-                                                        type="button"
-                                                        onClick={() => setPreviewPhoto(matchedPhoto)}
-                                                        className="absolute top-2 right-2 p-1.5 rounded-full bg-black/60 text-white hover:bg-black/90 transition-colors"
-                                                        title="View Full Size"
-                                                    >
-                                                        <Maximize2 className="size-3.5" />
-                                                    </button>
+                                            <div className="space-y-0.5 min-w-0 flex-1">
+                                                <div className="flex items-center gap-2 flex-wrap">
+                                                    <h4 className="font-semibold text-sm text-foreground">
+                                                        {slot.title}
+                                                    </h4>
+                                                    {matchedPhoto ? (
+                                                        <Badge variant="outline" className="text-emerald-600 border-emerald-500/30 text-[10px] font-medium">
+                                                            Uploaded
+                                                        </Badge>
+                                                    ) : (
+                                                        <Badge variant="outline" className="text-muted-foreground border-border text-[10px] font-medium">
+                                                            Pending
+                                                        </Badge>
+                                                    )}
                                                 </div>
-
-                                                {matchedPhoto.caption && matchedPhoto.caption !== matchedPhoto.title && (
-                                                    <p className="text-xs text-muted-foreground italic">
-                                                        {matchedPhoto.caption}
+                                                {slot.description && (
+                                                    <p className="text-xs text-muted-foreground">
+                                                        {slot.description}
                                                     </p>
                                                 )}
-
-                                                {isEditable && (
-                                                    <div className="flex items-center justify-between pt-2 border-t">
-                                                        <input
-                                                            ref={(el) => { fileInputRefs.current[slotNo] = el; }}
-                                                            type="file"
-                                                            accept="image/jpeg,image/png,image/webp,image/heic,image/heif"
-                                                            className="hidden"
-                                                            onChange={(e) => {
-                                                                if (e.target.files && e.target.files[0]) {
-                                                                    handleUploadForSlot(slotNo, slot.title, e.target.files[0]);
-                                                                }
-                                                            }}
-                                                        />
-                                                        <Button
-                                                            type="button"
-                                                            size="sm"
-                                                            variant="outline"
-                                                            className="h-7 text-xs"
-                                                            disabled={isUploading}
-                                                            onClick={() => fileInputRefs.current[slotNo]?.click()}
-                                                        >
-                                                            Replace Photo
-                                                        </Button>
-
-                                                        <div className="flex items-center gap-1">
-                                                            <Button
-                                                                type="button"
-                                                                size="sm"
-                                                                variant="ghost"
-                                                                className="h-7 text-xs px-2"
-                                                                onClick={() => handleOpenEdit(matchedPhoto)}
-                                                            >
-                                                                <Edit2 className="size-3 mr-1" /> Caption
-                                                            </Button>
-                                                            <Button
-                                                                type="button"
-                                                                size="sm"
-                                                                variant="ghost"
-                                                                className="h-7 w-7 p-0 text-destructive hover:bg-destructive/10"
-                                                                onClick={() => handleDeletePhoto(matchedPhoto.id)}
-                                                                title="Delete Photo"
-                                                            >
-                                                                <Trash2 className="size-3.5" />
-                                                            </Button>
-                                                        </div>
-                                                    </div>
+                                                {matchedPhoto?.caption && matchedPhoto.caption !== matchedPhoto.title && (
+                                                    <p className="text-xs text-muted-foreground italic mt-0.5">
+                                                        Caption: {matchedPhoto.caption}
+                                                    </p>
                                                 )}
                                             </div>
-                                        ) : isEditable ? (
-                                            <div
-                                                onClick={() => fileInputRefs.current[slotNo]?.click()}
-                                                className="border-2 border-dashed border-border/80 hover:border-primary/60 bg-muted/10 hover:bg-primary/5 rounded-lg p-6 text-center cursor-pointer transition-colors space-y-2"
-                                            >
+                                        </div>
+
+                                        {/* Actions on Row 1 */}
+                                        {isEditable && (
+                                            <div className="flex items-center gap-1.5 shrink-0 self-end sm:self-center">
                                                 <input
                                                     ref={(el) => { fileInputRefs.current[slotNo] = el; }}
                                                     type="file"
@@ -471,20 +414,94 @@ export function PhotoChapterSection({
                                                         }
                                                     }}
                                                 />
-                                                <div className="flex justify-center">
-                                                    <div className="p-2.5 bg-background rounded-full border shadow-2xs">
-                                                        <UploadCloud className="size-5 text-primary" />
+                                                {matchedPhoto ? (
+                                                    <>
+                                                        <Button
+                                                            type="button"
+                                                            size="sm"
+                                                            variant="outline"
+                                                            className="h-8 text-xs"
+                                                            disabled={isUploading}
+                                                            onClick={() => fileInputRefs.current[slotNo]?.click()}
+                                                        >
+                                                            Replace Photo
+                                                        </Button>
+                                                        <Button
+                                                            type="button"
+                                                            size="sm"
+                                                            variant="ghost"
+                                                            className="h-8 text-xs px-2"
+                                                            onClick={() => handleOpenEdit(matchedPhoto)}
+                                                            title="Edit Caption"
+                                                        >
+                                                            <Edit2 className="size-3.5 mr-1" />
+                                                            <span>Caption</span>
+                                                        </Button>
+                                                        <Button
+                                                            type="button"
+                                                            size="sm"
+                                                            variant="ghost"
+                                                            className="h-8 w-8 p-0 text-destructive hover:bg-destructive/10"
+                                                            onClick={() => handleDeletePhoto(matchedPhoto.id)}
+                                                            title="Delete Photo"
+                                                        >
+                                                            <Trash2 className="size-4" />
+                                                        </Button>
+                                                    </>
+                                                ) : (
+                                                    <Button
+                                                        type="button"
+                                                        variant="outline"
+                                                        size="sm"
+                                                        disabled={uploadingSlot === slotNo}
+                                                        onClick={() => fileInputRefs.current[slotNo]?.click()}
+                                                        className="h-8 gap-1.5 text-xs font-medium"
+                                                    >
+                                                        <UploadCloud className="size-3.5 text-primary" />
+                                                        <span>{uploadingSlot === slotNo ? 'Uploading...' : 'Upload Photo'}</span>
+                                                    </Button>
+                                                )}
+                                            </div>
+                                        )}
+                                    </div>
+
+                                    {/* Row 2: Dedicated Image Preview Only */}
+                                    <div className="p-3.5 sm:p-4 bg-card flex items-center justify-center sm:justify-start">
+                                        {matchedPhoto ? (
+                                            <div
+                                                onClick={() => setPreviewPhoto(matchedPhoto)}
+                                                className="relative rounded-lg overflow-hidden border bg-muted/30 group cursor-pointer shadow-xs hover:border-primary/50 transition-all max-w-sm"
+                                                title="Click to view full size photo"
+                                            >
+                                                <img
+                                                    src={matchedPhoto.thumbnail_url || matchedPhoto.file_url}
+                                                    alt={matchedPhoto.title || slot.title}
+                                                    className="h-44 w-auto max-w-full object-contain rounded-lg group-hover:scale-[1.02] transition-transform duration-200"
+                                                />
+                                                <div className="absolute inset-0 bg-black/40 opacity-0 group-hover:opacity-100 transition-opacity flex items-center justify-center gap-1.5 text-white text-xs font-medium">
+                                                    <Maximize2 className="size-4" />
+                                                    <span>Click to Enlarge</span>
+                                                </div>
+                                            </div>
+                                        ) : isEditable ? (
+                                            <div
+                                                onClick={() => fileInputRefs.current[slotNo]?.click()}
+                                                className="w-full border-2 border-dashed border-border/80 hover:border-primary/60 bg-muted/10 hover:bg-primary/5 rounded-lg py-5 px-4 text-center cursor-pointer transition-colors flex items-center justify-center gap-3"
+                                            >
+                                                <div className="p-2 bg-background rounded-full border shadow-2xs shrink-0">
+                                                    <UploadCloud className="size-4 text-primary" />
+                                                </div>
+                                                <div className="text-left">
+                                                    <div className="text-xs font-medium text-foreground">
+                                                        {uploadingSlot === slotNo ? 'Uploading...' : 'Click to Upload Photo for this slot'}
                                                     </div>
+                                                    <p className="text-[11px] text-muted-foreground">
+                                                        JPG, PNG, WEBP, or HEIC
+                                                    </p>
                                                 </div>
-                                                <div className="text-xs font-medium text-foreground">
-                                                    {uploadingSlot === slotNo ? 'Uploading...' : 'Click to Upload Photo'}
-                                                </div>
-                                                <p className="text-[11px] text-muted-foreground">
-                                                    JPG, PNG, WEBP, or HEIC
-                                                </p>
                                             </div>
                                         ) : (
-                                            <div className="text-center py-6 text-muted-foreground text-xs italic">
+                                            <div className="text-center py-4 text-muted-foreground text-xs italic">
                                                 No photo uploaded for this item.
                                             </div>
                                         )}
@@ -513,69 +530,74 @@ export function PhotoChapterSection({
                                 )}
                             </div>
                         ) : (
-                            <div className="grid grid-cols-1 md:grid-cols-2 lg:grid-cols-3 gap-4 sm:gap-5">
+                            <div className="space-y-4">
                                 {photoList.map((photo, idx) => (
                                     <div
                                         key={photo.id}
-                                        className="rounded-xl border bg-card overflow-hidden shadow-2xs flex flex-col justify-between"
+                                        className="rounded-xl border bg-card overflow-hidden shadow-2xs flex flex-col"
                                     >
-                                        <div className="relative aspect-4/3 bg-muted overflow-hidden">
-                                            <img
-                                                src={photo.thumbnail_url || photo.file_url}
-                                                alt={photo.title || `Photo #${idx + 1}`}
-                                                className="w-full h-full object-cover cursor-pointer hover:scale-105 transition-transform"
-                                                onClick={() => setPreviewPhoto(photo)}
-                                            />
-                                            <div className="absolute top-2 left-2">
-                                                <Badge className="bg-black/70 text-white border-none text-[11px] font-mono">
+                                        {/* Row 1: Info and Actions */}
+                                        <div className="p-3.5 sm:p-4 border-b bg-muted/20 flex flex-col sm:flex-row sm:items-center justify-between gap-3">
+                                            <div className="flex items-start gap-2.5 min-w-0 flex-1">
+                                                <Badge variant="outline" className="text-xs font-mono shrink-0 mt-0.5">
                                                     #{idx + 1}
                                                 </Badge>
-                                            </div>
-                                            <button
-                                                type="button"
-                                                onClick={() => setPreviewPhoto(photo)}
-                                                className="absolute top-2 right-2 p-1.5 rounded-full bg-black/60 text-white hover:bg-black/90"
-                                                title="View Full Size"
-                                            >
-                                                <Maximize2 className="size-3.5" />
-                                            </button>
-                                        </div>
-
-                                        <div className="p-3.5 space-y-2 flex-1 flex flex-col justify-between">
-                                            <div>
-                                                <h4 className="font-semibold text-xs text-foreground line-clamp-1">
-                                                    {photo.title || `Photo #${idx + 1}`}
-                                                </h4>
-                                                {photo.caption && photo.caption !== photo.title && (
-                                                    <p className="text-xs text-muted-foreground line-clamp-2 mt-0.5">
-                                                        {photo.caption}
-                                                    </p>
-                                                )}
+                                                <div className="space-y-0.5 min-w-0 flex-1">
+                                                    <h4 className="font-semibold text-sm text-foreground">
+                                                        {photo.title || `Photo #${idx + 1}`}
+                                                    </h4>
+                                                    {photo.caption && photo.caption !== photo.title && (
+                                                        <p className="text-xs text-muted-foreground italic">
+                                                            Caption: {photo.caption}
+                                                        </p>
+                                                    )}
+                                                </div>
                                             </div>
 
                                             {isEditable && (
-                                                <div className="flex items-center justify-end gap-1 pt-2 border-t">
+                                                <div className="flex items-center gap-1.5 shrink-0 self-end sm:self-center">
                                                     <Button
                                                         type="button"
                                                         size="sm"
                                                         variant="ghost"
-                                                        className="h-7 text-xs px-2"
+                                                        className="h-8 text-xs px-2"
                                                         onClick={() => handleOpenEdit(photo)}
+                                                        title="Edit Caption"
                                                     >
-                                                        <Edit2 className="size-3 mr-1" /> Caption
+                                                        <Edit2 className="size-3.5 mr-1" />
+                                                        <span>Caption</span>
                                                     </Button>
                                                     <Button
                                                         type="button"
                                                         size="sm"
                                                         variant="ghost"
-                                                        className="h-7 w-7 p-0 text-destructive hover:bg-destructive/10"
+                                                        className="h-8 w-8 p-0 text-destructive hover:bg-destructive/10"
                                                         onClick={() => handleDeletePhoto(photo.id)}
                                                         title="Delete Photo"
                                                     >
-                                                        <Trash2 className="size-3.5" />
+                                                        <Trash2 className="size-4" />
                                                     </Button>
                                                 </div>
                                             )}
+                                        </div>
+
+                                        {/* Row 2: Image Preview Only */}
+                                        <div className="p-3.5 sm:p-4 bg-card flex items-center justify-center sm:justify-start">
+                                            <div
+                                                onClick={() => setPreviewPhoto(photo)}
+                                                className="relative rounded-lg overflow-hidden border bg-muted/30 group cursor-pointer shadow-xs hover:border-primary/50 transition-all max-w-sm"
+                                                title="Click to view full size photo"
+                                            >
+                                                <img
+                                                    src={photo.thumbnail_url || photo.file_url}
+                                                    alt={photo.title || `Photo #${idx + 1}`}
+                                                    className="h-44 w-auto max-w-full object-contain rounded-lg group-hover:scale-[1.02] transition-transform duration-200"
+                                                />
+                                                <div className="absolute inset-0 bg-black/40 opacity-0 group-hover:opacity-100 transition-opacity flex items-center justify-center gap-1.5 text-white text-xs font-medium">
+                                                    <Maximize2 className="size-4" />
+                                                    <span>Click to Enlarge</span>
+                                                </div>
+                                            </div>
                                         </div>
                                     </div>
                                 ))}

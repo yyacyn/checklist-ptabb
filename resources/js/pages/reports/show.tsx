@@ -2475,7 +2475,7 @@ function ObservationsSection({
             {/* SECTION 1: REPORT SUMMARY - RATINGS MATRIX (DYNAMIC)                       */}
             {/* ========================================================================= */}
             {summarySchema.has_ratings_matrix && (
-                <Card className="border shadow-xs">
+                <Card className="gap-0 overflow-hidden py-0 border shadow-xs">
                     <CardHeader className="pb-3 border-b bg-muted/20">
                         <div className="flex items-center justify-between">
                             <div>
@@ -2574,7 +2574,7 @@ function ObservationsSection({
             {/* SECTION 2: REPORT SUMMARY - DYNAMIC EXECUTIVE TEXTAREAS                   */}
             {/* ========================================================================= */}
             {summarySchema.text_fields && summarySchema.text_fields.length > 0 && (
-                <Card className="border shadow-xs">
+                <Card className="gap-0 overflow-hidden py-0 border shadow-xs">
                     <CardHeader className="pb-3 border-b bg-muted/20">
                         <CardTitle className="text-base font-semibold">
                             Executive Summary & Evaluation
@@ -2666,7 +2666,7 @@ function ObservationsSection({
                 </div>
 
                 {/* Observations Table */}
-                <Card className="border shadow-xs">
+                <Card className="gap-0 overflow-hidden py-0 border shadow-xs">
                     <CardContent className="p-0">
                         {findings.length === 0 ? (
                             <div className="text-center py-12 px-4 space-y-3">

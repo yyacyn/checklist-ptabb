@@ -13,6 +13,7 @@ import {
     ChevronsUpDown,
     Copy,
     Edit2,
+    ExternalLink,
     Eye,
     EyeOff,
     FileText,
@@ -112,6 +113,9 @@ export interface PhotoFormOption {
     id: number;
     code: string;
     name: string;
+    photo_schema?: PhotoSchema | null;
+    form_version?: string;
+    template_version?: number;
 }
 
 export interface PhotoCategoryOption {
@@ -746,7 +750,7 @@ export default function FormShow({
                     </div>
 
                     {/* Form Details */}
-                    <Card>
+                    <Card className="gap-0 overflow-hidden py-0 shadow-xs">
                         <CardHeader className="p-4 bg-muted/20 border-b">
                             <h3 className="font-semibold text-base">Form Details</h3>
                         </CardHeader>
@@ -775,7 +779,7 @@ export default function FormShow({
                     </Card>
 
                     {/* Photos List */}
-                    <Card>
+                    <Card className="gap-0 overflow-hidden py-0 shadow-xs">
                         <CardHeader className="p-4 bg-muted/20 border-b flex flex-row items-center justify-between">
                             <div className="flex items-center gap-2">
                                 <Camera className="size-5 text-primary" />
@@ -1398,7 +1402,7 @@ export default function FormShow({
                                         type="button"
                                         onClick={() => setSummaryChapterCollapsed(!summaryChapterCollapsed)}
                                         className="text-muted-foreground hover:text-foreground shrink-0 p-0.5"
-                                        title={summaryChapterCollapsed ? 'Expand Summary Chapter' : 'Collapse Summary Chapter'}
+                                        title={summaryChapterCollapsed ? 'Expand Chapter' : 'Collapse Chapter'}
                                     >
                                         {summaryChapterCollapsed ? (
                                             <ChevronRight className="size-4" />
@@ -1407,36 +1411,24 @@ export default function FormShow({
                                         )}
                                     </button>
                                     <h3
-                                        className="font-semibold text-lg cursor-pointer select-none flex items-center gap-2"
+                                        className="font-semibold text-lg cursor-pointer select-none"
                                         onClick={() => setSummaryChapterCollapsed(!summaryChapterCollapsed)}
                                     >
-                                        <FileText className="size-4.5 text-primary shrink-0" />
-                                        <span>{summaryFormState.title || 'Summary & Observations'}</span>
+                                        {summaryFormState.title || 'Summary & Observations'}
                                     </h3>
-                                    <Badge variant="secondary" className="text-xs font-semibold">
-                                        Summary Chapter
-                                    </Badge>
-                                    {summaryFormState.enabled ? (
-                                        <Badge variant="outline" className="text-emerald-600 dark:text-emerald-400 border-emerald-500/30 text-xs">
-                                            Enabled
-                                        </Badge>
-                                    ) : (
-                                        <Badge variant="destructive" className="text-xs">
-                                            Disabled
-                                        </Badge>
-                                    )}
+                                    {!summaryFormState.enabled && <Badge variant="destructive">Disabled</Badge>}
                                 </div>
 
-                                <div className="flex items-center gap-2 shrink-0">
+                                <div className="flex items-center gap-1.5 shrink-0">
                                     <Button
                                         size="sm"
                                         variant="ghost"
-                                        title={summaryFormState.enabled ? 'Disable Summary Chapter' : 'Enable Summary Chapter'}
+                                        title={summaryFormState.enabled ? 'Disable' : 'Enable'}
                                         onClick={() =>
                                             setSummaryFormState((prev) => ({ ...prev, enabled: !prev.enabled }))
                                         }
                                     >
-                                        {summaryFormState.enabled ? <Eye className="size-4 text-emerald-600" /> : <EyeOff className="size-4 text-muted-foreground" />}
+                                        {summaryFormState.enabled ? <Eye className="size-4" /> : <EyeOff className="size-4 text-muted-foreground" />}
                                     </Button>
                                     <Button
                                         size="sm"
@@ -1782,14 +1774,14 @@ export default function FormShow({
                             id="photo-chapter"
                             className={`gap-0 overflow-hidden py-0 shadow-xs ${!photoFormState.enabled && !isPhotoForm ? 'opacity-70 bg-muted/20' : 'border-primary/40'}`}
                         >
-                        <CardHeader className="bg-muted/40 p-4 border-b">
-                            <div className="flex flex-col gap-2 sm:flex-row sm:items-center sm:justify-between">
-                                <div className="flex items-center gap-2 min-w-0">
+                        <CardHeader className="border-b bg-muted/40 p-4">
+                            <div className="flex flex-col gap-3 md:flex-row md:items-center md:justify-between">
+                                <div className="flex items-center gap-2 flex-wrap min-w-0">
                                     <button
                                         type="button"
                                         onClick={() => setPhotoChapterCollapsed(!photoChapterCollapsed)}
                                         className="text-muted-foreground hover:text-foreground shrink-0 p-0.5"
-                                        title={photoChapterCollapsed ? 'Expand Photo Settings' : 'Collapse Photo Settings'}
+                                        title={photoChapterCollapsed ? 'Expand Chapter' : 'Collapse Chapter'}
                                     >
                                         {photoChapterCollapsed ? (
                                             <ChevronRight className="size-4" />
@@ -1797,35 +1789,25 @@ export default function FormShow({
                                             <ChevronDown className="size-4" />
                                         )}
                                     </button>
-                                    <Camera className="size-5 text-primary shrink-0" />
-                                    <h3 className="font-semibold text-base text-foreground truncate flex items-center gap-2">
-                                        <span>{photoFormState.title || 'Photographic Records'}</span>
+                                    <h3
+                                        className="font-semibold text-lg cursor-pointer select-none"
+                                        onClick={() => setPhotoChapterCollapsed(!photoChapterCollapsed)}
+                                    >
+                                        {photoFormState.title || (isPhotoForm ? form.name : 'Photographic Records')}
                                     </h3>
-                                    <Badge variant="secondary" className="text-xs font-semibold">
-                                        Photo Form
-                                    </Badge>
-                                    {photoFormState.enabled ? (
-                                        <Badge variant="outline" className="text-emerald-600 dark:text-emerald-400 border-emerald-500/30 text-xs">
-                                            Active
-                                        </Badge>
-                                    ) : (
-                                        <Badge variant="destructive" className="text-xs">
-                                            Off
-                                        </Badge>
-                                    )}
+                                    {!photoFormState.enabled && !isPhotoForm && <Badge variant="destructive">Disabled</Badge>}
                                 </div>
 
-                                <div className="flex items-center gap-2 self-end sm:self-auto">
+                                <div className="flex items-center gap-1.5 shrink-0">
                                     <Button
                                         size="sm"
                                         variant="ghost"
-                                        title={photoFormState.enabled ? 'Disable Photo Section' : 'Enable Photo Section'}
+                                        title={photoFormState.enabled ? 'Disable' : 'Enable'}
                                         onClick={() =>
                                             setPhotoFormState((prev) => ({ ...prev, enabled: !prev.enabled }))
                                         }
                                     >
-                                        {photoFormState.enabled ? <Eye className="size-4 text-emerald-600" /> : <EyeOff className="size-4 text-muted-foreground" />}
-                                        <span className="ml-1 text-xs">{photoFormState.enabled ? 'Active' : 'Off'}</span>
+                                        {photoFormState.enabled ? <Eye className="size-4" /> : <EyeOff className="size-4 text-muted-foreground" />}
                                     </Button>
 
                                     <Button
@@ -1931,18 +1913,106 @@ export default function FormShow({
                                             </div>
                                         </div>
 
-                                        {photoFormState.attached_form_id ? (
-                                            <div className="rounded-lg border border-primary/20 bg-primary/5 p-4 flex items-center justify-between">
-                                                <div>
-                                                    <p className="text-sm font-semibold text-primary">
-                                                        Attached Photo Form: {available_photo_forms?.find((pf) => pf.id === photoFormState.attached_form_id)?.name || 'Photo Form'}
-                                                    </p>
-                                                    <p className="text-xs text-muted-foreground mt-0.5">
-                                                        Photo fields and titles are inherited from this template.
-                                                    </p>
+                                        {photoFormState.attached_form_id ? (() => {
+                                            const attachedPhotoForm = available_photo_forms?.find((pf) => pf.id === photoFormState.attached_form_id);
+                                            const attachedItems = attachedPhotoForm?.photo_schema?.items || [];
+
+                                            return (
+                                                <div className="space-y-4 pt-3 border-t">
+                                                    {/* Attached Template Summary Card */}
+                                                    <div className="rounded-lg border border-primary/20 bg-primary/5 p-4">
+                                                        <div className="flex flex-col sm:flex-row sm:items-center justify-between gap-3">
+                                                            <div className="space-y-1">
+                                                                <div className="flex items-center gap-2 flex-wrap">
+                                                                    <Badge variant="outline" className="font-bold text-xs bg-background">
+                                                                        {attachedPhotoForm?.code || 'PHOTO'}
+                                                                    </Badge>
+                                                                    <span className="font-semibold text-sm text-foreground">
+                                                                        {attachedPhotoForm?.name || 'Photo Form Template'}
+                                                                    </span>
+                                                                    {attachedPhotoForm?.form_version && (
+                                                                        <Badge variant="secondary" className="text-[10px]">
+                                                                            v{attachedPhotoForm.form_version}
+                                                                        </Badge>
+                                                                    )}
+                                                                </div>
+                                                                <p className="text-xs text-muted-foreground">
+                                                                    {attachedItems.length} photo slot{attachedItems.length !== 1 ? 's' : ''} configured in this template.
+                                                                </p>
+                                                            </div>
+
+                                                            {attachedPhotoForm && (
+                                                                <a
+                                                                    href={`/admin/forms/${attachedPhotoForm.id}`}
+                                                                    target="_blank"
+                                                                    rel="noopener noreferrer"
+                                                                    className="inline-flex items-center gap-1.5 text-xs text-primary hover:underline font-medium shrink-0 bg-background/80 hover:bg-background border rounded-md px-2.5 py-1.5 shadow-2xs transition-colors"
+                                                                >
+                                                                    <span>Edit Master Template</span>
+                                                                    <ExternalLink className="size-3.5" />
+                                                                </a>
+                                                            )}
+                                                        </div>
+                                                    </div>
+
+                                                    {/* Live Visual Preview of Photo Form Template */}
+                                                    <div className="space-y-3">
+                                                        <div className="flex items-center justify-between">
+                                                            <div className="flex items-center gap-2">
+                                                                <Camera className="size-4 text-primary" />
+                                                                <h4 className="text-xs font-semibold uppercase tracking-wider text-muted-foreground">
+                                                                    Preview: Photo Slots in Reports
+                                                                </h4>
+                                                            </div>
+                                                            <Badge variant="outline" className="text-xs">
+                                                                {attachedItems.length} Photo Field{attachedItems.length !== 1 ? 's' : ''}
+                                                            </Badge>
+                                                        </div>
+
+                                                        {attachedItems.length === 0 ? (
+                                                            <div className="text-center py-8 border-2 border-dashed rounded-lg bg-card/50">
+                                                                <Camera className="size-8 mx-auto text-muted-foreground/40 mb-2" />
+                                                                <p className="text-sm font-medium text-muted-foreground">No photo slots configured yet in this template</p>
+                                                                <p className="text-xs text-muted-foreground mt-1">
+                                                                    Click "Edit Master Template" above to add photo slots to {attachedPhotoForm?.code || 'this template'}.
+                                                                </p>
+                                                            </div>
+                                                        ) : (
+                                                            <div className="grid grid-cols-1 md:grid-cols-2 lg:grid-cols-3 gap-3">
+                                                                {attachedItems.map((item, idx) => (
+                                                                    <div
+                                                                        key={item.id || idx}
+                                                                        className="rounded-lg border bg-card p-3 flex flex-col justify-between gap-3 shadow-2xs transition-all hover:border-primary/40"
+                                                                    >
+                                                                        <div className="space-y-1.5">
+                                                                            <div className="flex items-center justify-between gap-2">
+                                                                                <Badge variant="secondary" className="text-[10px] font-mono shrink-0">
+                                                                                    #{idx + 1}
+                                                                                </Badge>
+                                                                                <span className="text-[10px] text-muted-foreground font-medium">Photo Slot</span>
+                                                                            </div>
+                                                                            <p className="text-xs font-semibold text-foreground line-clamp-2">
+                                                                                {item.title}
+                                                                            </p>
+                                                                            {item.description && (
+                                                                                <p className="text-[11px] text-muted-foreground line-clamp-2">
+                                                                                    {item.description}
+                                                                                </p>
+                                                                            )}
+                                                                        </div>
+
+                                                                        <div className="rounded border border-dashed bg-muted/30 p-3 flex flex-col items-center justify-center text-center gap-1 min-h-[75px]">
+                                                                            <Camera className="size-4 text-muted-foreground/60" />
+                                                                            <span className="text-[10px] text-muted-foreground">Inspector Photo Upload</span>
+                                                                        </div>
+                                                                    </div>
+                                                                ))}
+                                                            </div>
+                                                        )}
+                                                    </div>
                                                 </div>
-                                            </div>
-                                        ) : (
+                                            );
+                                        })() : (
                                             <div className="space-y-3 pt-3 border-t">
                                                 <div className="flex items-center justify-between">
                                                     <Label className="text-sm font-semibold">Photo Fields</Label>

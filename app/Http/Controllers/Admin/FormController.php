@@ -194,7 +194,7 @@ class FormController extends Controller
         $availablePhotoForms = Form::query()
             ->where('form_type', 'photo')
             ->where('id', '!=', $form->id)
-            ->get(['id', 'code', 'name']);
+            ->get(['id', 'code', 'name', 'photo_schema', 'form_version', 'template_version']);
 
         return Inertia::render('forms/show', [
             'form' => [
