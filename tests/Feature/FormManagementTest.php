@@ -46,7 +46,7 @@ class FormManagementTest extends TestCase
         $this->actingAs($superadmin)
             ->get(route('admin.forms.index'))
             ->assertOk()
-            ->assertInertia(fn ($page) => $page->component('forms/index')->has('forms', 2));
+            ->assertInertia(fn ($page) => $page->component('forms/index')->has('forms', 3));
 
         $this->actingAs($superadmin)
             ->get(route('admin.forms.show', $d062))
@@ -55,6 +55,38 @@ class FormManagementTest extends TestCase
                 ->has('chapters')
                 ->where('form.code', 'D-062')
             );
+    }
+
+    public function test_superadmin_can_create_photo_and_standard_forms(): void
+    {
+        $this->seedCatalogue();
+        $superadmin = User::factory()->create(['role' => 'superadmin']);
+
+        // 1. Create Photo Form
+        $photoRes = $this->actingAs($superadmin)->post(route('admin.forms.store'), [
+            'code' => 'P-002',
+            'name' => 'Deck Condition Photographic Record',
+            'form_type' => 'photo',
+            'form_version' => '1.0',
+        ]);
+
+        $p002 = Form::where('code', 'P-002')->first();
+        $this->assertNotNull($p002);
+        $this->assertSame('photo', $p002->form_type);
+        $photoRes->assertRedirect(route('admin.forms.show', $p002));
+
+        // 2. Create Standard Checklist Form
+        $stdRes = $this->actingAs($superadmin)->post(route('admin.forms.store'), [
+            'code' => 'D-063',
+            'name' => 'Bunkering Safety Inspection Checklist',
+            'form_type' => 'standard',
+            'form_version' => '1.0',
+        ]);
+
+        $d063 = Form::where('code', 'D-063')->first();
+        $this->assertNotNull($d063);
+        $this->assertSame('standard', $d063->form_type);
+        $stdRes->assertRedirect(route('admin.forms.show', $d063));
     }
 
     public function test_group_creation_bumps_template_version(): void

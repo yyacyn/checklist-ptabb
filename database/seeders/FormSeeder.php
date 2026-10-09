@@ -78,6 +78,29 @@ class FormSeeder extends Seeder
                 }
             }
 
+            // Seed standalone Photographic Inspection Form (P-001)
+            Form::query()->updateOrCreate(
+                ['code' => 'P-001'],
+                [
+                    'form_type' => 'photo',
+                    'name' => 'Photographic Record Form',
+                    'form_version' => 'v01.00',
+                    'answer_set' => 'none',
+                    'photo_schema' => [
+                        'enabled' => true,
+                        'title' => 'Photographic Record Form',
+                        'items' => [
+                            ['id' => '1', 'title' => 'General View / Overview'],
+                            ['id' => '2', 'title' => 'Hull & Deck Area'],
+                            ['id' => '3', 'title' => 'Engine Room'],
+                            ['id' => '4', 'title' => 'Bridge & Navigation'],
+                            ['id' => '5', 'title' => 'Safety Equipment'],
+                        ],
+                    ],
+                ]
+            );
+            $summary['forms']++;
+
             if ($dry) {
                 DB::rollBack();
 
@@ -185,13 +208,22 @@ class FormSeeder extends Seeder
             'has_findings_register' => true,
         ];
 
+        $photoSchema = $code === 'D-062' ? [
+            'enabled' => true,
+            'title' => 'Chapter 16 - Photographic Records',
+            'description' => 'Photographic record of vessel inspection items, defects, and overall condition.',
+            'allowed_categories' => ['hull', 'deck', 'engine_room', 'room_condition', 'bridge', 'navigational_equipment', 'safety_equipment', 'other'],
+        ] : null;
+
         $form = Form::query()->updateOrCreate(
             ['code' => $code],
             [
+                'form_type' => 'standard',
                 'name' => $code === 'D-062' ? 'Vessel Inspection Report' : 'Vessel Internal Audit Checklist',
                 'form_version' => $code === 'D-062' ? 'v01.01' : 'v00.00',
                 'answer_set' => $code === 'D-062' ? 'd062_yes_no_ns_na' : 'b008_yes_no_ns',
                 'summary_schema' => $summarySchema,
+                'photo_schema' => $photoSchema,
             ],
         );
         $summary['forms']++;

@@ -268,9 +268,12 @@ Managed by the superadmin (add, rename, disable). Seeded with:
 
 "Room condition" has no matching section in the forms, so it is a photo-only category. Which room it is goes in the photo's location field (free text, see PHO-2).
 
-### 8.2 Requirements & Photo Form Architecture
+### 8.2 Requirements & Composable Photo Form Architecture
 
-- PHO-0: **Photo Chapter Component in Form Templates**: Superadmin can attach a dedicated Photo Chapter (e.g. Chapter 16 Photographic Records in D-062, or a custom Photo Chapter in B-008 and new forms) into any Form Template via the Form Editor. The chapter configuration defines chapter title, instructions, and default categories.
+- PHO-0: **Composable Photo Form (Standalone & Embedded)**:
+  - **First-Class Form Template**: A Photo Form is a standard Form entity in the `forms` catalogue (e.g., Code `P-001` *Photographic Record Form*, or custom photo forms created by Super Admin).
+  - **Standalone Mode**: Users can create a standalone inspection report using a Photo Form directly (`/reports/create`), entering vessel & date, and filling out structured photographic records.
+  - **Embedded / Sub-Form Mode**: Super Admin can attach/embed an existing Photo Form into any other parent Form Template (such as Form D-062 or Form B-008) in the Form Editor. When attached, the Photo Form renders seamlessly as a dedicated chapter (e.g., Chapter 16 Photographic Records in D-062) inside the parent report.
 - PHO-1: **Multi-Photo Upload & Structured Entry**: Users can upload multiple photos at once. Each photo entry captures:
   - Resized and compressed image file (with preview and thumbnail)
   - Number / Title / Caption (e.g., `1. Emergency Fire Pump Pressure Gauge`)

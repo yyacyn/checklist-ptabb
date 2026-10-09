@@ -52,5 +52,6 @@ class DatabaseSeeder extends Seeder
         }
 
         $this->call(FleetVesselSeeder::class);
+        $this->call(PhotoCategorySeeder::class);
     }
 }

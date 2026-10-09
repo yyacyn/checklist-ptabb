@@ -68,4 +68,9 @@ class ReportQuestion extends Model
     {
         return $this->hasOne(ReportAnswer::class);
     }
+
+    public function photos(): \Illuminate\Database\Eloquent\Relations\HasMany
+    {
+        return $this->hasMany(Photo::class);
+    }
 }

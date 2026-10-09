@@ -189,4 +189,9 @@ class Report extends Model
     {
         return $this->hasMany(Finding::class)->orderBy('sort_order')->orderBy('id');
     }
+
+    public function photos(): HasMany
+    {
+        return $this->hasMany(Photo::class)->orderBy('sort_order')->orderBy('item_no')->orderBy('id');
+    }
 }

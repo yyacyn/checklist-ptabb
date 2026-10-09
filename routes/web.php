@@ -4,6 +4,7 @@ use App\Http\Controllers\Admin\FormController;
 use App\Http\Controllers\Admin\FormGroupController;
 use App\Http\Controllers\Admin\FormQuestionController;
 use App\Http\Controllers\FindingController;
+use App\Http\Controllers\PhotoController;
 use App\Http\Controllers\ReportController;
 use Illuminate\Support\Facades\Route;
 
@@ -32,10 +33,19 @@ Route::middleware(['auth', 'verified'])->group(function () {
     Route::put('reports/{report}/findings/{finding}', [FindingController::class, 'update'])->name('reports.findings.update');
     Route::delete('reports/{report}/findings/{finding}', [FindingController::class, 'destroy'])->name('reports.findings.destroy');
 
+    // Photos & Chapter 16 Photographic Records (Phase 5, Tasks 5.3, 5.6, 5.8, 5.10, 5.11)
+    Route::get('photos', [PhotoController::class, 'index'])->name('photos.index');
+    Route::post('reports/{report}/photos', [PhotoController::class, 'store'])->name('reports.photos.store');
+    Route::put('reports/{report}/photos/{photo}', [PhotoController::class, 'update'])->name('reports.photos.update');
+    Route::delete('reports/{report}/photos/{photo}', [PhotoController::class, 'destroy'])->name('reports.photos.destroy');
+    Route::post('reports/{report}/photos/reorder', [PhotoController::class, 'reorder'])->name('reports.photos.reorder');
+
     Route::middleware('can:manage-forms')->prefix('admin')->name('admin.')->group(function () {
         Route::get('forms', [FormController::class, 'index'])->name('forms.index');
+        Route::post('forms', [FormController::class, 'store'])->name('forms.store');
         Route::get('forms/{form}', [FormController::class, 'show'])->name('forms.show');
         Route::put('forms/{form}/summary-schema', [FormController::class, 'updateSummarySchema'])->name('forms.summary-schema.update');
+        Route::put('forms/{form}/photo-schema', [FormController::class, 'updatePhotoSchema'])->name('forms.photo-schema.update');
 
         // Groups (Task 2.1, 2.3, 2.4, 2.6)
         Route::post('forms/{form}/groups', [FormGroupController::class, 'store'])->name('groups.store');

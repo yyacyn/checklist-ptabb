@@ -4,6 +4,7 @@ import {
     AlertTriangle,
     ArrowLeft,
     Calendar,
+    Camera,
     Check,
     CheckCircle2,
     ChevronDown,
@@ -36,6 +37,7 @@ import {
 } from 'lucide-react';
 import React, { useCallback, useEffect, useMemo, useRef, useState } from 'react';
 import Heading from '@/components/heading';
+import { PhotoChapterSection, type PhotoRecord, type PhotoCategoryItem, type QuestionOptionItem } from '@/components/photo-chapter-section';
 import { Badge } from '@/components/ui/badge';
 import { Button } from '@/components/ui/button';
 import { Card, CardContent, CardDescription, CardHeader, CardTitle } from '@/components/ui/card';
@@ -201,7 +203,16 @@ export interface ReportData {
         code: string;
         name: string;
         answer_set: string;
+        form_type?: 'standard' | 'photo';
         summary_schema?: SummarySchema | null;
+        photo_schema?: {
+            enabled: boolean;
+            title?: string;
+            description?: string;
+            attached_form_id?: number | null;
+            items?: Array<{ id?: string; title: string; description?: string }>;
+            allowed_categories?: string[];
+        } | null;
     };
     vessel_type?: {
         id: number;
@@ -209,6 +220,7 @@ export interface ReportData {
     } | null;
     groups: ChapterData[];
     findings?: FindingData[];
+    photos?: PhotoRecord[];
     summary_ratings?: Record<string, 'very_good' | 'satisfactory' | 'unsatisfactory'> | null;
     summary_comments_no?: string | null;
     summary_safety_meetings?: string | null;
@@ -228,6 +240,7 @@ interface Props {
     is_editable: boolean;
     initial_lock?: LockData | null;
     can_delete?: boolean;
+    photo_categories?: PhotoCategoryItem[];
 }
 
 export default function ReportDataEntry({
@@ -235,6 +248,7 @@ export default function ReportDataEntry({
     is_editable = true,
     initial_lock = null,
     can_delete = false,
+    photo_categories = [],
 }: Props) {
     // Advisory edit lock state (NFR-15)
     const [lockState, setLockState] = useState<LockData | null>(initial_lock);
@@ -258,9 +272,11 @@ export default function ReportDataEntry({
     // Question edit conflicts state (NFR-15): questionId -> ConflictData
     const [conflicts, setConflicts] = useState<Record<number, ConflictData>>({});
 
-    // Current Active Chapter (0 = 1. General Information & Particulars, >0 = Form Groups, -15 = Summary of Observations)
+    const isPhotoForm = report.form.form_type === 'photo';
+
+    // Current Active Chapter (0 = General Info, >0 = Form Groups, -999 = Summary, -888 = Photo Chapter)
     const [activeChapterId, setActiveChapterId] = useState<number>(() => {
-        if (typeof window === 'undefined') return 0;
+        if (typeof window === 'undefined') return isPhotoForm ? -888 : 0;
         try {
             const urlParams = new URLSearchParams(window.location.search);
             const urlChapter = urlParams.get('chapter');
@@ -276,8 +292,11 @@ export default function ReportDataEntry({
         } catch {
             // fallback
         }
-        return 0;
+        return isPhotoForm ? -888 : 0;
     });
+
+    // Photographic Records state (Task 5.3)
+    const [photos, setPhotos] = useState<PhotoRecord[]>(report.photos || []);
 
     // Filter states (Task 3.2: unanswered filter, search-jump)
     const [showUnansweredOnly, setShowUnansweredOnly] = useState(false);
@@ -433,17 +452,58 @@ export default function ReportDataEntry({
             return report.form.summary_schema;
         }
         return {
-            enabled: true,
+            enabled: !isPhotoForm,
             title: report.form.code === 'B-008' ? 'Audit Summary & NCRs' : 'Summary & Observations',
             has_ratings_matrix: report.form.code === 'D-062',
             has_findings_register: true,
         };
-    }, [report.form.summary_schema, report.form.code]);
+    }, [report.form.summary_schema, report.form.code, isPhotoForm]);
 
     const summaryChapterNo = String(otherChapters.length + 2);
     const summaryChapterTitle = summarySchema.title || 'Summary & Observations';
 
+    const photoSchema = useMemo(() => {
+        if (report.form.photo_schema) {
+            return report.form.photo_schema;
+        }
+        return {
+            enabled: isPhotoForm || report.form.code === 'D-062',
+            title: isPhotoForm ? report.form.name : (report.form.code === 'D-062' ? 'Chapter 16 - Photographic Records' : 'Photographic Records'),
+            description: isPhotoForm ? 'Dedicated photographic records for vessel condition and walkaround.' : 'Photographic evidence and vessel condition records.',
+            allowed_categories: photo_categories.map((c) => c.code),
+        };
+    }, [report.form.photo_schema, isPhotoForm, report.form.name, report.form.code, photo_categories]);
+
+    const photoChapterNo = String(otherChapters.length + (!isPhotoForm && summarySchema.enabled !== false ? 3 : 2));
+    const photoChapterTitle = photoSchema.title || (isPhotoForm ? 'Photographic Records' : 'Photographic Records');
+
+    const allQuestionsForLink: QuestionOptionItem[] = useMemo(() => {
+        const list: QuestionOptionItem[] = [];
+        report.groups.forEach((g) => {
+            (g.questions || []).forEach((q) => {
+                list.push({ id: q.id, item_number: String(q.sort_order), question_text: q.question_text });
+            });
+            (g.subgroups || []).forEach((sg) => {
+                (sg.questions || []).forEach((q) => {
+                    list.push({ id: q.id, item_number: String(q.sort_order), question_text: q.question_text });
+                });
+            });
+        });
+        return list;
+    }, [report.groups]);
+
     const navChapters = useMemo(() => {
+        if (isPhotoForm) {
+            return [
+                {
+                    id: -888,
+                    title: photoChapterTitle,
+                    chapter_no: '1',
+                    sort_order: 1,
+                },
+            ];
+        }
+
         const list = [
             { id: 0, title: 'General Information & Particulars', chapter_no: '1', sort_order: 1 },
             ...otherChapters,
@@ -456,8 +516,16 @@ export default function ReportDataEntry({
                 sort_order: list.length + 1,
             });
         }
+        if (photoSchema.enabled !== false) {
+            list.push({
+                id: -888,
+                title: photoChapterTitle,
+                chapter_no: photoChapterNo,
+                sort_order: list.length + 1,
+            });
+        }
         return list;
-    }, [otherChapters, summarySchema, summaryChapterTitle, summaryChapterNo]);
+    }, [isPhotoForm, otherChapters, summarySchema, summaryChapterTitle, summaryChapterNo, photoSchema, photoChapterTitle, photoChapterNo]);
 
     const currentChapterIdx = navChapters.findIndex((c) => c.id === activeChapterId);
     const prevChapter = currentChapterIdx > 0 ? navChapters[currentChapterIdx - 1] : null;
@@ -1058,150 +1126,230 @@ export default function ReportDataEntry({
                     {/* Left Sticky Chapter Navigation Sidebar */}
                     <aside className="w-80 shrink-0 border-r bg-muted/20 overflow-y-auto p-4 space-y-1.5">
                         <div className="text-xs font-semibold uppercase tracking-wider text-muted-foreground px-2 pb-1">
-                            Chapters / Sections
+                            {isPhotoForm ? 'Photo Form Sections' : 'Chapters / Sections'}
                         </div>
 
-                        {/* Chapter 1: General Information & Particulars */}
-                        <button
-                            type="button"
-                            onClick={() => handleChapterSwitch(0)}
-                            className={`w-full text-left rounded-lg p-3 transition-all flex flex-col gap-1.5 ${
-                                activeChapterId === 0
-                                    ? 'bg-card border-2 border-primary shadow-xs ring-1 ring-primary/20'
-                                    : 'border border-transparent hover:bg-card/70'
-                            }`}
-                        >
-                            <div className="flex items-start justify-between gap-2">
-                                <div className="flex items-center gap-1.5 min-w-0">
-                                    <Info className="size-4 text-primary shrink-0" />
-                                    <span className="font-semibold text-xs text-foreground truncate">
-                                        1. General Information
-                                    </span>
-                                </div>
-                                <Badge variant="secondary" className="text-[10px] shrink-0 font-mono">
-                                    Particulars
-                                </Badge>
-                            </div>
-                            <div className="text-[11px] text-muted-foreground pl-5 truncate">
-                                Ship, PSC, Drydock, Operations & Officers
-                            </div>
-                        </button>
-
-                        {report.groups
-                            .filter((g) => g.chapter_no !== '1' && g.title !== 'General Information')
-                            .map((group) => {
-                                const stats = chapterStats[group.id] || { applicable: 0, answered: 0, noCount: 0, nsCount: 0 };
-                                const isCurrent = group.id === activeChapterId;
-                                const isComplete = stats.applicable > 0 && stats.answered === stats.applicable;
-
-                                return (
-                                <button
-                                    key={group.id}
-                                    type="button"
-                                    onClick={() => handleChapterSwitch(group.id)}
-                                    className={`w-full text-left rounded-lg p-3 transition-all flex flex-col gap-1.5 ${
-                                        isCurrent
-                                            ? 'bg-card border-2 border-primary shadow-xs ring-1 ring-primary/20'
-                                            : 'border border-transparent hover:bg-card/70'
-                                    }`}
-                                >
-                                    <div className="flex items-start justify-between gap-2">
-                                        <div className="flex items-center gap-1.5 min-w-0">
-                                            {isComplete ? (
-                                                <CheckCircle2 className="size-4 text-emerald-600 shrink-0" />
-                                            ) : (
-                                                <span className="size-2 rounded-full bg-muted-foreground/40 shrink-0" />
-                                            )}
-                                            <span className="font-medium text-xs text-foreground truncate">
-                                                {group.chapter_no ? `${group.chapter_no}. ` : ''}
-                                                {group.title}
-                                            </span>
-                                        </div>
-
-                                        {!group.is_applicable && (
-                                            <Badge variant="outline" className="text-[10px] shrink-0 text-amber-600">
-                                                NA
-                                            </Badge>
-                                        )}
-                                    </div>
-
-                                    {/* Progress & Flags Bar */}
-                                    <div className="flex items-center justify-between text-[11px] text-muted-foreground pl-3.5">
-                                        <span>
-                                            {stats.answered} of {stats.applicable} answered
-                                        </span>
-                                        <div className="flex items-center gap-1.5">
-                                            {stats.noCount > 0 && (
-                                                <span className="font-bold text-rose-600 bg-rose-50 dark:bg-rose-950 px-1 rounded text-[10px]">
-                                                    {stats.noCount} No
-                                                </span>
-                                            )}
-                                            {stats.nsCount > 0 && (
-                                                <span className="font-bold text-amber-600 bg-amber-50 dark:bg-amber-950 px-1 rounded text-[10px]">
-                                                    {stats.nsCount} NS
-                                                </span>
-                                            )}
-                                        </div>
-                                    </div>
-                                </button>
-                            );
-                        })}
-
-                        {/* Dynamic Summary Chapter (Schema-Driven, Task 4.1) */}
-                        {summarySchema.enabled !== false && (
+                        {/* Standalone Photo Form Single Primary Section */}
+                        {isPhotoForm ? (
                             <button
                                 type="button"
-                                onClick={() => handleChapterSwitch(-999)}
+                                onClick={() => handleChapterSwitch(-888)}
                                 className={`w-full text-left rounded-lg p-3 transition-all flex flex-col gap-1.5 ${
-                                    activeChapterId === -999 || activeChapterId === -15
+                                    activeChapterId === -888
                                         ? 'bg-card border-2 border-primary shadow-xs ring-1 ring-primary/20'
                                         : 'border border-transparent hover:bg-card/70'
                                 }`}
                             >
                                 <div className="flex items-start justify-between gap-2">
                                     <div className="flex items-center gap-1.5 min-w-0">
-                                        <ShieldAlert className="size-4 text-primary shrink-0" />
+                                        <Camera className="size-4 text-primary shrink-0" />
                                         <span className="font-semibold text-xs text-foreground truncate">
-                                            {summaryChapterNo}. {summaryChapterTitle}
+                                            1. {photoChapterTitle}
                                         </span>
                                     </div>
-                                    {summarySchema.has_findings_register !== false && (
-                                        <Badge variant={findings.length > 0 ? 'destructive' : 'secondary'} className="text-[10px] shrink-0 font-mono">
-                                            {findings.length}
-                                        </Badge>
-                                    )}
+                                    <Badge variant="secondary" className="text-[10px] shrink-0 font-mono">
+                                        {photos.length} photo{photos.length !== 1 ? 's' : ''}
+                                    </Badge>
                                 </div>
-                                <div className="text-[11px] text-muted-foreground pl-5 truncate flex items-center gap-1.5">
-                                    {summarySchema.has_findings_register !== false ? (
-                                        <>
-                                            {findings.filter((f) => f.risk === 'high').length > 0 && (
-                                                <span className="text-rose-600 font-bold bg-rose-50 dark:bg-rose-950 px-1 rounded text-[10px]">
-                                                    {findings.filter((f) => f.risk === 'high').length} High
-                                                </span>
-                                            )}
-                                            {findings.filter((f) => f.risk === 'medium').length > 0 && (
-                                                <span className="text-amber-600 font-bold bg-amber-50 dark:bg-amber-950 px-1 rounded text-[10px]">
-                                                    {findings.filter((f) => f.risk === 'medium').length} Med
-                                                </span>
-                                            )}
-                                            {findings.filter((f) => f.risk === 'low').length > 0 && (
-                                                <span className="text-emerald-600 font-bold bg-emerald-50 dark:bg-emerald-950 px-1 rounded text-[10px]">
-                                                    {findings.filter((f) => f.risk === 'low').length} Low
-                                                </span>
-                                            )}
-                                            {findings.length === 0 && (summarySchema.has_ratings_matrix ? 'Ratings & Observations' : 'Findings & Deficiencies')}
-                                        </>
-                                    ) : (
-                                        'Executive Summary & Assessment'
-                                    )}
+                                <div className="text-[11px] text-muted-foreground pl-5 truncate">
+                                    Multi-photo inspection & walkaround records
                                 </div>
                             </button>
+                        ) : (
+                            <>
+                                {/* Chapter 1: General Information & Particulars */}
+                                <button
+                                    type="button"
+                                    onClick={() => handleChapterSwitch(0)}
+                                    className={`w-full text-left rounded-lg p-3 transition-all flex flex-col gap-1.5 ${
+                                        activeChapterId === 0
+                                            ? 'bg-card border-2 border-primary shadow-xs ring-1 ring-primary/20'
+                                            : 'border border-transparent hover:bg-card/70'
+                                    }`}
+                                >
+                                    <div className="flex items-start justify-between gap-2">
+                                        <div className="flex items-center gap-1.5 min-w-0">
+                                            <Info className="size-4 text-primary shrink-0" />
+                                            <span className="font-semibold text-xs text-foreground truncate">
+                                                1. General Information
+                                            </span>
+                                        </div>
+                                        <Badge variant="secondary" className="text-[10px] shrink-0 font-mono">
+                                            Particulars
+                                        </Badge>
+                                    </div>
+                                    <div className="text-[11px] text-muted-foreground pl-5 truncate">
+                                        Ship, PSC, Drydock, Operations & Officers
+                                    </div>
+                                </button>
+
+                                {report.groups
+                                    .filter((g) => g.chapter_no !== '1' && g.title !== 'General Information')
+                                    .map((group) => {
+                                        const stats = chapterStats[group.id] || { applicable: 0, answered: 0, noCount: 0, nsCount: 0 };
+                                        const isCurrent = group.id === activeChapterId;
+                                        const isComplete = stats.applicable > 0 && stats.answered === stats.applicable;
+
+                                        return (
+                                        <button
+                                            key={group.id}
+                                            type="button"
+                                            onClick={() => handleChapterSwitch(group.id)}
+                                            className={`w-full text-left rounded-lg p-3 transition-all flex flex-col gap-1.5 ${
+                                                isCurrent
+                                                    ? 'bg-card border-2 border-primary shadow-xs ring-1 ring-primary/20'
+                                                    : 'border border-transparent hover:bg-card/70'
+                                            }`}
+                                        >
+                                            <div className="flex items-start justify-between gap-2">
+                                                <div className="flex items-center gap-1.5 min-w-0">
+                                                    {isComplete ? (
+                                                        <CheckCircle2 className="size-4 text-emerald-600 shrink-0" />
+                                                    ) : (
+                                                        <span className="size-2 rounded-full bg-muted-foreground/40 shrink-0" />
+                                                    )}
+                                                    <span className="font-medium text-xs text-foreground truncate">
+                                                        {group.chapter_no ? `${group.chapter_no}. ` : ''}
+                                                        {group.title}
+                                                    </span>
+                                                </div>
+
+                                                {!group.is_applicable && (
+                                                    <Badge variant="outline" className="text-[10px] shrink-0 text-amber-600">
+                                                        NA
+                                                    </Badge>
+                                                )}
+                                            </div>
+
+                                            {/* Progress & Flags Bar */}
+                                            <div className="flex items-center justify-between text-[11px] text-muted-foreground pl-3.5">
+                                                <span>
+                                                    {stats.answered} of {stats.applicable} answered
+                                                </span>
+                                                <div className="flex items-center gap-1.5">
+                                                    {stats.noCount > 0 && (
+                                                        <span className="font-bold text-rose-600 bg-rose-50 dark:bg-rose-950 px-1 rounded text-[10px]">
+                                                            {stats.noCount} No
+                                                        </span>
+                                                    )}
+                                                    {stats.nsCount > 0 && (
+                                                        <span className="font-bold text-amber-600 bg-amber-50 dark:bg-amber-950 px-1 rounded text-[10px]">
+                                                            {stats.nsCount} NS
+                                                        </span>
+                                                    )}
+                                                </div>
+                                            </div>
+                                        </button>
+                                    );
+                                })}
+
+                                {/* Dynamic Summary Chapter (Schema-Driven, Task 4.1) */}
+                                {summarySchema.enabled !== false && (
+                                    <button
+                                        type="button"
+                                        onClick={() => handleChapterSwitch(-999)}
+                                        className={`w-full text-left rounded-lg p-3 transition-all flex flex-col gap-1.5 ${
+                                            activeChapterId === -999 || activeChapterId === -15
+                                                ? 'bg-card border-2 border-primary shadow-xs ring-1 ring-primary/20'
+                                                : 'border border-transparent hover:bg-card/70'
+                                        }`}
+                                    >
+                                        <div className="flex items-start justify-between gap-2">
+                                            <div className="flex items-center gap-1.5 min-w-0">
+                                                <ShieldAlert className="size-4 text-primary shrink-0" />
+                                                <span className="font-semibold text-xs text-foreground truncate">
+                                                    {summaryChapterNo}. {summaryChapterTitle}
+                                                </span>
+                                            </div>
+                                            {summarySchema.has_findings_register !== false && (
+                                                <Badge variant={findings.length > 0 ? 'destructive' : 'secondary'} className="text-[10px] shrink-0 font-mono">
+                                                    {findings.length}
+                                                </Badge>
+                                            )}
+                                        </div>
+                                        <div className="text-[11px] text-muted-foreground pl-5 truncate flex items-center gap-1.5">
+                                            {summarySchema.has_findings_register !== false ? (
+                                                <>
+                                                    {findings.filter((f) => f.risk === 'high').length > 0 && (
+                                                        <span className="text-rose-600 font-bold bg-rose-50 dark:bg-rose-950 px-1 rounded text-[10px]">
+                                                            {findings.filter((f) => f.risk === 'high').length} High
+                                                        </span>
+                                                    )}
+                                                    {findings.filter((f) => f.risk === 'medium').length > 0 && (
+                                                        <span className="text-amber-600 font-bold bg-amber-50 dark:bg-amber-950 px-1 rounded text-[10px]">
+                                                            {findings.filter((f) => f.risk === 'medium').length} Med
+                                                        </span>
+                                                    )}
+                                                    {findings.filter((f) => f.risk === 'low').length > 0 && (
+                                                        <span className="text-emerald-600 font-bold bg-emerald-50 dark:bg-emerald-950 px-1 rounded text-[10px]">
+                                                            {findings.filter((f) => f.risk === 'low').length} Low
+                                                        </span>
+                                                    )}
+                                                    {findings.length === 0 && (summarySchema.has_ratings_matrix ? 'Ratings & Observations' : 'Findings & Deficiencies')}
+                                                </>
+                                            ) : (
+                                                'Executive Summary & Assessment'
+                                            )}
+                                        </div>
+                                    </button>
+                                )}
+
+                                {/* Dedicated Photo Chapter (Schema-Driven, Phase 5) */}
+                                {photoSchema.enabled !== false && (
+                                    <button
+                                        type="button"
+                                        onClick={() => handleChapterSwitch(-888)}
+                                        className={`w-full text-left rounded-lg p-2.5 transition-all flex items-center justify-between gap-1.5 ${
+                                            activeChapterId === -888
+                                                ? 'bg-card border-2 border-primary shadow-xs ring-1 ring-primary/20'
+                                                : 'border border-transparent hover:bg-card/70'
+                                        }`}
+                                    >
+                                        <span className="font-semibold text-xs text-foreground truncate flex-1">
+                                            {photoChapterTitle}
+                                        </span>
+                                        <Badge variant="secondary" className="text-[10px] shrink-0 font-mono">
+                                            {photos.length}
+                                        </Badge>
+                                    </button>
+                                )}
+                            </>
                         )}
                     </aside>
 
-                    {/* Right Main Content Area: General Information or Group Form */}
+                    {/* Right Main Content Area: General Information, Groups, Observations, or Photos */}
                     <main ref={mainContentRef} className="flex-1 overflow-y-auto p-6 md:p-8 space-y-6">
-                        {activeChapterId === 0 ? (
+                        {activeChapterId === -888 ? (
+                            <div className="max-w-5xl mx-auto space-y-6">
+                                <PhotoChapterSection
+                                    reportId={report.id}
+                                    title={photoChapterTitle}
+                                    description={photoSchema.description}
+                                    isPhotoForm={isPhotoForm}
+                                    isEditable={is_editable}
+                                    photos={photos}
+                                    schemaItems={photoSchema.items || []}
+                                    categories={photo_categories}
+                                    allowedCategoryCodes={photoSchema.allowed_categories}
+                                    questions={allQuestionsForLink}
+                                    findings={findings.map((f) => ({ id: f.id, finding_no: f.viq_paragraph || String(f.id), description: f.description }))}
+                                    onPhotosChange={setPhotos}
+                                />
+                                {prevChapter && (
+                                    <div className="flex justify-between pt-2 pb-4">
+                                        <Button
+                                            type="button"
+                                            variant="outline"
+                                            onClick={() => handleChapterSwitch(prevChapter.id)}
+                                            className="flex items-center gap-2"
+                                        >
+                                            <ChevronLeft className="size-4" />
+                                            <span>Prev: {prevChapter.chapter_no ? `Chapter ${prevChapter.chapter_no} - ${prevChapter.title}` : prevChapter.title}</span>
+                                        </Button>
+                                    </div>
+                                )}
+                            </div>
+                        ) : activeChapterId === 0 ? (
                             <GeneralInfoSection
                                 report={report}
                                 isEditable={is_editable}

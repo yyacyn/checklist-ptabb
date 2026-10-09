@@ -21,7 +21,7 @@ use Illuminate\Database\Eloquent\Relations\HasManyThrough;
  * @property int $template_version
  * @property string $answer_set
  */
-#[Fillable(['code', 'name', 'form_version', 'template_version', 'answer_set', 'summary_schema'])]
+#[Fillable(['code', 'form_type', 'name', 'form_version', 'template_version', 'answer_set', 'summary_schema', 'photo_schema'])]
 class Form extends Model
 {
     /** @use HasFactory<FormFactory> */
@@ -34,6 +34,7 @@ class Form extends Model
      */
     protected $casts = [
         'summary_schema' => 'array',
+        'photo_schema' => 'array',
     ];
 
     public function groups(): HasMany

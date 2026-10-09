@@ -119,7 +119,7 @@ This is the phase users feel. Budget it properly.
 | --- | --- | --- |
 | 4.1 | **Schema-Driven Summary Chapter & Findings**: (1) Dynamic `forms.summary_schema` defining form-specific summary layout (ratings matrix, custom executive textareas, findings register, custom titles), (2) Observation rows CRUD (Chapter, VIQ, Description, Risk Level High/Med/Low, Job Order No.), (3) Flexible `reports.summary_data` (JSON) storage with debounced autosave, (4) In-tree Summary Chapter Builder in Form Editor | **done**: dynamic schema configuration on `Form`, in-tree summary chapter card in Form Editor (`forms/show.tsx`), dynamic summary renderer in `reports/show.tsx`, `findings` table, `FindingController`, `updateSummary` endpoint, ActivityLog audit (INS-10, INS-11, INS-12, FND-1, INS-9, AUD-9, FM-7b) |
 | 4.2 | Findings list per vessel name with filters, scoped by role | **done**: centralized Findings Register (`/findings`), role-scoping for vessel users (`SRS §2.1`), filters (vessel, risk, status, form, dates, search), KPI summary cards, sidebar navigation (FND-2) |
-| 4.3 | Photo & Evidence schema: `photos` entity with report, question, and finding relations; schema-driven Photo Chapter definition on forms | PHO-0, PHO-2, PHO-5 |
+| 4.3 | Photo & Evidence schema: `photos` entity with report, question, and finding relations; schema-driven Photo Chapter definition on forms | **done**: `photo_categories` and `photos` database migrations, `Photo` & `PhotoCategory` Eloquent models with cross-form relations (`Report`, `ReportQuestion`, `Finding`), `forms.photo_schema` JSON column, `PhotoCategorySeeder` (PHO-0, PHO-2, PHO-5) |
 
 ---
 
@@ -127,9 +127,9 @@ This is the phase users feel. Budget it properly.
 
 | # | Task | Ref |
 | --- | --- | --- |
-| 5.1 | Photo Category CRUD (Hull, Deck, Engine Room, Bridge, Navigational, Safety, Room, etc.), seeded with standard categories | §8.1 |
-| 5.2 | **In-Tree Photo Chapter Builder in Form Editor**: Superadmin can attach and configure a dedicated Photo Chapter (e.g., Chapter 16 Photographic Records in D-062, or custom photo chapter in any form) with custom title and instructions | PHO-0 |
-| 5.3 | **Multi-Photo Structured Form & Upload Queue**: User can upload multiple photos with structured inputs (Number, Title/Caption, Category, Description/Remarks) in the Photo Chapter and reports | PHO-1, IMG-7 |
+| 5.1 | Photo Category CRUD (Hull, Deck, Engine Room, Bridge, Navigational, Safety, Room, etc.), seeded with standard categories | **done**: `photo_categories` migration and `PhotoCategorySeeder` with standard 8 maritime categories (§8.1) |
+| 5.2 | **Composable Photo Form Builder in Form Editor**: (1) First-class Photo Form template support (`forms.form_type = 'photo'`), (2) Superadmin can attach and configure an existing Photo Form into any parent Form (e.g. Chapter 16 Photographic Records in D-062), (3) Standalone Photo Form seed `P-001` | **done**: `forms.photo_schema` & `form_type`, Photo Chapter Card in Form Editor (`forms/show.tsx`), Table of Chapters sidebar navigation, `PUT admin/forms/{form}/photo-schema` endpoint, category selection pills, template version bumping (PHO-0) |
+| 5.3 | **Multi-Photo Structured Form & Upload Queue**: User can create standalone photo reports and fill embedded photo chapters with structured inputs (Number, Title/Caption, Category, Description/Remarks) | PHO-1, IMG-7 |
 | 5.4 | Client-side image resize & auto-orient (longest edge 2000 px, quality 80) to protect VSAT satellite bandwidth | IMG-2 |
 | 5.5 | In-browser HEIC to JPEG conversion for mobile Safari / iOS photos; clear rejection for unsupported files | IMG-2a, IMG-4 |
 | 5.6 | Upload API endpoint: 20–25 MB client accept, checksum deduplication, and payload protection | IMG-1 |

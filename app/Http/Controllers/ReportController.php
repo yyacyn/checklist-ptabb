@@ -5,6 +5,7 @@ namespace App\Http\Controllers;
 use App\Enums\ReportStatus;
 use App\Models\ActivityLog;
 use App\Models\Form;
+use App\Models\PhotoCategory;
 use App\Models\Report;
 use App\Models\ReportAnswer;
 use App\Models\ReportGroup;
@@ -77,17 +78,16 @@ class ReportController extends Controller
         }
 
         $forms = Form::query()
-            ->whereIn('code', ['D-062', 'B-008'])
-            ->get(['id', 'code', 'name', 'template_version', 'form_version'])
+            ->get(['id', 'code', 'form_type', 'name', 'template_version', 'form_version'])
             ->filter(function (Form $form) use ($canCreateInspection, $canCreateAudit) {
-                if ($form->code === 'D-062') {
+                if ($form->code === 'D-062' || $form->form_type === 'photo') {
                     return $canCreateInspection;
                 }
                 if ($form->code === 'B-008') {
                     return $canCreateAudit;
                 }
 
-                return false;
+                return $canCreateInspection || $canCreateAudit;
             })
             ->values();
 
@@ -141,7 +141,7 @@ class ReportController extends Controller
         ]);
 
         $form = Form::findOrFail($validated['form_id']);
-        $reportType = $form->code === 'D-062' ? 'inspection' : 'audit';
+        $reportType = ($form->code === 'D-062' || $form->form_type === 'photo') ? 'inspection' : 'audit';
 
         // Authorize creation for this specific type
         Gate::authorize('create', [Report::class, $reportType]);
@@ -204,7 +204,7 @@ class ReportController extends Controller
         Gate::authorize('view', $report);
 
         $report->load([
-            'form:id,code,name,answer_set,summary_schema',
+            'form:id,code,name,answer_set,summary_schema,photo_schema,form_type',
             'vesselType:id,name',
             'lockOwner:id,name',
             'groups' => fn ($q) => $q->whereNull('parent_id')->orderBy('sort_order'),
@@ -214,7 +214,23 @@ class ReportController extends Controller
             'groups.subgroups.questions' => fn ($q) => $q->orderBy('sort_order'),
             'groups.subgroups.questions.answer.answeredBy:id,name',
             'findings' => fn ($q) => $q->orderBy('sort_order')->orderBy('id'),
+            'photos' => fn ($q) => $q->with(['category:id,name,code', 'uploader:id,name'])->orderBy('sort_order')->orderBy('item_no')->orderBy('id'),
         ]);
+
+        $photoCategories = PhotoCategory::query()
+            ->where('is_active', true)
+            ->orderBy('sort_order')
+            ->get(['id', 'name', 'code']);
+
+        // Resolve attached photo form items if attached_form_id is specified
+        if ($report->form && !empty($report->form->photo_schema['attached_form_id'])) {
+            $attachedForm = Form::find($report->form->photo_schema['attached_form_id']);
+            if ($attachedForm && !empty($attachedForm->photo_schema['items'])) {
+                $schema = $report->form->photo_schema;
+                $schema['items'] = $attachedForm->photo_schema['items'];
+                $report->form->photo_schema = $schema;
+            }
+        }
 
         $isEditable = Gate::allows('update', $report);
 
@@ -235,6 +251,7 @@ class ReportController extends Controller
             'is_editable' => $isEditable,
             'initial_lock' => $activeLock,
             'can_delete' => Gate::allows('delete', $report),
+            'photo_categories' => $photoCategories,
         ]);
     }
 

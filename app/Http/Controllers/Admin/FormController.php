@@ -5,6 +5,7 @@ namespace App\Http\Controllers\Admin;
 use App\Http\Controllers\Controller;
 use App\Models\Form;
 use App\Models\FormApplicability;
+use App\Models\PhotoCategory;
 use App\Models\ReportGroup;
 use App\Models\ReportQuestion;
 use App\Models\VesselType;
@@ -28,6 +29,7 @@ class FormController extends Controller
             ->map(fn (Form $form) => [
                 'id' => $form->id,
                 'code' => $form->code,
+                'form_type' => $form->form_type ?? 'standard',
                 'name' => $form->name,
                 'form_version' => $form->form_version,
                 'template_version' => $form->template_version,
@@ -39,6 +41,41 @@ class FormController extends Controller
         return Inertia::render('forms/index', [
             'forms' => $forms,
         ]);
+    }
+
+    /**
+     * Store a newly created form template.
+     */
+    public function store(Request $request)
+    {
+        $validated = $request->validate([
+            'code' => ['required', 'string', 'max:50', 'unique:forms,code'],
+            'name' => ['required', 'string', 'max:255'],
+            'form_type' => ['required', 'string', 'in:standard,photo'],
+            'form_version' => ['nullable', 'string', 'max:50'],
+            'answer_set' => ['nullable', 'string', 'max:50'],
+        ]);
+
+        $isPhoto = $validated['form_type'] === 'photo';
+
+        $form = Form::create([
+            'code' => strtoupper(trim($validated['code'])),
+            'name' => trim($validated['name']),
+            'form_type' => $validated['form_type'],
+            'form_version' => !empty($validated['form_version']) ? trim($validated['form_version']) : '1.0',
+            'template_version' => 1,
+            'answer_set' => !empty($validated['answer_set']) ? trim($validated['answer_set']) : ($isPhoto ? 'none' : 'ynnsna'),
+            'photo_schema' => $isPhoto ? [
+                'enabled' => true,
+                'title' => trim($validated['name']),
+                'items' => [
+                    ['id' => '1', 'title' => 'Overview / General View'],
+                ],
+            ] : null,
+        ]);
+
+        return redirect()->route('admin.forms.show', $form->id)
+            ->with('success', "Form {$form->code} created successfully.");
     }
 
     /**
@@ -154,20 +191,29 @@ class FormController extends Controller
             ->orderBy('sort_order')
             ->get(['id', 'title', 'chapter_no', 'parent_id']);
 
+        $availablePhotoForms = Form::query()
+            ->where('form_type', 'photo')
+            ->where('id', '!=', $form->id)
+            ->get(['id', 'code', 'name']);
+
         return Inertia::render('forms/show', [
             'form' => [
                 'id' => $form->id,
                 'code' => $form->code,
+                'form_type' => $form->form_type ?? 'standard',
                 'name' => $form->name,
                 'form_version' => $form->form_version,
                 'template_version' => $form->template_version,
                 'answer_set' => $form->answer_set,
                 'summary_schema' => $form->summary_schema,
+                'photo_schema' => $form->photo_schema,
             ],
             'chapters' => $chapters,
             'all_groups' => $flatGroups,
             'flat_groups' => $flatGroups,
             'vessel_types' => $vesselTypes,
+            'available_photo_forms' => $availablePhotoForms,
+            'photo_categories' => PhotoCategory::where('is_active', true)->orderBy('sort_order')->get(['id', 'name', 'code']),
         ]);
     }
 
@@ -213,5 +259,45 @@ class FormController extends Controller
         }
 
         return back()->with('success', 'Summary chapter settings updated successfully.');
+    }
+
+    /**
+     * Update the form's photo chapter schema (SRS PHO-0, Task 5.2).
+     */
+    public function updatePhotoSchema(Request $request, Form $form)
+    {
+        $payload = $request->has('photo_schema') && is_array($request->input('photo_schema'))
+            ? $request->input('photo_schema')
+            : $request->all();
+
+        $validated = \Illuminate\Support\Facades\Validator::make($payload, [
+            'enabled' => ['required', 'boolean'],
+            'title' => ['required', 'string', 'max:255'],
+            'description' => ['nullable', 'string'],
+            'attached_form_id' => ['nullable', 'integer'],
+            'items' => ['nullable', 'array'],
+            'items.*.id' => ['nullable', 'string'],
+            'items.*.title' => ['required_with:items', 'string', 'max:255'],
+            'items.*.description' => ['nullable', 'string'],
+            'allowed_categories' => ['nullable', 'array'],
+            'allowed_categories.*' => ['string'],
+        ])->validate();
+
+        $form->update([
+            'name' => ($form->form_type === 'photo' && !empty($validated['title'])) ? $validated['title'] : $form->name,
+            'photo_schema' => $validated,
+        ]);
+
+        $form->bumpTemplateVersion();
+
+        if ($request->wantsJson()) {
+            return response()->json([
+                'status' => 'saved',
+                'photo_schema' => $form->photo_schema,
+                'template_version' => $form->template_version,
+            ]);
+        }
+
+        return back()->with('success', 'Photo chapter settings updated successfully.');
     }
 }

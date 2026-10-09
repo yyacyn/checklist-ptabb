@@ -7,6 +7,7 @@ use Illuminate\Database\Eloquent\Attributes\Fillable;
 use Illuminate\Database\Eloquent\Factories\HasFactory;
 use Illuminate\Database\Eloquent\Model;
 use Illuminate\Database\Eloquent\Relations\BelongsTo;
+use Illuminate\Database\Eloquent\Relations\HasMany;
 
 /**
  * An observation or non-conformity finding (Form D-062 Chapter 15, Form B-008, ERD §7.3, SRS FND-1).
@@ -98,5 +99,10 @@ class Finding extends Model
     public function verifiedBy(): BelongsTo
     {
         return $this->belongsTo(User::class, 'verified_by');
+    }
+
+    public function photos(): HasMany
+    {
+        return $this->hasMany(Photo::class);
     }
 }

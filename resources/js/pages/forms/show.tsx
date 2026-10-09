@@ -4,8 +4,10 @@ import {
     ArrowRightLeft,
     ArrowUp,
     Calendar,
+    Camera,
     CheckSquare,
     ChevronDown,
+    ChevronLeft,
     ChevronRight,
     ChevronsDownUp,
     ChevronsUpDown,
@@ -21,6 +23,7 @@ import {
     MoreHorizontal,
     Paperclip,
     Plus,
+    Save,
     Square,
     Trash2,
 } from 'lucide-react';
@@ -28,7 +31,7 @@ import React, { useState } from 'react';
 import Heading from '@/components/heading';
 import { Badge } from '@/components/ui/badge';
 import { Button } from '@/components/ui/button';
-import { Card, CardContent, CardHeader } from '@/components/ui/card';
+import { Card, CardContent, CardFooter, CardHeader } from '@/components/ui/card';
 import { Checkbox } from '@/components/ui/checkbox';
 import { Dialog, DialogContent, DialogFooter, DialogHeader, DialogTitle } from '@/components/ui/dialog';
 import {
@@ -91,6 +94,32 @@ export interface SummarySchema {
     has_findings_register?: boolean;
 }
 
+export interface PhotoFormItem {
+    id: string;
+    title: string;
+    description?: string;
+}
+
+export interface PhotoSchema {
+    enabled: boolean;
+    title?: string;
+    description?: string;
+    attached_form_id?: number | null;
+    items?: PhotoFormItem[];
+}
+
+export interface PhotoFormOption {
+    id: number;
+    code: string;
+    name: string;
+}
+
+export interface PhotoCategoryOption {
+    id: number;
+    name: string;
+    code: string;
+}
+
 interface FormData {
     id: number;
     code: string;
@@ -98,7 +127,9 @@ interface FormData {
     form_version: string;
     template_version: number;
     answer_set: string;
+    form_type?: 'standard' | 'photo';
     summary_schema?: SummarySchema | null;
+    photo_schema?: PhotoSchema | null;
 }
 
 interface VesselTypeItem {
@@ -132,6 +163,8 @@ interface Props {
     all_groups?: GroupOption[];
     flat_groups?: GroupOption[];
     vessel_types?: VesselTypeItem[];
+    available_photo_forms?: PhotoFormOption[];
+    photo_categories?: PhotoCategoryOption[];
 }
 
 export function parseQuestionInputType(inputType: string) {
@@ -177,26 +210,19 @@ export default function FormShow({
     all_groups = [],
     flat_groups = [],
     vessel_types = [],
+    available_photo_forms = [],
+    photo_categories = [],
 }: Props) {
     const groupsList = all_groups.length > 0 ? all_groups : flat_groups;
     // Group Modal State
     const [groupModalOpen, setGroupModalOpen] = useState(false);
     const [editingGroup, setEditingGroup] = useState<GroupData | null>(null);
     const [groupParentId, setGroupParentId] = useState<number | null>(null);
-    const [groupTitle, setGroupTitle] = useState('');
-    const [groupChapterNo, setGroupChapterNo] = useState('');
-    const [groupIceClass, setGroupIceClass] = useState(false);
 
     // Question Modal State
     const [questionModalOpen, setQuestionModalOpen] = useState(false);
     const [editingQuestion, setEditingQuestion] = useState<QuestionData | null>(null);
     const [questionGroupId, setQuestionGroupId] = useState<number | null>(null);
-    const [questionText, setQuestionText] = useState('');
-    const [questionGuidance, setQuestionGuidance] = useState('');
-    const [questionHasChoices, setQuestionHasChoices] = useState(true);
-    const [questionHasText, setQuestionHasText] = useState(false);
-    const [questionHasDate, setQuestionHasDate] = useState(false);
-    const [questionHasFile, setQuestionHasFile] = useState(false);
 
     // Applicability Modal State (Task 2.4)
     const [applicabilityModalOpen, setApplicabilityModalOpen] = useState(false);
@@ -215,10 +241,12 @@ export default function FormShow({
     const [historyTitle, setHistoryTitle] = useState('');
     const [historyItems, setHistoryItems] = useState<HistoryItem[]>([]);
 
+    const isPhotoForm = form.form_type === 'photo';
+
     // Summary Chapter State
     const [summaryChapterCollapsed, setSummaryChapterCollapsed] = useState(false);
     const [summaryFormState, setSummaryFormState] = useState<SummarySchema>(() => ({
-        enabled: form.summary_schema?.enabled ?? true,
+        enabled: !isPhotoForm && (form.summary_schema?.enabled ?? (form.code === 'D-062' || form.code === 'B-008')),
         title: form.summary_schema?.title ?? 'Summary & Observations',
         has_ratings_matrix: form.summary_schema?.has_ratings_matrix ?? false,
         rating_options: form.summary_schema?.rating_options ?? [
@@ -230,19 +258,166 @@ export default function FormShow({
         has_findings_register: form.summary_schema?.has_findings_register ?? true,
     }));
     const [isSavingSummary, setIsSavingSummary] = useState(false);
-    const [activeNavChapterId, setActiveNavChapterId] = useState<number | 'summary' | null>(null);
 
-    const scrollToChapter = (id: number | 'summary') => {
-        setActiveNavChapterId(id);
-        const elementId = id === 'summary' ? 'summary-chapter' : `chapter-${id}`;
-        const el = document.getElementById(elementId);
-        if (el) {
-            if (id === 'summary') {
-                setSummaryChapterCollapsed(false);
-            } else {
-                setCollapsedChapters((prev) => ({ ...prev, [id]: false }));
+    // Photo Form State
+    const [photoChapterCollapsed, setPhotoChapterCollapsed] = useState(false);
+    const [photoFormState, setPhotoFormState] = useState<PhotoSchema>(() => ({
+        enabled: isPhotoForm || Boolean(form.photo_schema?.enabled),
+        title: form.photo_schema?.title ?? (isPhotoForm ? form.name : 'Photographic Records'),
+        description: form.photo_schema?.description ?? '',
+        attached_form_id: form.photo_schema?.attached_form_id ?? null,
+        items: form.photo_schema?.items ?? [],
+    }));
+    const [isSavingPhoto, setIsSavingPhoto] = useState(false);
+
+    const handleAddPhotoItem = () => {
+        setPhotoFormState((prev) => {
+            const current = prev.items || [];
+            return {
+                ...prev,
+                items: [
+                    ...current,
+                    {
+                        id: String(Date.now()),
+                        title: `Photo Item #${current.length + 1}`,
+                    },
+                ],
+            };
+        });
+    };
+
+    const handleUpdatePhotoItem = (idx: number, field: 'title' | 'description', value: string) => {
+        setPhotoFormState((prev) => {
+            const list = [...(prev.items || [])];
+            if (list[idx]) {
+                list[idx] = { ...list[idx], [field]: value };
             }
-            el.scrollIntoView({ behavior: 'smooth', block: 'start' });
+            return { ...prev, items: list };
+        });
+    };
+
+    const handleRemovePhotoItem = (idx: number) => {
+        setPhotoFormState((prev) => {
+            const list = [...(prev.items || [])];
+            list.splice(idx, 1);
+            return { ...prev, items: list };
+        });
+    };
+
+    const handleMovePhotoItem = (idx: number, direction: 'up' | 'down') => {
+        setPhotoFormState((prev) => {
+            const list = [...(prev.items || [])];
+            const targetIdx = direction === 'up' ? idx - 1 : idx + 1;
+            if (targetIdx < 0 || targetIdx >= list.length) return prev;
+            const temp = list[idx];
+            list[idx] = list[targetIdx];
+            list[targetIdx] = temp;
+            return { ...prev, items: list };
+        });
+    };
+
+    const [activeNavChapterId, setActiveNavChapterId] = useState<number | 'summary' | 'photo'>(() => {
+        if (chapters.length > 0) return chapters[0].id;
+        if (!isPhotoForm && summaryFormState.enabled) return 'summary';
+        return 'photo';
+    });
+
+    // Make sure activeNavChapterId stays valid when chapters change
+    React.useEffect(() => {
+        if (typeof activeNavChapterId === 'number' && !chapters.some((c) => c.id === activeNavChapterId)) {
+            if (chapters.length > 0) {
+                setActiveNavChapterId(chapters[0].id);
+            } else if (!isPhotoForm && summaryFormState.enabled) {
+                setActiveNavChapterId('summary');
+            } else {
+                setActiveNavChapterId('photo');
+            }
+        }
+    }, [chapters, isPhotoForm, summaryFormState.enabled]);
+
+    const allTabs: Array<{ id: number | 'summary' | 'photo'; title: string }> = [
+        ...chapters.map((c) => ({
+            id: c.id,
+            title: `${c.chapter_no ? c.chapter_no + '. ' : ''}${c.title}`,
+        })),
+        ...(!isPhotoForm && summaryFormState.enabled ? [{ id: 'summary' as const, title: summaryFormState.title || 'Summary & Observations' }] : []),
+        ...(photoFormState.enabled || isPhotoForm ? [{ id: 'photo' as const, title: photoFormState.title || 'Photographic Records' }] : []),
+    ];
+
+    const currentTabIndex = allTabs.findIndex((t) => t.id === activeNavChapterId);
+    const prevTab = currentTabIndex > 0 ? allTabs[currentTabIndex - 1] : null;
+    const nextTab = currentTabIndex >= 0 && currentTabIndex < allTabs.length - 1 ? allTabs[currentTabIndex + 1] : null;
+
+    const handleSelectTab = (id: number | 'summary' | 'photo') => {
+        setActiveNavChapterId(id);
+    };
+
+    const handleSavePhotoSchema = () => {
+        setIsSavingPhoto(true);
+        router.put(
+            `/admin/forms/${form.id}/photo-schema`,
+            { photo_schema: photoFormState as any },
+            {
+                preserveScroll: true,
+                onSuccess: () => {
+                    setIsSavingPhoto(false);
+                },
+                onError: () => {
+                    setIsSavingPhoto(false);
+                },
+            }
+        );
+    };
+
+    const handleRemovePhotoChapter = () => {
+        if (confirm('Are you sure you want to remove the Photo Form from this template?')) {
+            setIsSavingPhoto(true);
+            const updated = { ...photoFormState, enabled: false, attached_form_id: null, items: [] };
+            setPhotoFormState(updated);
+            router.put(
+                `/admin/forms/${form.id}/photo-schema`,
+                { photo_schema: updated as any },
+                {
+                    preserveScroll: true,
+                    onSuccess: () => {
+                        setIsSavingPhoto(false);
+                        if (chapters.length > 0) {
+                            setActiveNavChapterId(chapters[0].id);
+                        } else if (summaryFormState.enabled) {
+                            setActiveNavChapterId('summary');
+                        }
+                    },
+                    onError: () => {
+                        setIsSavingPhoto(false);
+                    },
+                }
+            );
+        }
+    };
+
+    const handleRemoveSummaryChapter = () => {
+        if (confirm('Are you sure you want to remove the Summary Chapter from this template?')) {
+            setIsSavingSummary(true);
+            const updated = { ...summaryFormState, enabled: false };
+            setSummaryFormState(updated);
+            router.put(
+                `/admin/forms/${form.id}/summary-schema`,
+                { summary_schema: updated as any },
+                {
+                    preserveScroll: true,
+                    onSuccess: () => {
+                        setIsSavingSummary(false);
+                        if (chapters.length > 0) {
+                            setActiveNavChapterId(chapters[0].id);
+                        } else if (photoFormState.enabled) {
+                            setActiveNavChapterId('photo');
+                        }
+                    },
+                    onError: () => {
+                        setIsSavingSummary(false);
+                    },
+                }
+            );
         }
     };
 
@@ -313,108 +488,32 @@ export default function FormShow({
     const openAddChapter = () => {
         setEditingGroup(null);
         setGroupParentId(null);
-        setGroupTitle('');
-        setGroupChapterNo('');
-        setGroupIceClass(false);
         setGroupModalOpen(true);
     };
 
     const openAddSubgroup = (parentId: number) => {
         setEditingGroup(null);
         setGroupParentId(parentId);
-        setGroupTitle('');
-        setGroupChapterNo('');
-        setGroupIceClass(false);
         setGroupModalOpen(true);
     };
 
     const openEditGroup = (group: GroupData) => {
         setEditingGroup(group);
         setGroupParentId(null);
-        setGroupTitle(group.title);
-        setGroupChapterNo(group.chapter_no || '');
-        setGroupIceClass(group.ice_class_only);
         setGroupModalOpen(true);
-    };
-
-    const handleSaveGroup = (e: React.FormEvent) => {
-        e.preventDefault();
-        if (editingGroup) {
-            router.put(`/admin/groups/${editingGroup.id}`, {
-                title: groupTitle,
-                chapter_no: groupChapterNo || null,
-                ice_class_only: groupIceClass,
-            }, {
-                preserveScroll: true,
-                onSuccess: () => setGroupModalOpen(false),
-            });
-        } else {
-            router.post(`/admin/forms/${form.id}/groups`, {
-                title: groupTitle,
-                chapter_no: groupChapterNo || null,
-                parent_id: groupParentId,
-                ice_class_only: groupIceClass,
-            }, {
-                preserveScroll: true,
-                onSuccess: () => setGroupModalOpen(false),
-            });
-        }
     };
 
     // Open Question Modal
     const openAddQuestion = (groupId: number) => {
         setEditingQuestion(null);
         setQuestionGroupId(groupId);
-        setQuestionText('');
-        setQuestionGuidance('');
-        setQuestionHasChoices(true);
-        setQuestionHasText(false);
-        setQuestionHasDate(false);
-        setQuestionHasFile(false);
         setQuestionModalOpen(true);
     };
 
     const openEditQuestion = (question: QuestionData) => {
         setEditingQuestion(question);
         setQuestionGroupId(null);
-        setQuestionText(question.question_text);
-        setQuestionGuidance(question.guidance || '');
-        const flags = parseQuestionInputType(question.input_type);
-        setQuestionHasChoices(flags.hasChoices);
-        setQuestionHasText(flags.hasText);
-        setQuestionHasDate(flags.hasDate);
-        setQuestionHasFile(flags.hasFile);
         setQuestionModalOpen(true);
-    };
-
-    const handleSaveQuestion = (e: React.FormEvent) => {
-        e.preventDefault();
-        const inputType = buildQuestionInputType({
-            hasChoices: questionHasChoices,
-            hasText: questionHasText,
-            hasDate: questionHasDate,
-            hasFile: questionHasFile,
-        });
-
-        if (editingQuestion) {
-            router.put(`/admin/questions/${editingQuestion.id}`, {
-                question_text: questionText,
-                guidance: questionGuidance || null,
-                input_type: inputType,
-            }, {
-                preserveScroll: true,
-                onSuccess: () => setQuestionModalOpen(false),
-            });
-        } else if (questionGroupId) {
-            router.post(`/admin/groups/${questionGroupId}/questions`, {
-                question_text: questionText,
-                guidance: questionGuidance || null,
-                input_type: inputType,
-            }, {
-                preserveScroll: true,
-                onSuccess: () => setQuestionModalOpen(false),
-            });
-        }
     };
 
     // Applicability Modal (Task 2.4)
@@ -615,6 +714,189 @@ export default function FormShow({
         });
     };
 
+    if (isPhotoForm) {
+        return (
+            <>
+                <Head title={`Photo Form: ${form.code}`} />
+
+                <div className="flex h-full flex-1 flex-col gap-6 p-6 max-w-4xl mx-auto w-full">
+                    {/* Header */}
+                    <div className="flex flex-col justify-between gap-4 md:flex-row md:items-center pb-4 border-b">
+                        <div>
+                            <div className="flex items-center gap-2">
+                                <Badge variant="outline" className="text-sm font-bold">
+                                    {form.code}
+                                </Badge>
+                                <Badge variant="secondary">Photo Form</Badge>
+                                <span className="text-xs text-muted-foreground">v{form.template_version}</span>
+                            </div>
+                            <h1 className="text-2xl font-bold tracking-tight mt-1">{form.name}</h1>
+                            <p className="text-sm text-muted-foreground">Add and manage photo fields for this form.</p>
+                        </div>
+                        <div className="flex items-center gap-2">
+                            <Button
+                                onClick={handleSavePhotoSchema}
+                                disabled={isSavingPhoto}
+                                className="flex items-center gap-1.5"
+                            >
+                                <Save className="size-4" />
+                                <span>{isSavingPhoto ? 'Saving...' : 'Save Changes'}</span>
+                            </Button>
+                        </div>
+                    </div>
+
+                    {/* Form Details */}
+                    <Card>
+                        <CardHeader className="p-4 bg-muted/20 border-b">
+                            <h3 className="font-semibold text-base">Form Details</h3>
+                        </CardHeader>
+                        <CardContent className="p-4 space-y-4">
+                            <div className="space-y-1.5">
+                                <Label htmlFor="photo_form_title">Form Name / Title</Label>
+                                <Input
+                                    id="photo_form_title"
+                                    value={photoFormState.title || form.name}
+                                    onChange={(e) => setPhotoFormState((prev) => ({ ...prev, title: e.target.value }))}
+                                    placeholder="e.g. Photographic Record Form"
+                                />
+                            </div>
+                            <div className="space-y-1.5">
+                                <Label htmlFor="photo_form_desc">Instructions / Notes (Optional)</Label>
+                                <textarea
+                                    id="photo_form_desc"
+                                    value={photoFormState.description || ''}
+                                    onChange={(e) => setPhotoFormState((prev) => ({ ...prev, description: e.target.value }))}
+                                    rows={2}
+                                    className="w-full rounded-md border border-input bg-transparent px-3 py-2 text-sm shadow-xs placeholder:text-muted-foreground focus-visible:outline-none focus-visible:ring-1 focus-visible:ring-ring"
+                                    placeholder="Instructions for uploading photos..."
+                                />
+                            </div>
+                        </CardContent>
+                    </Card>
+
+                    {/* Photos List */}
+                    <Card>
+                        <CardHeader className="p-4 bg-muted/20 border-b flex flex-row items-center justify-between">
+                            <div className="flex items-center gap-2">
+                                <Camera className="size-5 text-primary" />
+                                <h3 className="font-semibold text-base">Photo Fields</h3>
+                                <Badge variant="outline">{(photoFormState.items || []).length} Photos</Badge>
+                            </div>
+                            <Button size="sm" onClick={handleAddPhotoItem} className="flex items-center gap-1.5">
+                                <Plus className="size-4" />
+                                <span>Add Photo</span>
+                            </Button>
+                        </CardHeader>
+                        <CardContent className="p-4 space-y-3">
+                            {(!photoFormState.items || photoFormState.items.length === 0) ? (
+                                <div className="text-center py-10 border-2 border-dashed rounded-lg">
+                                    <Camera className="size-10 mx-auto text-muted-foreground/50 mb-2" />
+                                    <p className="text-sm font-medium">No photo fields yet</p>
+                                    <p className="text-xs text-muted-foreground mt-1">Add photo items to define what photos should be taken.</p>
+                                    <Button size="sm" onClick={handleAddPhotoItem} className="mt-4">
+                                        <Plus className="size-4 mr-1.5" /> Add Photo
+                                    </Button>
+                                </div>
+                            ) : (
+                                photoFormState.items.map((item, idx) => (
+                                    <div
+                                        key={item.id || idx}
+                                        className="flex items-start gap-3 p-3.5 rounded-lg border bg-card shadow-2xs transition-all hover:border-border"
+                                    >
+                                        <div className="flex items-center justify-center size-8 rounded-md bg-muted text-xs font-bold shrink-0 mt-1">
+                                            #{idx + 1}
+                                        </div>
+
+                                        <div className="flex-1 min-w-0 space-y-2">
+                                            <div>
+                                                <Label className="text-xs font-semibold text-muted-foreground">Title</Label>
+                                                <Input
+                                                    value={item.title}
+                                                    onChange={(e) => handleUpdatePhotoItem(idx, 'title', e.target.value)}
+                                                    placeholder="Photo title (e.g. General View / Overview)"
+                                                    className="font-medium"
+                                                />
+                                            </div>
+                                            <div>
+                                                <Label className="text-xs text-muted-foreground">Guide / Instructions (Optional)</Label>
+                                                <Input
+                                                    value={item.description || ''}
+                                                    onChange={(e) => handleUpdatePhotoItem(idx, 'description', e.target.value)}
+                                                    placeholder="Optional guidance for taking this photo"
+                                                    className="text-xs"
+                                                />
+                                            </div>
+                                        </div>
+
+                                        <div className="flex flex-col gap-1 shrink-0 pt-5">
+                                            <div className="flex items-center gap-1">
+                                                <Button
+                                                    type="button"
+                                                    size="sm"
+                                                    variant="ghost"
+                                                    className="h-8 w-8 p-0"
+                                                    disabled={idx === 0}
+                                                    onClick={() => handleMovePhotoItem(idx, 'up')}
+                                                    title="Move Up"
+                                                >
+                                                    <ArrowUp className="size-4" />
+                                                </Button>
+                                                <Button
+                                                    type="button"
+                                                    size="sm"
+                                                    variant="ghost"
+                                                    className="h-8 w-8 p-0"
+                                                    disabled={idx === (photoFormState.items?.length || 1) - 1}
+                                                    onClick={() => handleMovePhotoItem(idx, 'down')}
+                                                    title="Move Down"
+                                                >
+                                                    <ArrowDown className="size-4" />
+                                                </Button>
+                                                <Button
+                                                    type="button"
+                                                    size="sm"
+                                                    variant="ghost"
+                                                    className="h-8 w-8 p-0 text-destructive hover:bg-destructive/10"
+                                                    onClick={() => handleRemovePhotoItem(idx)}
+                                                    title="Delete"
+                                                >
+                                                    <Trash2 className="size-4" />
+                                                </Button>
+                                            </div>
+                                        </div>
+                                    </div>
+                                ))
+                            )}
+
+                            {(photoFormState.items || []).length > 0 && (
+                                <div className="pt-3 flex items-center justify-between">
+                                    <Button
+                                        type="button"
+                                        variant="outline"
+                                        size="sm"
+                                        onClick={handleAddPhotoItem}
+                                        className="flex items-center gap-1.5"
+                                    >
+                                        <Plus className="size-4" />
+                                        <span>Add Photo</span>
+                                    </Button>
+
+                                    <Button
+                                        type="button"
+                                        onClick={handleSavePhotoSchema}
+                                        disabled={isSavingPhoto}
+                                    >
+                                        {isSavingPhoto ? 'Saving...' : 'Save Changes'}
+                                    </Button>
+                                </div>
+                            )}
+                        </CardContent>
+                    </Card>
+                </div>
+            </>
+        );
+    }
+
     return (
         <>
             <Head title={`Template Editor: ${form.code}`} />
@@ -648,10 +930,47 @@ export default function FormShow({
                                 <span>Move {selectedQuestionIds.length} Selected Question(s)</span>
                             </Button>
                         )}
-                        <Button onClick={openAddChapter} className="flex items-center gap-1.5">
-                            <Plus className="size-4" />
-                            <span>Add Chapter / Section</span>
-                        </Button>
+                        <DropdownMenu>
+                            <DropdownMenuTrigger asChild>
+                                <Button className="flex items-center gap-1.5">
+                                    <Plus className="size-4" />
+                                    <span>Add Chapter</span>
+                                    <ChevronDown className="size-3.5 ml-0.5 opacity-70" />
+                                </Button>
+                            </DropdownMenuTrigger>
+                            <DropdownMenuContent align="end" className="w-56">
+                                <DropdownMenuItem onClick={openAddChapter} className="cursor-pointer">
+                                    <Plus className="size-4 mr-2" />
+                                    <span>Questions Chapter</span>
+                                </DropdownMenuItem>
+                                {!isPhotoForm && (
+                                    <DropdownMenuItem
+                                        onClick={() => {
+                                            const updated = { ...summaryFormState, enabled: true };
+                                            setSummaryFormState(updated);
+                                            handleSelectTab('summary');
+                                            router.put(`/admin/forms/${form.id}/summary-schema`, { summary_schema: updated as any }, { preserveScroll: true });
+                                        }}
+                                        className="cursor-pointer"
+                                    >
+                                        <FileText className="size-4 mr-2" />
+                                        <span>Summary Chapter</span>
+                                    </DropdownMenuItem>
+                                )}
+                                <DropdownMenuItem
+                                    onClick={() => {
+                                        const updated = { ...photoFormState, enabled: true };
+                                        setPhotoFormState(updated);
+                                        handleSelectTab('photo');
+                                        router.put(`/admin/forms/${form.id}/photo-schema`, { photo_schema: updated as any }, { preserveScroll: true });
+                                    }}
+                                    className="cursor-pointer"
+                                >
+                                    <Camera className="size-4 mr-2" />
+                                    <span>Attach Photo Form</span>
+                                </DropdownMenuItem>
+                            </DropdownMenuContent>
+                        </DropdownMenu>
                     </div>
                 </div>
 
@@ -664,7 +983,7 @@ export default function FormShow({
                                 Table of Chapters
                             </span>
                             <Badge variant="outline" className="text-[10px] font-mono">
-                                {chapters.length + (summaryFormState.enabled ? 1 : 0)} Chapters
+                                {chapters.length + (!isPhotoForm && summaryFormState.enabled ? 1 : 0) + (photoFormState.enabled || isPhotoForm ? 1 : 0)} {isPhotoForm ? 'Sections' : 'Chapters'}
                             </Badge>
                         </div>
 
@@ -678,7 +997,7 @@ export default function FormShow({
                                     <button
                                         key={chapter.id}
                                         type="button"
-                                        onClick={() => scrollToChapter(chapter.id)}
+                                        onClick={() => handleSelectTab(chapter.id)}
                                         className={`w-full text-left rounded-lg p-2.5 transition-all flex flex-col gap-1 ${
                                             isCurrent
                                                 ? 'bg-card border-2 border-primary shadow-xs ring-1 ring-primary/20'
@@ -713,45 +1032,57 @@ export default function FormShow({
                                 );
                             })}
 
-                            {/* Summary Chapter in Table of Chapters */}
-                            <button
-                                type="button"
-                                onClick={() => scrollToChapter('summary')}
-                                className={`w-full text-left rounded-lg p-2.5 transition-all flex flex-col gap-1 border-t mt-2 pt-2.5 ${
-                                    activeNavChapterId === 'summary'
-                                        ? 'bg-card border-2 border-primary shadow-xs ring-1 ring-primary/20'
-                                        : 'border border-transparent hover:bg-card/70'
-                                } ${!summaryFormState.enabled ? 'opacity-60' : ''}`}
-                            >
-                                <div className="flex items-start justify-between gap-1.5">
-                                    <div className="flex items-center gap-1.5 min-w-0 flex-1">
-                                        <FileText className="size-3.5 text-primary shrink-0" />
-                                        <span className="font-semibold text-xs text-foreground truncate">
-                                            {summaryFormState.title || 'Summary & Observations'}
-                                        </span>
-                                    </div>
-                                    {summaryFormState.enabled ? (
-                                        <Badge variant="outline" className="text-[9px] px-1 py-0 text-emerald-600 border-emerald-500/30 shrink-0 font-medium">
-                                            Active
-                                        </Badge>
-                                    ) : (
-                                        <Badge variant="destructive" className="text-[9px] px-1 py-0 shrink-0">
-                                            Off
-                                        </Badge>
-                                    )}
-                                </div>
-                                <div className="text-[11px] text-muted-foreground truncate pl-5">
-                                    {summaryFormState.has_ratings_matrix ? 'Ratings, ' : ''}
-                                    {(summaryFormState.text_fields || []).length} text area{((summaryFormState.text_fields || []).length !== 1) ? 's' : ''}
-                                    {summaryFormState.has_findings_register ? ', Findings' : ''}
-                                </div>
-                            </button>
+                            {/* Summary Chapter in Table of Chapters (Standard Forms Only) */}
+                            {!isPhotoForm && summaryFormState.enabled && (
+                                <button
+                                    type="button"
+                                    onClick={() => handleSelectTab('summary')}
+                                    className={`w-full text-left rounded-lg p-2.5 transition-all flex items-center justify-between gap-1.5 ${
+                                        activeNavChapterId === 'summary'
+                                            ? 'bg-card border-2 border-primary shadow-xs ring-1 ring-primary/20'
+                                            : 'border border-transparent hover:bg-card/70'
+                                    }`}
+                                >
+                                    <span className="font-semibold text-xs text-foreground truncate flex-1">
+                                        {summaryFormState.title || 'Summary & Observations'}
+                                    </span>
+                                </button>
+                            )}
+
+                            {/* Photo Chapter / Form in Table of Chapters */}
+                            {(photoFormState.enabled || isPhotoForm) && (
+                                <button
+                                    type="button"
+                                    onClick={() => handleSelectTab('photo')}
+                                    className={`w-full text-left rounded-lg p-2.5 transition-all flex items-center justify-between gap-1.5 ${
+                                        activeNavChapterId === 'photo'
+                                            ? 'bg-card border-2 border-primary shadow-xs ring-1 ring-primary/20'
+                                            : 'border border-transparent hover:bg-card/70'
+                                    }`}
+                                >
+                                    <span className="font-semibold text-xs text-foreground truncate flex-1">
+                                        {photoFormState.title || (isPhotoForm ? 'Photo Form Settings' : 'Photographic Records')}
+                                    </span>
+                                </button>
+                            )}
                         </div>
                     </aside>
 
-                    {/* Right Main Column: Chapter Tree */}
+                    {/* Right Main Column: Active Chapter / Tab View */}
                     <div className="flex-1 min-w-0 space-y-6">
-                        {chapters.map((chapter) => {
+                        {typeof activeNavChapterId === 'number' && (() => {
+                            const chapter = chapters.find((c) => c.id === activeNavChapterId) || chapters[0];
+                            if (!chapter) {
+                                return (
+                                    <Card className="p-8 text-center border-dashed">
+                                        <p className="text-sm text-muted-foreground">No chapters available in this template.</p>
+                                        <Button onClick={openAddChapter} className="mt-4">
+                                            <Plus className="size-4 mr-1.5" /> Add Chapter / Section
+                                        </Button>
+                                    </Card>
+                                );
+                            }
+
                             const chapterQuestionIds = getAllGroupQuestionIds(chapter);
                             const isChapterAllSelected =
                                 chapterQuestionIds.length > 0 &&
@@ -762,7 +1093,7 @@ export default function FormShow({
                                 <Card
                                     key={chapter.id}
                                     id={`chapter-${chapter.id}`}
-                                    className={`scroll-mt-6 gap-0 overflow-hidden py-0 ${!chapter.is_enabled ? 'opacity-60 bg-muted/20' : ''}`}
+                                    className={`gap-0 overflow-hidden py-0 shadow-xs ${!chapter.is_enabled ? 'opacity-60 bg-muted/20' : ''}`}
                                 >
                                     <CardHeader className="border-b bg-muted/40 p-4">
                                         <div className="flex flex-col gap-3 md:flex-row md:items-center md:justify-between">
@@ -1023,15 +1354,43 @@ export default function FormShow({
                                             )}
                                     </CardContent>
                                 )}
+
+                                <CardFooter className="flex items-center justify-between border-t bg-muted/10 p-4">
+                                    {prevTab ? (
+                                        <Button
+                                            type="button"
+                                            variant="outline"
+                                            size="sm"
+                                            onClick={() => handleSelectTab(prevTab.id)}
+                                            className="flex items-center gap-1.5 text-xs font-medium"
+                                        >
+                                            <ChevronLeft className="size-4" />
+                                            <span className="truncate max-w-[200px]">{prevTab.title}</span>
+                                        </Button>
+                                    ) : <div />}
+                                    {nextTab ? (
+                                        <Button
+                                            type="button"
+                                            variant="default"
+                                            size="sm"
+                                            onClick={() => handleSelectTab(nextTab.id)}
+                                            className="flex items-center gap-1.5 text-xs font-medium"
+                                        >
+                                            <span className="truncate max-w-[200px]">{nextTab.title}</span>
+                                            <ChevronRight className="size-4" />
+                                        </Button>
+                                    ) : <div />}
+                                </CardFooter>
                             </Card>
                         );
-                    })}
+                    })()}
 
-                    {/* Summary Chapter Card */}
-                    <Card
-                        id="summary-chapter"
-                        className={`scroll-mt-6 gap-0 overflow-hidden py-0 ${!summaryFormState.enabled ? 'opacity-70 bg-muted/20' : 'border-primary/40 shadow-xs'}`}
-                    >
+                    {/* Summary Chapter Card (Standard Forms Only) */}
+                    {!isPhotoForm && activeNavChapterId === 'summary' && (
+                        <Card
+                            id="summary-chapter"
+                            className={`gap-0 overflow-hidden py-0 shadow-xs ${!summaryFormState.enabled ? 'opacity-70 bg-muted/20' : 'border-primary/40'}`}
+                        >
                         <CardHeader className="border-b bg-muted/40 p-4">
                             <div className="flex flex-col gap-3 md:flex-row md:items-center md:justify-between">
                                 <div className="flex items-center gap-2 flex-wrap min-w-0">
@@ -1086,6 +1445,17 @@ export default function FormShow({
                                         className="text-xs h-8"
                                     >
                                         {isSavingSummary ? 'Saving...' : 'Save Summary Chapter'}
+                                    </Button>
+                                    <Button
+                                        size="sm"
+                                        variant="ghost"
+                                        className="text-destructive hover:bg-destructive/10 text-xs h-8"
+                                        onClick={handleRemoveSummaryChapter}
+                                        disabled={isSavingSummary}
+                                        title="Remove Summary Chapter"
+                                    >
+                                        <Trash2 className="size-4 mr-1" />
+                                        <span>Remove Chapter</span>
                                     </Button>
                                 </div>
                             </div>
@@ -1376,176 +1746,334 @@ export default function FormShow({
                                 </div>
                             </CardContent>
                         )}
+
+                        <CardFooter className="flex items-center justify-between border-t bg-muted/10 p-4">
+                            {prevTab ? (
+                                <Button
+                                    type="button"
+                                    variant="outline"
+                                    size="sm"
+                                    onClick={() => handleSelectTab(prevTab.id)}
+                                    className="flex items-center gap-1.5 text-xs font-medium"
+                                >
+                                    <ChevronLeft className="size-4" />
+                                    <span className="truncate max-w-[200px]">{prevTab.title}</span>
+                                </Button>
+                            ) : <div />}
+                            {nextTab ? (
+                                <Button
+                                    type="button"
+                                    variant="default"
+                                    size="sm"
+                                    onClick={() => handleSelectTab(nextTab.id)}
+                                    className="flex items-center gap-1.5 text-xs font-medium"
+                                >
+                                    <span className="truncate max-w-[200px]">{nextTab.title}</span>
+                                    <ChevronRight className="size-4" />
+                                </Button>
+                            ) : <div />}
+                        </CardFooter>
                     </Card>
+                    )}
+
+                    {/* Photo Chapter / Form Card */}
+                    {activeNavChapterId === 'photo' && (
+                        <Card
+                            id="photo-chapter"
+                            className={`gap-0 overflow-hidden py-0 shadow-xs ${!photoFormState.enabled && !isPhotoForm ? 'opacity-70 bg-muted/20' : 'border-primary/40'}`}
+                        >
+                        <CardHeader className="bg-muted/40 p-4 border-b">
+                            <div className="flex flex-col gap-2 sm:flex-row sm:items-center sm:justify-between">
+                                <div className="flex items-center gap-2 min-w-0">
+                                    <button
+                                        type="button"
+                                        onClick={() => setPhotoChapterCollapsed(!photoChapterCollapsed)}
+                                        className="text-muted-foreground hover:text-foreground shrink-0 p-0.5"
+                                        title={photoChapterCollapsed ? 'Expand Photo Settings' : 'Collapse Photo Settings'}
+                                    >
+                                        {photoChapterCollapsed ? (
+                                            <ChevronRight className="size-4" />
+                                        ) : (
+                                            <ChevronDown className="size-4" />
+                                        )}
+                                    </button>
+                                    <Camera className="size-5 text-primary shrink-0" />
+                                    <h3 className="font-semibold text-base text-foreground truncate flex items-center gap-2">
+                                        <span>{photoFormState.title || 'Photographic Records'}</span>
+                                    </h3>
+                                    <Badge variant="secondary" className="text-xs font-semibold">
+                                        Photo Form
+                                    </Badge>
+                                    {photoFormState.enabled ? (
+                                        <Badge variant="outline" className="text-emerald-600 dark:text-emerald-400 border-emerald-500/30 text-xs">
+                                            Active
+                                        </Badge>
+                                    ) : (
+                                        <Badge variant="destructive" className="text-xs">
+                                            Off
+                                        </Badge>
+                                    )}
+                                </div>
+
+                                <div className="flex items-center gap-2 self-end sm:self-auto">
+                                    <Button
+                                        size="sm"
+                                        variant="ghost"
+                                        title={photoFormState.enabled ? 'Disable Photo Section' : 'Enable Photo Section'}
+                                        onClick={() =>
+                                            setPhotoFormState((prev) => ({ ...prev, enabled: !prev.enabled }))
+                                        }
+                                    >
+                                        {photoFormState.enabled ? <Eye className="size-4 text-emerald-600" /> : <EyeOff className="size-4 text-muted-foreground" />}
+                                        <span className="ml-1 text-xs">{photoFormState.enabled ? 'Active' : 'Off'}</span>
+                                    </Button>
+
+                                    <Button
+                                        size="sm"
+                                        onClick={() => handleSavePhotoSchema()}
+                                        disabled={isSavingPhoto}
+                                        className="text-xs h-8"
+                                    >
+                                        {isSavingPhoto ? 'Saving...' : 'Save Photo Settings'}
+                                    </Button>
+
+                                    {!isPhotoForm && (
+                                        <Button
+                                            size="sm"
+                                            variant="ghost"
+                                            className="text-destructive hover:bg-destructive/10 text-xs h-8"
+                                            onClick={handleRemovePhotoChapter}
+                                            disabled={isSavingPhoto}
+                                            title="Remove Photo Chapter"
+                                        >
+                                            <Trash2 className="size-4 mr-1" />
+                                            <span>Remove Chapter</span>
+                                        </Button>
+                                    )}
+                                </div>
+                            </div>
+                        </CardHeader>
+
+                        {!photoChapterCollapsed && (
+                            <CardContent className="p-5 space-y-6">
+                                <div className="flex flex-col gap-1 rounded-lg border p-3 bg-card">
+                                    <div className="flex items-center gap-2">
+                                        <Checkbox
+                                            id="photo_enabled"
+                                            checked={photoFormState.enabled}
+                                            onCheckedChange={(checked) =>
+                                                setPhotoFormState((prev) => ({ ...prev, enabled: Boolean(checked) }))
+                                            }
+                                        />
+                                        <Label htmlFor="photo_enabled" className="text-sm font-semibold cursor-pointer">
+                                            Include Photo Form / Records in this Report
+                                        </Label>
+                                    </div>
+                                    <p className="text-xs text-muted-foreground pl-6">
+                                        When enabled, this report will include photo inputs and print photo records in the report.
+                                    </p>
+                                </div>
+
+                                {photoFormState.enabled && (
+                                    <>
+                                        <div className="space-y-4 pt-2 border-t">
+                                            <div className="grid grid-cols-1 md:grid-cols-2 gap-4">
+                                                <div className="space-y-1.5">
+                                                    <Label htmlFor="photo_title">Section Title</Label>
+                                                    <Input
+                                                        id="photo_title"
+                                                        value={photoFormState.title || ''}
+                                                        onChange={(e) =>
+                                                            setPhotoFormState((prev) => ({ ...prev, title: e.target.value }))
+                                                        }
+                                                        placeholder="e.g. Chapter 16 - Photographic Records"
+                                                    />
+                                                </div>
+
+                                                <div className="space-y-1.5">
+                                                    <Label htmlFor="photo_attach_form">Attach Photo Form Template</Label>
+                                                    <Select
+                                                        value={photoFormState.attached_form_id ? String(photoFormState.attached_form_id) : 'custom'}
+                                                        onValueChange={(val) =>
+                                                            setPhotoFormState((prev) => ({
+                                                                ...prev,
+                                                                attached_form_id: val === 'custom' ? null : Number(val),
+                                                            }))
+                                                        }
+                                                    >
+                                                        <SelectTrigger id="photo_attach_form">
+                                                            <SelectValue placeholder="Select a photo form..." />
+                                                        </SelectTrigger>
+                                                        <SelectContent>
+                                                            <SelectItem value="custom">Custom Photo List (Custom to this form)</SelectItem>
+                                                            {(available_photo_forms || []).map((pf) => (
+                                                                <SelectItem key={pf.id} value={String(pf.id)}>
+                                                                    {pf.code} - {pf.name}
+                                                                </SelectItem>
+                                                            ))}
+                                                        </SelectContent>
+                                                    </Select>
+                                                </div>
+                                            </div>
+
+                                            <div className="space-y-1.5">
+                                                <Label htmlFor="photo_description">Instructions / Notes (Optional)</Label>
+                                                <textarea
+                                                    id="photo_description"
+                                                    value={photoFormState.description || ''}
+                                                    onChange={(e) =>
+                                                        setPhotoFormState((prev) => ({ ...prev, description: e.target.value }))
+                                                    }
+                                                    rows={2}
+                                                    className="w-full rounded-md border border-input bg-transparent px-3 py-2 text-sm shadow-xs placeholder:text-muted-foreground focus-visible:outline-none focus-visible:ring-1 focus-visible:ring-ring"
+                                                    placeholder="Instructions for uploading photos..."
+                                                />
+                                            </div>
+                                        </div>
+
+                                        {photoFormState.attached_form_id ? (
+                                            <div className="rounded-lg border border-primary/20 bg-primary/5 p-4 flex items-center justify-between">
+                                                <div>
+                                                    <p className="text-sm font-semibold text-primary">
+                                                        Attached Photo Form: {available_photo_forms?.find((pf) => pf.id === photoFormState.attached_form_id)?.name || 'Photo Form'}
+                                                    </p>
+                                                    <p className="text-xs text-muted-foreground mt-0.5">
+                                                        Photo fields and titles are inherited from this template.
+                                                    </p>
+                                                </div>
+                                            </div>
+                                        ) : (
+                                            <div className="space-y-3 pt-3 border-t">
+                                                <div className="flex items-center justify-between">
+                                                    <Label className="text-sm font-semibold">Photo Fields</Label>
+                                                    <Button
+                                                        type="button"
+                                                        size="sm"
+                                                        variant="outline"
+                                                        className="h-8 text-xs"
+                                                        onClick={handleAddPhotoItem}
+                                                    >
+                                                        <Plus className="size-3.5 mr-1" /> Add Photo
+                                                    </Button>
+                                                </div>
+
+                                                <div className="space-y-2">
+                                                    {(!photoFormState.items || photoFormState.items.length === 0) ? (
+                                                        <p className="text-xs text-muted-foreground italic py-2 text-center">
+                                                            No photo fields added yet. Click "Add Photo" to add one.
+                                                        </p>
+                                                    ) : (
+                                                        photoFormState.items.map((item, idx) => (
+                                                            <div key={item.id || idx} className="flex items-center gap-2 p-2.5 rounded-md border bg-card">
+                                                                <span className="text-xs font-mono text-muted-foreground shrink-0 w-6">#{idx + 1}</span>
+                                                                <Input
+                                                                    value={item.title}
+                                                                    onChange={(e) => handleUpdatePhotoItem(idx, 'title', e.target.value)}
+                                                                    placeholder="Photo Title / Label"
+                                                                    className="flex-1 text-xs h-8"
+                                                                />
+                                                                <Button
+                                                                    type="button"
+                                                                    size="sm"
+                                                                    variant="ghost"
+                                                                    className="h-7 w-7 p-0"
+                                                                    disabled={idx === 0}
+                                                                    onClick={() => handleMovePhotoItem(idx, 'up')}
+                                                                    title="Move Up"
+                                                                >
+                                                                    <ArrowUp className="size-3.5" />
+                                                                </Button>
+                                                                <Button
+                                                                    type="button"
+                                                                    size="sm"
+                                                                    variant="ghost"
+                                                                    className="h-7 w-7 p-0"
+                                                                    disabled={idx === (photoFormState.items?.length || 1) - 1}
+                                                                    onClick={() => handleMovePhotoItem(idx, 'down')}
+                                                                    title="Move Down"
+                                                                >
+                                                                    <ArrowDown className="size-3.5" />
+                                                                </Button>
+                                                                <Button
+                                                                    type="button"
+                                                                    size="sm"
+                                                                    variant="ghost"
+                                                                    className="h-7 w-7 p-0 text-destructive hover:bg-destructive/10"
+                                                                    onClick={() => handleRemovePhotoItem(idx)}
+                                                                    title="Delete"
+                                                                >
+                                                                    <Trash2 className="size-3.5" />
+                                                                </Button>
+                                                            </div>
+                                                        ))
+                                                    )}
+                                                </div>
+                                            </div>
+                                        )}
+                                    </>
+                                )}
+
+                                <div className="pt-2 flex justify-end">
+                                    <Button
+                                        type="button"
+                                        onClick={() => handleSavePhotoSchema()}
+                                        disabled={isSavingPhoto}
+                                    >
+                                        {isSavingPhoto ? 'Saving Photo Settings...' : 'Save Photo Settings'}
+                                    </Button>
+                                </div>
+                            </CardContent>
+                        )}
+
+                        <CardFooter className="flex items-center justify-between border-t bg-muted/10 p-4">
+                            {prevTab ? (
+                                <Button
+                                    type="button"
+                                    variant="outline"
+                                    size="sm"
+                                    onClick={() => handleSelectTab(prevTab.id)}
+                                    className="flex items-center gap-1.5 text-xs font-medium"
+                                >
+                                    <ChevronLeft className="size-4" />
+                                    <span className="truncate max-w-[200px]">{prevTab.title}</span>
+                                </Button>
+                            ) : <div />}
+                            {nextTab ? (
+                                <Button
+                                    type="button"
+                                    variant="default"
+                                    size="sm"
+                                    onClick={() => handleSelectTab(nextTab.id)}
+                                    className="flex items-center gap-1.5 text-xs font-medium"
+                                >
+                                    <span className="truncate max-w-[200px]">{nextTab.title}</span>
+                                    <ChevronRight className="size-4" />
+                                </Button>
+                            ) : <div />}
+                        </CardFooter>
+                    </Card>
+                    )}
                 </div>
             </div>
         </div>
 
-        {/* Group Dialog */}
-        <Dialog open={groupModalOpen} onOpenChange={setGroupModalOpen}>
-                <DialogContent>
-                    <DialogHeader>
-                        <DialogTitle>{editingGroup ? 'Edit Group / Chapter' : groupParentId ? 'Add Subgroup' : 'Add Chapter / Section'}</DialogTitle>
-                    </DialogHeader>
-                    <form onSubmit={handleSaveGroup} className="space-y-4">
-                        {!groupParentId && (
-                            <div className="space-y-1">
-                                <Label htmlFor="chapter_no">Chapter Number (optional)</Label>
-                                <Input
-                                    id="chapter_no"
-                                    value={groupChapterNo}
-                                    onChange={(e) => setGroupChapterNo(e.target.value)}
-                                    placeholder="e.g. 4, 11"
-                                />
-                            </div>
-                        )}
-                        <div className="space-y-1">
-                            <Label htmlFor="title">Title</Label>
-                            <Input
-                                id="title"
-                                value={groupTitle}
-                                onChange={(e) => setGroupTitle(e.target.value)}
-                                placeholder="Group title"
-                                required
-                            />
-                        </div>
-                        {!groupParentId && (
-                            <div className="flex items-center gap-2 pt-2">
-                                <input
-                                    type="checkbox"
-                                    id="ice_class"
-                                    checked={groupIceClass}
-                                    onChange={(e) => setGroupIceClass(e.target.checked)}
-                                    className="rounded border-gray-300"
-                                />
-                                <Label htmlFor="ice_class" className="cursor-pointer">Ice Class</Label>
-                            </div>
-                        )}
-                        <DialogFooter className="pt-4">
-                            <Button type="button" variant="outline" onClick={() => setGroupModalOpen(false)}>
-                                Cancel
-                            </Button>
-                            <Button type="submit">Save</Button>
-                        </DialogFooter>
-                    </form>
-                </DialogContent>
-            </Dialog>
+            {/* Isolated Group Modal Dialog */}
+            <GroupModalDialog
+                open={groupModalOpen}
+                onOpenChange={setGroupModalOpen}
+                editingGroup={editingGroup}
+                parentId={groupParentId}
+                formId={form.id}
+                suggestedChapterNo={String(chapters.length + 1)}
+            />
 
-            {/* Question Dialog */}
-            <Dialog open={questionModalOpen} onOpenChange={setQuestionModalOpen}>
-                <DialogContent className="max-w-lg">
-                    <DialogHeader>
-                        <DialogTitle>{editingQuestion ? 'Edit Question' : 'Add Question'}</DialogTitle>
-                    </DialogHeader>
-                    <form onSubmit={handleSaveQuestion} className="space-y-4">
-                        <div className="space-y-1">
-                            <Label htmlFor="q_text">Question Text</Label>
-                            <textarea
-                                id="q_text"
-                                className="w-full rounded-md border border-input bg-transparent px-3 py-2 text-sm shadow-xs focus-visible:outline-none focus-visible:ring-1 focus-visible:ring-ring"
-                                rows={3}
-                                value={questionText}
-                                onChange={(e) => setQuestionText(e.target.value)}
-                                required
-                            />
-                        </div>
-
-                        <div className="space-y-1">
-                            <Label htmlFor="q_guidance">Guidance Text / Bracketed Help (optional)</Label>
-                            <textarea
-                                id="q_guidance"
-                                className="w-full rounded-md border border-input bg-transparent px-3 py-2 text-sm shadow-xs focus-visible:outline-none focus-visible:ring-1 focus-visible:ring-ring"
-                                rows={2}
-                                value={questionGuidance}
-                                onChange={(e) => setQuestionGuidance(e.target.value)}
-                                placeholder="Expandable help text for the inspector"
-                            />
-                        </div>
-
-                        {/* Response & Input Capabilities (All Independent Checkboxes) */}
-                        <div className="space-y-3 rounded-lg border p-3.5 bg-muted/20">
-                            <Label className="text-xs font-semibold text-foreground uppercase tracking-wide">
-                                Response & Input Capabilities
-                            </Label>
-
-                            <div className="space-y-2.5">
-                                {/* Choices Checkbox */}
-                                <div className="flex items-center gap-2.5 pb-2.5 border-b">
-                                    <input
-                                        type="checkbox"
-                                        id="chk_choices"
-                                        checked={questionHasChoices}
-                                        onChange={(e) => setQuestionHasChoices(e.target.checked)}
-                                        className="h-4 w-4 rounded border-gray-300 text-primary focus:ring-primary cursor-pointer"
-                                    />
-                                    <Label htmlFor="chk_choices" className="cursor-pointer text-sm font-semibold">
-                                        Standard Choices (Yes / No / NS / NA buttons)
-                                    </Label>
-                                </div>
-
-                                <Label className="text-xs text-muted-foreground font-medium block pt-0.5">
-                                    Input Fields (Check all that apply)
-                                </Label>
-
-                                <div className="space-y-2 pl-0.5">
-                                    {/* Text Input Checkbox */}
-                                    <div className="flex items-center gap-2.5">
-                                        <input
-                                            type="checkbox"
-                                            id="chk_text"
-                                            checked={questionHasText}
-                                            onChange={(e) => setQuestionHasText(e.target.checked)}
-                                            className="h-4 w-4 rounded border-gray-300 text-primary focus:ring-primary cursor-pointer"
-                                        />
-                                        <Label htmlFor="chk_text" className="cursor-pointer text-xs font-normal text-foreground flex items-center gap-1.5">
-                                            <FileText className="size-3.5 text-muted-foreground shrink-0" />
-                                            <span>Text / Remarks Input (notes, explanation, single-line text)</span>
-                                        </Label>
-                                    </div>
-
-                                    {/* Date Input Checkbox */}
-                                    <div className="flex items-center gap-2.5">
-                                        <input
-                                            type="checkbox"
-                                            id="chk_date"
-                                            checked={questionHasDate}
-                                            onChange={(e) => setQuestionHasDate(e.target.checked)}
-                                            className="h-4 w-4 rounded border-gray-300 text-primary focus:ring-primary cursor-pointer"
-                                        />
-                                        <Label htmlFor="chk_date" className="cursor-pointer text-xs font-normal text-foreground flex items-center gap-1.5">
-                                            <Calendar className="size-3.5 text-muted-foreground shrink-0" />
-                                            <span>Date Input (calendar date picker)</span>
-                                        </Label>
-                                    </div>
-
-
-                                    {/* File Input Checkbox */}
-                                    <div className="flex items-center gap-2.5">
-                                        <input
-                                            type="checkbox"
-                                            id="chk_file"
-                                            checked={questionHasFile}
-                                            onChange={(e) => setQuestionHasFile(e.target.checked)}
-                                            className="h-4 w-4 rounded border-gray-300 text-primary focus:ring-primary cursor-pointer"
-                                        />
-                                        <Label htmlFor="chk_file" className="cursor-pointer text-xs font-normal text-foreground flex items-center gap-1.5">
-                                            <Paperclip className="size-3.5 text-muted-foreground shrink-0" />
-                                            <span>File / Attachment Input (document scan, certificate, photo upload)</span>
-                                        </Label>
-                                    </div>
-                                </div>
-                            </div>
-                        </div>
-
-                        <DialogFooter className="pt-4">
-                            <Button type="button" variant="outline" onClick={() => setQuestionModalOpen(false)}>
-                                Cancel
-                            </Button>
-                            <Button type="submit">Save Question</Button>
-                        </DialogFooter>
-                    </form>
-                </DialogContent>
-            </Dialog>
+            {/* Isolated Question Modal Dialog */}
+            <QuestionModalDialog
+                open={questionModalOpen}
+                onOpenChange={setQuestionModalOpen}
+                editingQuestion={editingQuestion}
+                groupId={questionGroupId}
+            />
 
             {/* Applicability Dialog (Task 2.4) */}
             <Dialog open={applicabilityModalOpen} onOpenChange={setApplicabilityModalOpen}>
@@ -1825,5 +2353,333 @@ function QuestionRow({
                 </div>
             </div>
         </div>
+    );
+}
+
+interface GroupModalDialogProps {
+    open: boolean;
+    onOpenChange: (open: boolean) => void;
+    editingGroup: GroupData | null;
+    parentId: number | null;
+    formId: number;
+    suggestedChapterNo?: string;
+}
+
+function GroupModalDialog({
+    open,
+    onOpenChange,
+    editingGroup,
+    parentId,
+    formId,
+    suggestedChapterNo,
+}: GroupModalDialogProps) {
+    const [title, setTitle] = useState('');
+    const [chapterNo, setChapterNo] = useState('');
+    const [iceClass, setIceClass] = useState(false);
+    const [submitting, setSubmitting] = useState(false);
+
+    React.useEffect(() => {
+        if (open) {
+            if (editingGroup) {
+                setTitle(editingGroup.title);
+                setChapterNo(editingGroup.chapter_no || '');
+                setIceClass(editingGroup.ice_class_only);
+            } else {
+                setTitle('');
+                setChapterNo(parentId ? '' : (suggestedChapterNo || ''));
+                setIceClass(false);
+            }
+        }
+    }, [open, editingGroup, parentId, suggestedChapterNo]);
+
+    const handleSubmit = (e: React.FormEvent) => {
+        e.preventDefault();
+        setSubmitting(true);
+
+        if (editingGroup) {
+            router.put(`/admin/groups/${editingGroup.id}`, {
+                title,
+                chapter_no: chapterNo || null,
+                ice_class_only: iceClass,
+            }, {
+                preserveScroll: true,
+                onSuccess: () => {
+                    setSubmitting(false);
+                    onOpenChange(false);
+                },
+                onError: () => setSubmitting(false),
+            });
+        } else {
+            router.post(`/admin/forms/${formId}/groups`, {
+                title,
+                chapter_no: chapterNo || null,
+                parent_id: parentId,
+                ice_class_only: iceClass,
+            }, {
+                preserveScroll: true,
+                onSuccess: () => {
+                    setSubmitting(false);
+                    onOpenChange(false);
+                },
+                onError: () => setSubmitting(false),
+            });
+        }
+    };
+
+    return (
+        <Dialog open={open} onOpenChange={onOpenChange}>
+            <DialogContent>
+                <DialogHeader>
+                    <DialogTitle>{editingGroup ? 'Edit Chapter / Subgroup' : parentId ? 'Add Subgroup' : 'Add Chapter'}</DialogTitle>
+                </DialogHeader>
+                <form onSubmit={handleSubmit} className="space-y-4">
+                    {!parentId && (
+                        <div className="space-y-1">
+                            <Label htmlFor="dlg_chapter_no">Chapter Number (Optional)</Label>
+                            <Input
+                                id="dlg_chapter_no"
+                                value={chapterNo}
+                                onChange={(e) => setChapterNo(e.target.value)}
+                                placeholder="e.g. 1, 2, 16 (Optional)"
+                            />
+                            <p className="text-[11px] text-muted-foreground">
+                                Leave blank to automatically number chapters in sequence.
+                            </p>
+                        </div>
+                    )}
+                    <div className="space-y-1">
+                        <Label htmlFor="dlg_group_title">{parentId ? 'Subgroup Title' : 'Chapter Title'}</Label>
+                        <Input
+                            id="dlg_group_title"
+                            value={title}
+                            onChange={(e) => setTitle(e.target.value)}
+                            placeholder={parentId ? 'e.g. Navigational Equipment' : 'e.g. Navigation & Bridge'}
+                            required
+                            autoFocus
+                        />
+                    </div>
+                    {!parentId && (
+                        <div className="flex items-center gap-2 pt-2">
+                            <input
+                                type="checkbox"
+                                id="dlg_ice_class"
+                                checked={iceClass}
+                                onChange={(e) => setIceClass(e.target.checked)}
+                                className="rounded border-gray-300 text-primary focus:ring-primary"
+                            />
+                            <Label htmlFor="dlg_ice_class" className="cursor-pointer text-xs">
+                                Ice Class Only (Only applies to vessels with ice class notation)
+                            </Label>
+                        </div>
+                    )}
+                    <DialogFooter className="pt-3">
+                        <Button type="button" variant="outline" onClick={() => onOpenChange(false)}>
+                            Cancel
+                        </Button>
+                        <Button type="submit" disabled={submitting}>
+                            {submitting ? 'Saving...' : 'Save'}
+                        </Button>
+                    </DialogFooter>
+                </form>
+            </DialogContent>
+        </Dialog>
+    );
+}
+
+interface QuestionModalDialogProps {
+    open: boolean;
+    onOpenChange: (open: boolean) => void;
+    editingQuestion: QuestionData | null;
+    groupId: number | null;
+}
+
+function QuestionModalDialog({
+    open,
+    onOpenChange,
+    editingQuestion,
+    groupId,
+}: QuestionModalDialogProps) {
+    const [questionText, setQuestionText] = useState('');
+    const [questionGuidance, setQuestionGuidance] = useState('');
+    const [hasChoices, setHasChoices] = useState(true);
+    const [hasText, setHasText] = useState(false);
+    const [hasDate, setHasDate] = useState(false);
+    const [hasFile, setHasFile] = useState(false);
+    const [submitting, setSubmitting] = useState(false);
+
+    React.useEffect(() => {
+        if (open) {
+            if (editingQuestion) {
+                setQuestionText(editingQuestion.question_text);
+                setQuestionGuidance(editingQuestion.guidance || '');
+                const flags = parseQuestionInputType(editingQuestion.input_type);
+                setHasChoices(flags.hasChoices);
+                setHasText(flags.hasText);
+                setHasDate(flags.hasDate);
+                setHasFile(flags.hasFile);
+            } else {
+                setQuestionText('');
+                setQuestionGuidance('');
+                setHasChoices(true);
+                setHasText(false);
+                setHasDate(false);
+                setHasFile(false);
+            }
+        }
+    }, [open, editingQuestion]);
+
+    const handleSubmit = (e: React.FormEvent) => {
+        e.preventDefault();
+        setSubmitting(true);
+        const inputType = buildQuestionInputType({
+            hasChoices,
+            hasText,
+            hasDate,
+            hasFile,
+        });
+
+        if (editingQuestion) {
+            router.put(`/admin/questions/${editingQuestion.id}`, {
+                question_text: questionText,
+                guidance: questionGuidance || null,
+                input_type: inputType,
+            }, {
+                preserveScroll: true,
+                onSuccess: () => {
+                    setSubmitting(false);
+                    onOpenChange(false);
+                },
+                onError: () => setSubmitting(false),
+            });
+        } else if (groupId) {
+            router.post(`/admin/groups/${groupId}/questions`, {
+                question_text: questionText,
+                guidance: questionGuidance || null,
+                input_type: inputType,
+            }, {
+                preserveScroll: true,
+                onSuccess: () => {
+                    setSubmitting(false);
+                    onOpenChange(false);
+                },
+                onError: () => setSubmitting(false),
+            });
+        }
+    };
+
+    return (
+        <Dialog open={open} onOpenChange={onOpenChange}>
+            <DialogContent className="max-w-lg">
+                <DialogHeader>
+                    <DialogTitle>{editingQuestion ? 'Edit Question' : 'Add Question'}</DialogTitle>
+                </DialogHeader>
+                <form onSubmit={handleSubmit} className="space-y-4">
+                    <div className="space-y-1">
+                        <Label htmlFor="dlg_q_text">Question Text</Label>
+                        <textarea
+                            id="dlg_q_text"
+                            className="w-full rounded-md border border-input bg-transparent px-3 py-2 text-sm shadow-xs focus-visible:outline-none focus-visible:ring-1 focus-visible:ring-ring"
+                            rows={3}
+                            value={questionText}
+                            onChange={(e) => setQuestionText(e.target.value)}
+                            placeholder="Enter the question text..."
+                            required
+                            autoFocus
+                        />
+                    </div>
+
+                    <div className="space-y-1">
+                        <Label htmlFor="dlg_q_guidance">Guidance Text / Bracketed Help (Optional)</Label>
+                        <textarea
+                            id="dlg_q_guidance"
+                            className="w-full rounded-md border border-input bg-transparent px-3 py-2 text-sm shadow-xs focus-visible:outline-none focus-visible:ring-1 focus-visible:ring-ring"
+                            rows={2}
+                            value={questionGuidance}
+                            onChange={(e) => setQuestionGuidance(e.target.value)}
+                            placeholder="Expandable help text for the inspector"
+                        />
+                    </div>
+
+                    {/* Response & Input Capabilities */}
+                    <div className="space-y-3 rounded-lg border p-3.5 bg-muted/20">
+                        <Label className="text-xs font-semibold text-foreground uppercase tracking-wide">
+                            Response & Input Capabilities
+                        </Label>
+
+                        <div className="space-y-2.5">
+                            <div className="flex items-center gap-2.5 pb-2.5 border-b">
+                                <input
+                                    type="checkbox"
+                                    id="dlg_chk_choices"
+                                    checked={hasChoices}
+                                    onChange={(e) => setHasChoices(e.target.checked)}
+                                    className="h-4 w-4 rounded border-gray-300 text-primary focus:ring-primary cursor-pointer"
+                                />
+                                <Label htmlFor="dlg_chk_choices" className="cursor-pointer text-sm font-semibold">
+                                    Standard Choices (Yes / No / NS / NA buttons)
+                                </Label>
+                            </div>
+
+                            <Label className="text-xs text-muted-foreground font-medium block pt-0.5">
+                                Input Fields (Check all that apply)
+                            </Label>
+
+                            <div className="space-y-2 pl-0.5">
+                                <div className="flex items-center gap-2.5">
+                                    <input
+                                        type="checkbox"
+                                        id="dlg_chk_text"
+                                        checked={hasText}
+                                        onChange={(e) => setHasText(e.target.checked)}
+                                        className="h-4 w-4 rounded border-gray-300 text-primary focus:ring-primary cursor-pointer"
+                                    />
+                                    <Label htmlFor="dlg_chk_text" className="cursor-pointer text-xs font-normal text-foreground flex items-center gap-1.5">
+                                        <FileText className="size-3.5 text-muted-foreground shrink-0" />
+                                        <span>Text / Remarks Input (notes, explanation)</span>
+                                    </Label>
+                                </div>
+
+                                <div className="flex items-center gap-2.5">
+                                    <input
+                                        type="checkbox"
+                                        id="dlg_chk_date"
+                                        checked={hasDate}
+                                        onChange={(e) => setHasDate(e.target.checked)}
+                                        className="h-4 w-4 rounded border-gray-300 text-primary focus:ring-primary cursor-pointer"
+                                    />
+                                    <Label htmlFor="dlg_chk_date" className="cursor-pointer text-xs font-normal text-foreground flex items-center gap-1.5">
+                                        <Calendar className="size-3.5 text-muted-foreground shrink-0" />
+                                        <span>Date Input (calendar date picker)</span>
+                                    </Label>
+                                </div>
+
+                                <div className="flex items-center gap-2.5">
+                                    <input
+                                        type="checkbox"
+                                        id="dlg_chk_file"
+                                        checked={hasFile}
+                                        onChange={(e) => setHasFile(e.target.checked)}
+                                        className="h-4 w-4 rounded border-gray-300 text-primary focus:ring-primary cursor-pointer"
+                                    />
+                                    <Label htmlFor="dlg_chk_file" className="cursor-pointer text-xs font-normal text-foreground flex items-center gap-1.5">
+                                        <Paperclip className="size-3.5 text-muted-foreground shrink-0" />
+                                        <span>File / Attachment Input (document scan, certificate, photo)</span>
+                                    </Label>
+                                </div>
+                            </div>
+                        </div>
+                    </div>
+
+                    <DialogFooter className="pt-3">
+                        <Button type="button" variant="outline" onClick={() => onOpenChange(false)}>
+                            Cancel
+                        </Button>
+                        <Button type="submit" disabled={submitting}>
+                            {submitting ? 'Saving...' : 'Save Question'}
+                        </Button>
+                    </DialogFooter>
+                </form>
+            </DialogContent>
+        </Dialog>
     );
 }
