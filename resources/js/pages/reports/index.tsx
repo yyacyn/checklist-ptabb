@@ -91,7 +91,7 @@ export default function ReportsIndex({ reports }: Props) {
                     <div>
                         <Heading
                             title="Vessel Reports & Audits"
-                            description="Inspections (D-062) and onboard internal audits (B-008) across the fleet."
+                            description="Vessel inspections, onboard audits, and photographic reports across the fleet."
                         />
                     </div>
 

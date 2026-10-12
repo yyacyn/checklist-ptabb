@@ -1,44 +1,17 @@
-import { Head, Link, router } from '@inertiajs/react';
+import { Head, router } from '@inertiajs/react';
 import {
-    AlertCircle,
-    AlertTriangle,
-    ArrowLeft,
-    Calendar,
-    Camera,
     Check,
-    CheckCircle2,
-    ChevronDown,
     ChevronLeft,
     ChevronRight,
-    CloudOff,
-    Edit2,
-    ExternalLink,
-    File,
-    FileCheck,
-    FileText,
-    HelpCircle,
-    Info,
-    Loader2,
     MessageSquare,
-    Paperclip,
-    Plus,
-    RefreshCw,
-    RotateCcw,
-    Save,
-    Search,
-    ShieldAlert,
-    Ship,
-    SlidersHorizontal,
-    Trash2,
-    Upload,
-    Users,
-    WifiOff,
-    X,
 } from 'lucide-react';
 import React, { useCallback, useEffect, useMemo, useRef, useState } from 'react';
-import Heading from '@/components/heading';
-import { PhotoChapterSection, type PhotoRecord, type PhotoCategoryItem, type QuestionOptionItem } from '@/components/photo-chapter-section';
-import { PhotoEvidenceDialog, PhotoEvidenceStrip } from '@/components/photo-evidence-dialog';
+import {
+    PhotoChapterSection,
+    type PhotoCategoryItem,
+    type PhotoRecord,
+    type QuestionOptionItem,
+} from '@/components/photo-chapter-section';
 import { Badge } from '@/components/ui/badge';
 import { Button } from '@/components/ui/button';
 import { Card, CardContent, CardDescription, CardHeader, CardTitle } from '@/components/ui/card';
@@ -53,188 +26,53 @@ import {
 import { Input } from '@/components/ui/input';
 import { Label } from '@/components/ui/label';
 import {
+    csrfHeaders,
     dequeueSave,
     enqueueSave,
     flushSaveQueue,
     generateClientSaveId,
     getPendingCount,
-    csrfHeaders,
     type QueueSyncState,
 } from '@/lib/autosave-queue';
+import { formatDate } from '@/lib/question-utils';
+import {
+    GeneralInfoSection,
+    ObservationsSection,
+    QuestionAnswerCard,
+    ReportChapterSidebar,
+    ReportHeader,
+} from '@/components/reports';
+import type {
+    AnswerData,
+    ConflictData,
+    FindingData,
+    LockData,
+    QuestionData,
+    ReportData,
+    SummarySchema,
+} from '@/types';
 
-export interface LockData {
-    is_locked: boolean;
-    is_owner: boolean;
-    owner_id: number;
-    owner_name: string;
-    expires_at: string;
-}
-
-export interface ConflictData {
-    error: string;
-    message: string;
-    server_answer: {
-        id: number;
-        report_question_id: number;
-        answer: string | null;
-        note: string | null;
-        extra_value: string | null;
-        client_save_id?: string | null;
-        row_version: number;
-        answered_by_name?: string;
-        answered_at?: string;
-    };
-}
-
-export interface AnswerData {
-    id?: number;
-    report_question_id: number;
-    answer: string | null; // yes | no | ns | na
-    note: string | null;
-    extra_value: string | null;
-    row_version?: number;
-    answered_at?: string;
-}
-
-export interface QuestionData {
-    id: number;
-    question_text: string;
-    guidance: string | null;
-    input_type: string;
-    sort_order: number;
-    is_applicable: boolean;
-    applicable_reason: string | null;
-    na_reason: string | null;
-    answer?: AnswerData | null;
-}
-
-export interface SubgroupData {
-    id: number;
-    parent_id: number;
-    title: string;
-    sort_order: number;
-    is_applicable: boolean;
-    questions: QuestionData[];
-}
-
-export interface ChapterData {
-    id: number;
-    title: string;
-    chapter_no: string | null;
-    sort_order: number;
-    is_applicable: boolean;
-    na_reason: string | null;
-    comments: string | null;
-    questions: QuestionData[];
-    subgroups: SubgroupData[];
-}
-
-export interface FindingData {
-    id: number;
-    report_id: number;
-    report_group_id?: number | null;
-    report_question_id?: number | null;
-    chapter_label?: string | null;
-    finding_kind: 'observation' | 'non_conformity';
-    risk?: 'high' | 'medium' | 'low' | null;
-    severity?: string | null;
-    description: string;
-    viq_paragraph?: string | null;
-    job_order_no?: string | null;
-    target_date?: string | null;
-    finding_status: string;
-    sort_order?: number;
-    created_at?: string;
-    updated_at?: string;
-}
-
-export interface SummarySchemaTextField {
-    key: string;
-    label: string;
-    placeholder?: string;
-    rows?: number;
-    span?: 'full' | 'half';
-    description?: string;
-}
-
-export interface SummarySchemaRatingOption {
-    value: string;
-    label: string;
-    color?: string;
-}
-
-export interface SummarySchema {
-    enabled: boolean;
-    title?: string;
-    has_ratings_matrix?: boolean;
-    rating_options?: SummarySchemaRatingOption[];
-    text_fields?: SummarySchemaTextField[];
-    has_findings_register?: boolean;
-}
-
-export interface ReportData {
-    id: number;
-    report_type: 'inspection' | 'audit';
-    reference_number: string;
-    status: string;
-    template_version: number;
-    vessel_name: string;
-    vessel_imo: string | null;
-    vessel_flag: string | null;
-    vessel_gt: string | null;
-    vessel_built: number | null;
-    vessel_ice_class: boolean;
-    report_date: string;
-    port: string | null;
-    inspected_by: string | null;
-    sailing_with_vessel: boolean;
-    sailing_from: string | null;
-    sailing_to: string | null;
-    psc_last_port: string | null;
-    psc_last_date: string | null;
-    psc_detained_or_deficiencies: boolean | null;
-    drydock_last_date: string | null;
-    drydock_next_date: string | null;
-    operations: string[] | null;
-    master_name: string | null;
-    chief_engineer_name: string | null;
-    chief_officer_name: string | null;
-    form: {
-        id: number;
-        code: string;
-        name: string;
-        answer_set: string;
-        form_type?: 'standard' | 'photo';
-        summary_schema?: SummarySchema | null;
-        photo_schema?: {
-            enabled: boolean;
-            title?: string;
-            description?: string;
-            attached_form_id?: number | null;
-            items?: Array<{ id?: string; title: string; description?: string }>;
-            allowed_categories?: string[];
-        } | null;
-    };
-    vessel_type?: {
-        id: number;
-        name: string;
-    } | null;
-    groups: ChapterData[];
-    findings?: FindingData[];
-    photos?: PhotoRecord[];
-    summary_ratings?: Record<string, 'very_good' | 'satisfactory' | 'unsatisfactory'> | null;
-    summary_comments_no?: string | null;
-    summary_safety_meetings?: string | null;
-    summary_participants?: string | null;
-    summary_concept_understanding?: string | null;
-    summary_training_needs?: string | null;
-    summary_data?: Record<string, string> | null;
-}
-
-function formatDate(dateStr: string | null | undefined): string {
-    if (!dateStr) return '';
-    return dateStr.split('T')[0];
-}
+// Re-export shared types and helpers for backward compatibility
+export type {
+    AnswerData,
+    ChapterData,
+    ConflictData,
+    FindingData,
+    LockData,
+    QuestionData,
+    ReportData,
+    SubgroupData,
+    SummarySchema,
+    SummarySchemaRatingOption,
+    SummarySchemaTextField,
+} from './types';
+export {
+    buildQuestionInputType,
+    formatDate,
+    formatExtraDisplay,
+    getQuestionInputMeta,
+    parseQuestionInputType,
+} from '@/lib/question-utils';
 
 interface Props {
     report: ReportData;
@@ -469,8 +307,14 @@ export default function ReportDataEntry({
         }
         return {
             enabled: isPhotoForm || report.form.code === 'D-062',
-            title: isPhotoForm ? report.form.name : (report.form.code === 'D-062' ? 'Chapter 16 - Photographic Records' : 'Photographic Records'),
-            description: isPhotoForm ? 'Dedicated photographic records for vessel condition and walkaround.' : 'Photographic evidence and vessel condition records.',
+            title: isPhotoForm
+                ? report.form.name
+                : report.form.code === 'D-062'
+                ? 'Chapter 16 - Photographic Records'
+                : 'Photographic Records',
+            description: isPhotoForm
+                ? 'Dedicated photographic records for vessel condition and walkaround.'
+                : 'Photographic evidence and vessel condition records.',
             allowed_categories: photo_categories.map((c) => c.code),
         };
     }, [report.form.photo_schema, isPhotoForm, report.form.name, report.form.code, photo_categories]);
@@ -526,7 +370,16 @@ export default function ReportDataEntry({
             });
         }
         return list;
-    }, [isPhotoForm, otherChapters, summarySchema, summaryChapterTitle, summaryChapterNo, photoSchema, photoChapterTitle, photoChapterNo]);
+    }, [
+        isPhotoForm,
+        otherChapters,
+        summarySchema,
+        summaryChapterTitle,
+        summaryChapterNo,
+        photoSchema,
+        photoChapterTitle,
+        photoChapterNo,
+    ]);
 
     const currentChapterIdx = navChapters.findIndex((c) => c.id === activeChapterId);
     const prevChapter = currentChapterIdx > 0 ? navChapters[currentChapterIdx - 1] : null;
@@ -537,7 +390,7 @@ export default function ReportDataEntry({
 
     const mainContentRef = useRef<HTMLElement | null>(null);
 
-    // Task 3.4 & 3.5: IndexedDB Offline Retry Queue & Autosave Engine State
+    // IndexedDB Offline Retry Queue & Autosave Engine State
     const [pendingQueueCount, setPendingQueueCount] = useState<number>(0);
     const [globalSyncState, setGlobalSyncState] = useState<QueueSyncState>('saved');
     const [isOffline, setIsOffline] = useState<boolean>(() =>
@@ -670,7 +523,7 @@ export default function ReportDataEntry({
         };
     }, [report.id, lockState?.is_owner]);
 
-    // Save Answer with IndexedDB retry queue and conflict detection (Task 3.3, 3.4, 3.5, 3.6, NFR-1, NFR-2, NFR-15)
+    // Save Answer with IndexedDB retry queue and conflict detection
     const saveAnswerToServer = async (
         questionId: number,
         updatedFields: Partial<AnswerData>,
@@ -710,7 +563,7 @@ export default function ReportDataEntry({
                 overrideBaseVersion !== undefined ? overrideBaseVersion : (currentAnswer.row_version ?? null),
         };
 
-        // Persist in IndexedDB retry queue first (NFR-2)
+        // Persist in IndexedDB retry queue first
         await enqueueSave({
             client_save_id: clientSaveId,
             report_id: report.id,
@@ -738,13 +591,11 @@ export default function ReportDataEntry({
 
             if (res.ok) {
                 const data = await res.json();
-                // Server acknowledged -> remove from IndexedDB
                 await dequeueSave(clientSaveId);
                 const remaining = await getPendingCount(report.id);
                 setPendingQueueCount(remaining);
                 setGlobalSyncState(remaining > 0 ? 'retrying' : 'saved');
 
-                // Clear any conflict for this question
                 setConflicts((prev) => {
                     const copy = { ...prev };
                     delete copy[questionId];
@@ -766,7 +617,6 @@ export default function ReportDataEntry({
                     });
                 }, 2000);
             } else if (res.status === 409) {
-                // Conflict detected (NFR-15): Stale row_version refused by server
                 const conflictData: ConflictData = await res.json();
                 await dequeueSave(clientSaveId);
                 const remaining = await getPendingCount(report.id);
@@ -783,13 +633,12 @@ export default function ReportDataEntry({
                 setGlobalSyncState('retrying');
             }
         } catch {
-            // Offline / VSAT drop: keep in IndexedDB and flag as retrying
             setSaveStatuses((prev) => ({ ...prev, [questionId]: 'retrying' }));
             setGlobalSyncState('retrying');
         }
     };
 
-    // Conflict Resolution Handlers (NFR-15)
+    // Conflict Resolution Handlers
     const handleAcceptServerAnswer = (
         questionId: number,
         serverAnswer: ConflictData['server_answer']
@@ -829,7 +678,7 @@ export default function ReportDataEntry({
         saveAnswerToServer(questionId, current, serverRowVersion);
     };
 
-    // Save Chapter Comments with debounce and flush on chapter change (Task 3.4, 3.8)
+    // Save Chapter Comments with debounce and flush on chapter change
     const commentsDebounceTimer = useRef<ReturnType<typeof setTimeout> | null>(null);
     const lastSavedComments = useRef<Record<number, string>>({});
 
@@ -865,17 +714,20 @@ export default function ReportDataEntry({
         }
     };
 
-    const flushPendingComments = useCallback(async (chapterId: number) => {
-        if (commentsDebounceTimer.current) {
-            clearTimeout(commentsDebounceTimer.current);
-            commentsDebounceTimer.current = null;
-        }
-        const text = chapterComments[chapterId] ?? '';
-        if (text !== (lastSavedComments.current[chapterId] ?? '')) {
-            lastSavedComments.current[chapterId] = text;
-            await saveChapterComments(chapterId, text);
-        }
-    }, [chapterComments]);
+    const flushPendingComments = useCallback(
+        async (chapterId: number) => {
+            if (commentsDebounceTimer.current) {
+                clearTimeout(commentsDebounceTimer.current);
+                commentsDebounceTimer.current = null;
+            }
+            const text = chapterComments[chapterId] ?? '';
+            if (text !== (lastSavedComments.current[chapterId] ?? '')) {
+                lastSavedComments.current[chapterId] = text;
+                await saveChapterComments(chapterId, text);
+            }
+        },
+        [chapterComments]
+    );
 
     const handleChapterCommentsChange = (chapterId: number, text: string) => {
         setChapterComments((prev) => ({ ...prev, [chapterId]: text }));
@@ -958,365 +810,44 @@ export default function ReportDataEntry({
 
             <div className="flex h-screen flex-col overflow-hidden bg-background">
                 {/* Top Sticky Header */}
-                <header className="border-b bg-card px-4 sm:px-6 py-2.5 shrink-0 z-30">
-                    <div className="flex items-center justify-between gap-4">
-                        {/* Left: Navigation & Document Identification */}
-                        <div className="flex items-center gap-3 min-w-0">
-                            <Button
-                                variant="ghost"
-                                size="sm"
-                                asChild
-                                className="h-8 px-2 text-muted-foreground hover:text-foreground shrink-0"
-                            >
-                                <Link href="/reports">
-                                    <ArrowLeft className="size-4 mr-1.5" />
-                                    <span className="text-xs font-medium">All Reports</span>
-                                </Link>
-                            </Button>
-
-                            <div className="h-5 w-px bg-border shrink-0 hidden sm:block" />
-
-                            <div className="flex flex-col min-w-0">
-                                <div className="flex items-center gap-2">
-                                    <h2 className="font-bold text-sm text-foreground truncate max-w-[160px] sm:max-w-xs md:max-w-md">
-                                        {report.vessel_name}
-                                    </h2>
-                                    <Badge variant="outline" className="font-mono text-[10px] px-1.5 py-0 shrink-0">
-                                        {report.reference_number}
-                                    </Badge>
-                                    <Badge variant="secondary" className="text-[10px] px-1.5 py-0 shrink-0 font-medium">
-                                        {report.form.code}
-                                    </Badge>
-                                </div>
-                                <p className="text-[11px] text-muted-foreground truncate">
-                                    Inspection Date: {formatDate(report.report_date)} • {report.form.code} v{report.template_version}
-                                </p>
-                            </div>
-                        </div>
-
-                        {/* Right: Progress, Sync, Tools & Actions */}
-                        <div className="flex items-center gap-2 sm:gap-3 shrink-0">
-                            {/* Global Save / Sync Status */}
-                            <div className="flex items-center">
-                                {globalSyncState === 'saved' && (
-                                    <span
-                                        className="text-xs text-muted-foreground flex items-center gap-1.5"
-                                        title="All checklist changes saved"
-                                    >
-                                        <CheckCircle2 className="size-3.5 text-emerald-500" />
-                                        <span className="hidden xl:inline text-[11px] font-medium">Saved</span>
-                                    </span>
-                                )}
-                                {globalSyncState === 'saving' && (
-                                    <span
-                                        className="text-xs text-muted-foreground flex items-center gap-1.5"
-                                        title="Saving change to server..."
-                                    >
-                                        <Loader2 className="size-3.5 text-primary animate-spin" />
-                                        <span className="hidden xl:inline text-[11px] font-medium">Saving...</span>
-                                    </span>
-                                )}
-                                {globalSyncState === 'retrying' && (
-                                    <Button
-                                        size="sm"
-                                        variant="outline"
-                                        type="button"
-                                        onClick={triggerManualQueueFlush}
-                                        disabled={isFlushingQueue}
-                                        className="h-7 text-xs border-amber-500 text-amber-600 bg-amber-50 hover:bg-amber-100 dark:bg-amber-950/40 dark:hover:bg-amber-900/50 flex items-center gap-1 px-2"
-                                        title="Temporary VSAT drop or offline. Click to retry syncing immediately."
-                                    >
-                                        <CloudOff className="size-3 text-amber-500" />
-                                        <span className="text-[11px]">{pendingQueueCount} queued</span>
-                                        <RefreshCw className={`size-3 ${isFlushingQueue ? 'animate-spin' : ''}`} />
-                                    </Button>
-                                )}
-                                {isOffline && (
-                                    <Badge variant="destructive" className="text-[10px] px-1.5 py-0 flex items-center gap-1">
-                                        <WifiOff className="size-3" /> Offline
-                                    </Badge>
-                                )}
-                            </div>
-
-                            <div className="h-4 w-px bg-border shrink-0 hidden sm:block" />
-
-                            {/* Overall Progress */}
-                            <div className="flex items-center gap-2" title={`Progress: ${overallStats.totalAnswered} of ${overallStats.totalApplicable} answered (${overallStats.percent}%)`}>
-                                <div className="w-16 sm:w-24 h-2 rounded-full bg-muted overflow-hidden">
-                                    <div
-                                        className="h-full bg-primary transition-all duration-300"
-                                        style={{ width: `${overallStats.percent}%` }}
-                                    />
-                                </div>
-                                <span className="text-xs font-semibold text-foreground whitespace-nowrap">
-                                    {overallStats.totalAnswered}/{overallStats.totalApplicable} ({overallStats.percent}%)
-                                </span>
-                            </div>
-
-                            <div className="h-4 w-px bg-border shrink-0 hidden md:block" />
-
-                            {/* Search Jump */}
-                            <div className="relative w-32 sm:w-36 lg:w-44 hidden sm:block">
-                                <Search className="absolute left-2.5 top-2 size-3 text-muted-foreground" />
-                                <Input
-                                    placeholder="Search question..."
-                                    value={searchQuery}
-                                    onChange={(e) => setSearchQuery(e.target.value)}
-                                    className="h-7 text-xs pl-7 pr-2"
-                                />
-                            </div>
-
-                            {/* Unanswered Filter Toggle */}
-                            <Button
-                                size="sm"
-                                variant={showUnansweredOnly ? 'default' : 'outline'}
-                                onClick={() => setShowUnansweredOnly((prev) => !prev)}
-                                className="h-7 text-xs px-2.5 flex items-center gap-1.5 whitespace-nowrap"
-                                title={showUnansweredOnly ? 'Show all questions' : 'Filter to show unanswered questions only'}
-                            >
-                                <SlidersHorizontal className="size-3" />
-                                <span className="hidden md:inline">{showUnansweredOnly ? 'Unanswered' : 'Filter'}</span>
-                            </Button>
-
-                            {/* Delete Draft Action */}
-                            {can_delete && (
-                                <>
-                                    <div className="h-4 w-px bg-border shrink-0" />
-                                    <Button
-                                        variant="outline"
-                                        size="sm"
-                                        onClick={() => {
-                                            setDeleteReason('');
-                                            setIsDeleteDialogOpen(true);
-                                        }}
-                                        className="h-7 px-2 text-xs text-destructive hover:bg-destructive/10 border-destructive/30 hover:border-destructive/60 flex items-center gap-1.5 shrink-0"
-                                        title="Delete this draft report"
-                                    >
-                                        <Trash2 className="size-3" />
-                                        <span className="hidden sm:inline">Delete</span>
-                                    </Button>
-                                </>
-                            )}
-                        </div>
-                    </div>
-                </header>
-
-                {/* Advisory Edit Lock Banner (NFR-15) */}
-                {lockState && lockState.is_locked && !lockState.is_owner && (
-                    <div className="bg-amber-500/10 border-b border-amber-500/20 px-6 py-2.5 flex items-center justify-between text-xs text-amber-800 dark:text-amber-300">
-                        <div className="flex items-center gap-2">
-                            <Users className="size-4 text-amber-600 dark:text-amber-400 shrink-0" />
-                            <span>
-                                <strong>{lockState.owner_name}</strong> is currently editing this report. Concurrent changes might conflict.
-                            </span>
-                        </div>
-                        <Button
-                            size="sm"
-                            variant="outline"
-                            type="button"
-                            onClick={() => acquireLock(true)}
-                            className="h-7 text-xs border-amber-300 bg-amber-50 hover:bg-amber-100 dark:border-amber-800 dark:bg-amber-950 dark:hover:bg-amber-900 shrink-0"
-                        >
-                            Take over editing
-                        </Button>
-                    </div>
-                )}
+                <ReportHeader
+                    report={report}
+                    globalSyncState={globalSyncState}
+                    isOffline={isOffline}
+                    pendingQueueCount={pendingQueueCount}
+                    isFlushingQueue={isFlushingQueue}
+                    onTriggerManualQueueFlush={triggerManualQueueFlush}
+                    overallStats={overallStats}
+                    searchQuery={searchQuery}
+                    onSearchQueryChange={setSearchQuery}
+                    showUnansweredOnly={showUnansweredOnly}
+                    onToggleUnansweredOnly={() => setShowUnansweredOnly((prev) => !prev)}
+                    canDelete={can_delete}
+                    onDeleteClick={() => {
+                        setDeleteReason('');
+                        setIsDeleteDialogOpen(true);
+                    }}
+                    lockState={lockState}
+                    onAcquireLock={acquireLock}
+                />
 
                 {/* Main 2-Column Split: Sticky Sidebar (Left) + Current Group Form (Right) */}
                 <div className="flex flex-1 overflow-hidden">
                     {/* Left Sticky Chapter Navigation Sidebar */}
-                    <aside className="w-80 shrink-0 border-r bg-muted/20 overflow-y-auto p-4 space-y-1.5">
-                        <div className="text-xs font-semibold uppercase tracking-wider text-muted-foreground px-2 pb-1">
-                            {isPhotoForm ? 'Photo Form Sections' : 'Chapters / Sections'}
-                        </div>
-
-                        {/* Standalone Photo Form Single Primary Section */}
-                        {isPhotoForm ? (
-                            <button
-                                type="button"
-                                onClick={() => handleChapterSwitch(-888)}
-                                className={`w-full text-left rounded-lg p-3 transition-all flex flex-col gap-1.5 ${
-                                    activeChapterId === -888
-                                        ? 'bg-card border-2 border-primary shadow-xs ring-1 ring-primary/20'
-                                        : 'border border-transparent hover:bg-card/70'
-                                }`}
-                            >
-                                <div className="flex items-start justify-between gap-2">
-                                    <div className="flex items-center gap-1.5 min-w-0">
-                                        <Camera className="size-4 text-primary shrink-0" />
-                                        <span className="font-semibold text-xs text-foreground truncate">
-                                            1. {photoChapterTitle}
-                                        </span>
-                                    </div>
-                                    <Badge variant="secondary" className="text-[10px] shrink-0 font-mono">
-                                        {photos.length} photo{photos.length !== 1 ? 's' : ''}
-                                    </Badge>
-                                </div>
-                                <div className="text-[11px] text-muted-foreground pl-5 truncate">
-                                    Multi-photo inspection & walkaround records
-                                </div>
-                            </button>
-                        ) : (
-                            <>
-                                {/* Chapter 1: General Information & Particulars */}
-                                <button
-                                    type="button"
-                                    onClick={() => handleChapterSwitch(0)}
-                                    className={`w-full text-left rounded-lg p-3 transition-all flex flex-col gap-1.5 ${
-                                        activeChapterId === 0
-                                            ? 'bg-card border-2 border-primary shadow-xs ring-1 ring-primary/20'
-                                            : 'border border-transparent hover:bg-card/70'
-                                    }`}
-                                >
-                                    <div className="flex items-start justify-between gap-2">
-                                        <div className="flex items-center gap-1.5 min-w-0">
-                                            <Info className="size-4 text-primary shrink-0" />
-                                            <span className="font-semibold text-xs text-foreground truncate">
-                                                1. General Information
-                                            </span>
-                                        </div>
-                                        <Badge variant="secondary" className="text-[10px] shrink-0 font-mono">
-                                            Particulars
-                                        </Badge>
-                                    </div>
-                                    <div className="text-[11px] text-muted-foreground pl-5 truncate">
-                                        Ship, PSC, Drydock, Operations & Officers
-                                    </div>
-                                </button>
-
-                                {report.groups
-                                    .filter((g) => g.chapter_no !== '1' && g.title !== 'General Information')
-                                    .map((group) => {
-                                        const stats = chapterStats[group.id] || { applicable: 0, answered: 0, noCount: 0, nsCount: 0 };
-                                        const isCurrent = group.id === activeChapterId;
-                                        const isComplete = stats.applicable > 0 && stats.answered === stats.applicable;
-
-                                        return (
-                                        <button
-                                            key={group.id}
-                                            type="button"
-                                            onClick={() => handleChapterSwitch(group.id)}
-                                            className={`w-full text-left rounded-lg p-3 transition-all flex flex-col gap-1.5 ${
-                                                isCurrent
-                                                    ? 'bg-card border-2 border-primary shadow-xs ring-1 ring-primary/20'
-                                                    : 'border border-transparent hover:bg-card/70'
-                                            }`}
-                                        >
-                                            <div className="flex items-start justify-between gap-2">
-                                                <div className="flex items-center gap-1.5 min-w-0">
-                                                    {isComplete ? (
-                                                        <CheckCircle2 className="size-4 text-emerald-600 shrink-0" />
-                                                    ) : (
-                                                        <span className="size-2 rounded-full bg-muted-foreground/40 shrink-0" />
-                                                    )}
-                                                    <span className="font-medium text-xs text-foreground truncate">
-                                                        {group.chapter_no ? `${group.chapter_no}. ` : ''}
-                                                        {group.title}
-                                                    </span>
-                                                </div>
-
-                                                {!group.is_applicable && (
-                                                    <Badge variant="outline" className="text-[10px] shrink-0 text-amber-600">
-                                                        NA
-                                                    </Badge>
-                                                )}
-                                            </div>
-
-                                            {/* Progress & Flags Bar */}
-                                            <div className="flex items-center justify-between text-[11px] text-muted-foreground pl-3.5">
-                                                <span>
-                                                    {stats.answered} of {stats.applicable} answered
-                                                </span>
-                                                <div className="flex items-center gap-1.5">
-                                                    {stats.noCount > 0 && (
-                                                        <span className="font-bold text-rose-600 bg-rose-50 dark:bg-rose-950 px-1 rounded text-[10px]">
-                                                            {stats.noCount} No
-                                                        </span>
-                                                    )}
-                                                    {stats.nsCount > 0 && (
-                                                        <span className="font-bold text-amber-600 bg-amber-50 dark:bg-amber-950 px-1 rounded text-[10px]">
-                                                            {stats.nsCount} NS
-                                                        </span>
-                                                    )}
-                                                </div>
-                                            </div>
-                                        </button>
-                                    );
-                                })}
-
-                                {/* Dynamic Summary Chapter (Schema-Driven, Task 4.1) */}
-                                {summarySchema.enabled !== false && (
-                                    <button
-                                        type="button"
-                                        onClick={() => handleChapterSwitch(-999)}
-                                        className={`w-full text-left rounded-lg p-3 transition-all flex flex-col gap-1.5 ${
-                                            activeChapterId === -999 || activeChapterId === -15
-                                                ? 'bg-card border-2 border-primary shadow-xs ring-1 ring-primary/20'
-                                                : 'border border-transparent hover:bg-card/70'
-                                        }`}
-                                    >
-                                        <div className="flex items-start justify-between gap-2">
-                                            <div className="flex items-center gap-1.5 min-w-0">
-                                                <ShieldAlert className="size-4 text-primary shrink-0" />
-                                                <span className="font-semibold text-xs text-foreground truncate">
-                                                    {summaryChapterNo}. {summaryChapterTitle}
-                                                </span>
-                                            </div>
-                                            {summarySchema.has_findings_register !== false && (
-                                                <Badge variant={findings.length > 0 ? 'destructive' : 'secondary'} className="text-[10px] shrink-0 font-mono">
-                                                    {findings.length}
-                                                </Badge>
-                                            )}
-                                        </div>
-                                        <div className="text-[11px] text-muted-foreground pl-5 truncate flex items-center gap-1.5">
-                                            {summarySchema.has_findings_register !== false ? (
-                                                <>
-                                                    {findings.filter((f) => f.risk === 'high').length > 0 && (
-                                                        <span className="text-rose-600 font-bold bg-rose-50 dark:bg-rose-950 px-1 rounded text-[10px]">
-                                                            {findings.filter((f) => f.risk === 'high').length} High
-                                                        </span>
-                                                    )}
-                                                    {findings.filter((f) => f.risk === 'medium').length > 0 && (
-                                                        <span className="text-amber-600 font-bold bg-amber-50 dark:bg-amber-950 px-1 rounded text-[10px]">
-                                                            {findings.filter((f) => f.risk === 'medium').length} Med
-                                                        </span>
-                                                    )}
-                                                    {findings.filter((f) => f.risk === 'low').length > 0 && (
-                                                        <span className="text-emerald-600 font-bold bg-emerald-50 dark:bg-emerald-950 px-1 rounded text-[10px]">
-                                                            {findings.filter((f) => f.risk === 'low').length} Low
-                                                        </span>
-                                                    )}
-                                                    {findings.length === 0 && (summarySchema.has_ratings_matrix ? 'Ratings & Observations' : 'Findings & Deficiencies')}
-                                                </>
-                                            ) : (
-                                                'Executive Summary & Assessment'
-                                            )}
-                                        </div>
-                                    </button>
-                                )}
-
-                                {/* Dedicated Photo Chapter (Schema-Driven, Phase 5) */}
-                                {photoSchema.enabled !== false && (
-                                    <button
-                                        type="button"
-                                        onClick={() => handleChapterSwitch(-888)}
-                                        className={`w-full text-left rounded-lg p-2.5 transition-all flex items-center justify-between gap-1.5 ${
-                                            activeChapterId === -888
-                                                ? 'bg-card border-2 border-primary shadow-xs ring-1 ring-primary/20'
-                                                : 'border border-transparent hover:bg-card/70'
-                                        }`}
-                                    >
-                                        <span className="font-semibold text-xs text-foreground truncate flex-1">
-                                            {photoChapterTitle}
-                                        </span>
-                                        <Badge variant="secondary" className="text-[10px] shrink-0 font-mono">
-                                            {photos.length}
-                                        </Badge>
-                                    </button>
-                                )}
-                            </>
-                        )}
-                    </aside>
+                    <ReportChapterSidebar
+                        isPhotoForm={isPhotoForm}
+                        photoChapterTitle={photoChapterTitle}
+                        photos={photos}
+                        activeChapterId={activeChapterId}
+                        onChapterSwitch={handleChapterSwitch}
+                        groups={report.groups}
+                        chapterStats={chapterStats}
+                        summarySchema={summarySchema}
+                        summaryChapterNo={summaryChapterNo}
+                        summaryChapterTitle={summaryChapterTitle}
+                        findings={findings}
+                        photoSchema={photoSchema}
+                    />
 
                     {/* Right Main Content Area: General Information, Groups, Observations, or Photos */}
                     <main ref={mainContentRef} className="flex-1 overflow-y-auto p-6 md:p-8 space-y-6">
@@ -1333,7 +864,11 @@ export default function ReportDataEntry({
                                     categories={photo_categories}
                                     allowedCategoryCodes={photoSchema.allowed_categories}
                                     questions={allQuestionsForLink}
-                                    findings={findings.map((f) => ({ id: f.id, finding_no: f.viq_paragraph || String(f.id), description: f.description }))}
+                                    findings={findings.map((f) => ({
+                                        id: f.id,
+                                        finding_no: f.viq_paragraph || String(f.id),
+                                        description: f.description,
+                                    }))}
                                     onPhotosChange={setPhotos}
                                 />
                                 {prevChapter && (
@@ -1345,7 +880,12 @@ export default function ReportDataEntry({
                                             className="flex items-center gap-2"
                                         >
                                             <ChevronLeft className="size-4" />
-                                            <span>Prev: {prevChapter.chapter_no ? `Chapter ${prevChapter.chapter_no} - ${prevChapter.title}` : prevChapter.title}</span>
+                                            <span>
+                                                Prev:{' '}
+                                                {prevChapter.chapter_no
+                                                    ? `Chapter ${prevChapter.chapter_no} - ${prevChapter.title}`
+                                                    : prevChapter.title}
+                                            </span>
                                         </Button>
                                     </div>
                                 )}
@@ -1354,7 +894,9 @@ export default function ReportDataEntry({
                             <GeneralInfoSection
                                 report={report}
                                 isEditable={is_editable}
-                                attendanceSubgroup={report.groups.find((g) => g.chapter_no === '1' || g.title === 'General Information')?.subgroups?.find((sg) => sg.title.toLowerCase().includes('attendance'))}
+                                attendanceSubgroup={report.groups
+                                    .find((g) => g.chapter_no === '1' || g.title === 'General Information')
+                                    ?.subgroups?.find((sg) => sg.title.toLowerCase().includes('attendance'))}
                                 answers={answers}
                                 isB008={isB008}
                                 answerChoices={answerChoices}
@@ -1369,12 +911,8 @@ export default function ReportDataEntry({
                                         [qid]: !prev[qid],
                                     }))
                                 }
-                                onSelectAnswer={(qid, val) =>
-                                    saveAnswerToServer(qid, { answer: val })
-                                }
-                                onSaveExtraValue={(qid, val) =>
-                                    saveAnswerToServer(qid, { extra_value: val })
-                                }
+                                onSelectAnswer={(qid, val) => saveAnswerToServer(qid, { answer: val })}
+                                onSaveExtraValue={(qid, val) => saveAnswerToServer(qid, { extra_value: val })}
                                 onAcceptServerAnswer={handleAcceptServerAnswer}
                                 onOverwriteAnswer={handleOverwriteAnswer}
                                 filterQuestion={filterQuestion}
@@ -1453,9 +991,7 @@ export default function ReportDataEntry({
                                                         [q.id]: !prev[q.id],
                                                     }))
                                                 }
-                                                onSelectAnswer={(val) =>
-                                                    saveAnswerToServer(q.id, { answer: val })
-                                                }
+                                                onSelectAnswer={(val) => saveAnswerToServer(q.id, { answer: val })}
                                                 onSaveExtraValue={(val) =>
                                                     saveAnswerToServer(q.id, { extra_value: val })
                                                 }
@@ -1517,8 +1053,12 @@ export default function ReportDataEntry({
                                                                     saveAnswerToServer(q.id, { extra_value: val })
                                                                 }
                                                                 conflict={conflicts[q.id]}
-                                                                onAcceptServerAnswer={(srv) => handleAcceptServerAnswer(q.id, srv)}
-                                                                onOverwriteAnswer={(srvVer) => handleOverwriteAnswer(q.id, srvVer)}
+                                                                onAcceptServerAnswer={(srv) =>
+                                                                    handleAcceptServerAnswer(q.id, srv)
+                                                                }
+                                                                onOverwriteAnswer={(srvVer) =>
+                                                                    handleOverwriteAnswer(q.id, srvVer)
+                                                                }
                                                                 reportPhotos={photos}
                                                                 onPhotosUpdated={setPhotos}
                                                                 photoCategories={photo_categories}
@@ -1589,7 +1129,10 @@ export default function ReportDataEntry({
                                             className="flex items-center gap-2 font-medium"
                                         >
                                             <span>
-                                                Next: {nextChapter.chapter_no ? `Chapter ${nextChapter.chapter_no} - ${nextChapter.title}` : nextChapter.title}
+                                                Next:{' '}
+                                                {nextChapter.chapter_no
+                                                    ? `Chapter ${nextChapter.chapter_no} - ${nextChapter.title}`
+                                                    : nextChapter.title}
                                             </span>
                                             <ChevronRight className="size-4" />
                                         </Button>
@@ -1610,12 +1153,15 @@ export default function ReportDataEntry({
                         <DialogTitle>Delete Draft Report</DialogTitle>
                         <DialogDescription>
                             Are you sure you want to delete draft report{' '}
-                            <span className="font-semibold text-foreground">{report.reference_number}</span> ({report.vessel_name})? This action cannot be undone.
+                            <span className="font-semibold text-foreground">{report.reference_number}</span> (
+                            {report.vessel_name})? This action cannot be undone.
                         </DialogDescription>
                     </DialogHeader>
 
                     <div className="space-y-2 py-2">
-                        <Label htmlFor="delete-reason-detail" className="text-xs">Reason for deletion (optional)</Label>
+                        <Label htmlFor="delete-reason-detail" className="text-xs">
+                            Reason for deletion (optional)
+                        </Label>
                         <Input
                             id="delete-reason-detail"
                             placeholder="e.g. Created by mistake / duplicated"
@@ -1646,2028 +1192,5 @@ export default function ReportDataEntry({
                 </DialogContent>
             </Dialog>
         </>
-    );
-}
-
-const INSPECTION_OPERATIONS = [
-    'Loading',
-    'Discharging',
-    'Bunkering',
-    'Deballasting',
-    'Ballasting',
-    'River transit',
-    'IGS in operation',
-    'Major repairs/ Drydock',
-    'COW in progress',
-    'Repairs under way',
-    'STS operations',
-    'Idle',
-    'At anchor',
-    'At sea/Sailing',
-    'Other',
-];
-
-// Subcomponent: Chapter 1 General Information & Particulars (Form D-062)
-function GeneralInfoSection({
-    report,
-    isEditable,
-    attendanceSubgroup,
-    answers,
-    isB008,
-    answerChoices,
-    expandedGuidance,
-    saveStatuses,
-    conflicts,
-    nextChapter,
-    onChapterSwitch,
-    onToggleGuidance,
-    onSelectAnswer,
-    onSaveExtraValue,
-    onAcceptServerAnswer,
-    onOverwriteAnswer,
-    filterQuestion,
-    reportPhotos,
-    onPhotosUpdated,
-    photoCategories,
-}: {
-    report: ReportData;
-    isEditable: boolean;
-    attendanceSubgroup?: ChapterData['subgroups'][0];
-    answers: Record<number, AnswerData>;
-    isB008: boolean;
-    answerChoices: { value: string; label: string; color: string }[];
-    expandedGuidance: Record<number, boolean>;
-    saveStatuses: Record<number, string>;
-    conflicts: Record<number, ConflictData>;
-    nextChapter?: { id: number; title: string; chapter_no?: string | null; sort_order?: number } | null;
-    onChapterSwitch?: (targetId: number) => void;
-    onToggleGuidance: (questionId: number) => void;
-    onSelectAnswer: (questionId: number, val: string) => void;
-    onSaveExtraValue: (questionId: number, val: string) => void;
-    onAcceptServerAnswer: (questionId: number, serverAnswer: ConflictData['server_answer']) => void;
-    onOverwriteAnswer: (questionId: number, serverRowVersion: number) => void;
-    filterQuestion: (q: QuestionData) => boolean;
-    reportPhotos?: PhotoRecord[];
-    onPhotosUpdated?: (photos: PhotoRecord[]) => void;
-    photoCategories?: PhotoCategoryItem[];
-}) {
-    const [info, setInfo] = useState({
-        report_date: formatDate(report.report_date),
-        port: report.port || '',
-        inspected_by: report.inspected_by || '',
-        master_name: report.master_name || '',
-        chief_engineer_name: report.chief_engineer_name || '',
-        chief_officer_name: report.chief_officer_name || '',
-        sailing_with_vessel: Boolean(report.sailing_with_vessel),
-        sailing_from: report.sailing_from || '',
-        sailing_to: report.sailing_to || '',
-        psc_last_port: report.psc_last_port || '',
-        psc_last_date: formatDate(report.psc_last_date),
-        psc_detained_or_deficiencies: Boolean(report.psc_detained_or_deficiencies),
-        drydock_last_date: formatDate(report.drydock_last_date),
-        drydock_next_date: formatDate(report.drydock_next_date),
-        operations: (report.operations || []) as string[],
-    });
-
-    const [saveStatus, setSaveStatus] = useState<'idle' | 'saving' | 'saved' | 'error'>('idle');
-    const debounceTimer = useRef<ReturnType<typeof setTimeout> | null>(null);
-
-    const persistChanges = async (nextState: typeof info) => {
-        if (!isEditable) return;
-        setSaveStatus('saving');
-        try {
-            const res = await fetch(`/reports/${report.id}/general-info`, {
-                method: 'PUT',
-                headers: {
-                    'Content-Type': 'application/json',
-                    Accept: 'application/json',
-                    ...csrfHeaders(),
-                    'X-Requested-With': 'XMLHttpRequest',
-                },
-                body: JSON.stringify(nextState),
-            });
-
-            if (res.ok) {
-                setSaveStatus('saved');
-                setTimeout(() => setSaveStatus('idle'), 2500);
-            } else {
-                setSaveStatus('error');
-            }
-        } catch {
-            setSaveStatus('error');
-        }
-    };
-
-    const updateField = (field: keyof typeof info, val: any, debounce = true) => {
-        const next = { ...info, [field]: val };
-        setInfo(next);
-
-        if (debounceTimer.current) clearTimeout(debounceTimer.current);
-
-        if (!debounce) {
-            persistChanges(next);
-        } else {
-            debounceTimer.current = setTimeout(() => {
-                persistChanges(next);
-            }, 1200);
-        }
-    };
-
-    const toggleOperation = (op: string) => {
-        const nextOps = info.operations.includes(op)
-            ? info.operations.filter((o) => o !== op)
-            : [...info.operations, op];
-        updateField('operations', nextOps, false);
-    };
-
-    return (
-        <div className="max-w-4xl mx-auto space-y-6">
-            {/* Header Banner */}
-            <div className="border-b pb-4 flex items-start justify-between gap-4">
-                <div>
-                    <div className="flex items-center gap-2 mb-1">
-                        <Badge variant="outline" className="text-xs font-mono">
-                            Chapter 1
-                        </Badge>
-                        <Badge variant="secondary" className="text-xs font-mono">
-                            {report.form.code}
-                        </Badge>
-                    </div>
-                    <h1 className="text-2xl font-bold tracking-tight text-foreground">
-                        General Information & Particulars
-                    </h1>
-                    <p className="text-xs text-muted-foreground mt-0.5">
-                        Vessel particulars, senior officers, PSC records, dry dock dates, and operational status (Form D-062).
-                    </p>
-                </div>
-
-                <div className="flex items-center gap-2 shrink-0">
-                    {saveStatus === 'saving' && (
-                        <span className="text-xs text-amber-500 flex items-center gap-1.5 font-medium">
-                            <Loader2 className="size-3.5 animate-spin" /> Saving...
-                        </span>
-                    )}
-                    {saveStatus === 'saved' && (
-                        <span className="text-xs text-emerald-600 flex items-center gap-1 font-medium">
-                            <Check className="size-3.5" /> All saved
-                        </span>
-                    )}
-                    {saveStatus === 'error' && (
-                        <span className="text-xs text-rose-600 flex items-center gap-1 font-medium">
-                            <AlertCircle className="size-3.5" /> Save failed
-                        </span>
-                    )}
-                </div>
-            </div>
-
-            {/* 1. Vessel Particulars Overview Card */}
-            <Card>
-                <CardHeader className="pb-3">
-                    <CardTitle className="text-sm font-semibold flex items-center gap-2">
-                        <Ship className="size-4 text-primary" />
-                        <span>Vessel Particulars</span>
-                    </CardTitle>
-                    <CardDescription className="text-xs">
-                        Base vessel data snapshot taken during report creation.
-                    </CardDescription>
-                </CardHeader>
-                <CardContent>
-                    <div className="grid grid-cols-2 sm:grid-cols-3 md:grid-cols-4 gap-4 text-xs">
-                        <div>
-                            <span className="text-muted-foreground block text-[11px]">Ship Name</span>
-                            <span className="font-semibold text-foreground text-sm">{report.vessel_name}</span>
-                        </div>
-                        <div>
-                            <span className="text-muted-foreground block text-[11px]">IMO Number</span>
-                            <span className="font-medium text-foreground">{report.vessel_imo || '—'}</span>
-                        </div>
-                        <div>
-                            <span className="text-muted-foreground block text-[11px]">Vessel Type</span>
-                            <span className="font-medium text-foreground">{report.vessel_type?.name || '—'}</span>
-                        </div>
-                        <div>
-                            <span className="text-muted-foreground block text-[11px]">Flag State</span>
-                            <span className="font-medium text-foreground">{report.vessel_flag || '—'}</span>
-                        </div>
-                        <div>
-                            <span className="text-muted-foreground block text-[11px]">Gross Tonnage (GT)</span>
-                            <span className="font-medium text-foreground">{report.vessel_gt || '—'}</span>
-                        </div>
-                        <div>
-                            <span className="text-muted-foreground block text-[11px]">Year Built</span>
-                            <span className="font-medium text-foreground">{report.vessel_built || '—'}</span>
-                        </div>
-                        <div>
-                            <span className="text-muted-foreground block text-[11px]">Ice Class Notation</span>
-                            <Badge variant={report.vessel_ice_class ? 'default' : 'outline'} className="text-[10px] mt-0.5">
-                                {report.vessel_ice_class ? 'Yes (Ice Class)' : 'No'}
-                            </Badge>
-                        </div>
-                        <div>
-                            <span className="text-muted-foreground block text-[11px]">Reference No.</span>
-                            <span className="font-mono text-foreground font-semibold">{report.reference_number}</span>
-                        </div>
-                    </div>
-                </CardContent>
-            </Card>
-
-            {/* 2. Inspection & Senior Officers Card */}
-            <Card>
-                <CardHeader className="pb-3">
-                    <CardTitle className="text-sm font-semibold flex items-center gap-2">
-                        <Info className="size-4 text-primary" />
-                        <span>Inspection & Senior Officer Particulars</span>
-                    </CardTitle>
-                    <CardDescription className="text-xs">
-                        Editable text and date fields for attendance and crew leadership.
-                    </CardDescription>
-                </CardHeader>
-                <CardContent className="space-y-4">
-                    <div className="grid gap-4 md:grid-cols-3">
-                        <div className="space-y-1">
-                            <Label htmlFor="gi_report_date" className="text-xs">Date of Inspection *</Label>
-                            <Input
-                                id="gi_report_date"
-                                type="date"
-                                value={info.report_date}
-                                disabled={!isEditable}
-                                onChange={(e) => updateField('report_date', e.target.value)}
-                                className="h-8 text-xs"
-                            />
-                        </div>
-
-                        <div className="space-y-1">
-                            <Label htmlFor="gi_port" className="text-xs">Port / Location</Label>
-                            <Input
-                                id="gi_port"
-                                value={info.port}
-                                disabled={!isEditable}
-                                placeholder="e.g. Bojonegara, Merak"
-                                onChange={(e) => updateField('port', e.target.value)}
-                                className="h-8 text-xs"
-                            />
-                        </div>
-
-                        <div className="space-y-1">
-                            <Label htmlFor="gi_inspected_by" className="text-xs">Inspected By</Label>
-                            <Input
-                                id="gi_inspected_by"
-                                value={info.inspected_by}
-                                disabled={!isEditable}
-                                placeholder="e.g. Rendy"
-                                onChange={(e) => updateField('inspected_by', e.target.value)}
-                                className="h-8 text-xs"
-                            />
-                        </div>
-                    </div>
-
-                    <div className="grid gap-4 md:grid-cols-3 pt-2">
-                        <div className="space-y-1">
-                            <Label htmlFor="gi_master" className="text-xs">Master</Label>
-                            <Input
-                                id="gi_master"
-                                value={info.master_name}
-                                disabled={!isEditable}
-                                placeholder="Capt. Name"
-                                onChange={(e) => updateField('master_name', e.target.value)}
-                                className="h-8 text-xs"
-                            />
-                        </div>
-
-                        <div className="space-y-1">
-                            <Label htmlFor="gi_ce" className="text-xs">Chief Engineer</Label>
-                            <Input
-                                id="gi_ce"
-                                value={info.chief_engineer_name}
-                                disabled={!isEditable}
-                                placeholder="C/E Name"
-                                onChange={(e) => updateField('chief_engineer_name', e.target.value)}
-                                className="h-8 text-xs"
-                            />
-                        </div>
-
-                        <div className="space-y-1">
-                            <Label htmlFor="gi_co" className="text-xs">Chief Officer</Label>
-                            <Input
-                                id="gi_co"
-                                value={info.chief_officer_name}
-                                disabled={!isEditable}
-                                placeholder="C/O Name"
-                                onChange={(e) => updateField('chief_officer_name', e.target.value)}
-                                className="h-8 text-xs"
-                            />
-                        </div>
-                    </div>
-
-                    {/* Sailing with vessel toggle */}
-                    <div className="rounded-lg border p-3 bg-muted/20 space-y-3 mt-2">
-                        <div className="flex items-center gap-2">
-                            <input
-                                id="gi_sailing_toggle"
-                                type="checkbox"
-                                checked={info.sailing_with_vessel}
-                                disabled={!isEditable}
-                                onChange={(e) => updateField('sailing_with_vessel', e.target.checked, false)}
-                                className="h-4 w-4 rounded border-gray-300 text-primary focus:ring-primary"
-                            />
-                            <Label htmlFor="gi_sailing_toggle" className="cursor-pointer text-xs font-semibold">
-                                Sailing with Vessel during inspection
-                            </Label>
-                        </div>
-
-                        {info.sailing_with_vessel && (
-                            <div className="grid gap-4 md:grid-cols-2 pt-1 pl-6">
-                                <div className="space-y-1">
-                                    <Label htmlFor="gi_sailing_from" className="text-xs">Sailing From</Label>
-                                    <Input
-                                        id="gi_sailing_from"
-                                        value={info.sailing_from}
-                                        disabled={!isEditable}
-                                        placeholder="e.g. Merak"
-                                        onChange={(e) => updateField('sailing_from', e.target.value)}
-                                        className="h-8 text-xs"
-                                    />
-                                </div>
-                                <div className="space-y-1">
-                                    <Label htmlFor="gi_sailing_to" className="text-xs">Sailing To</Label>
-                                    <Input
-                                        id="gi_sailing_to"
-                                        value={info.sailing_to}
-                                        disabled={!isEditable}
-                                        placeholder="e.g. Batam"
-                                        onChange={(e) => updateField('sailing_to', e.target.value)}
-                                        className="h-8 text-xs"
-                                    />
-                                </div>
-                            </div>
-                        )}
-                    </div>
-                </CardContent>
-            </Card>
-
-            {/* 3. Port State Control (PSC) & Dry Dock Particulars */}
-            <Card>
-                <CardHeader className="pb-3">
-                    <CardTitle className="text-sm font-semibold flex items-center gap-2">
-                        <FileCheck className="size-4 text-primary" />
-                        <span>Port State Control (PSC) & Dry Dock Dates</span>
-                    </CardTitle>
-                    <CardDescription className="text-xs">
-                        Last PSC inspection results and scheduled drydocking.
-                    </CardDescription>
-                </CardHeader>
-                <CardContent className="space-y-4">
-                    <div className="grid gap-4 md:grid-cols-2">
-                        <div className="space-y-1">
-                            <Label htmlFor="gi_psc_port" className="text-xs">Port of Last PSC Inspection</Label>
-                            <Input
-                                id="gi_psc_port"
-                                value={info.psc_last_port}
-                                disabled={!isEditable}
-                                placeholder="e.g. Tanjung Priok"
-                                onChange={(e) => updateField('psc_last_port', e.target.value)}
-                                className="h-8 text-xs"
-                            />
-                        </div>
-
-                        <div className="space-y-1">
-                            <Label htmlFor="gi_psc_date" className="text-xs">Date of Last PSC Inspection</Label>
-                            <Input
-                                id="gi_psc_date"
-                                type="date"
-                                value={info.psc_last_date}
-                                disabled={!isEditable}
-                                onChange={(e) => updateField('psc_last_date', e.target.value)}
-                                className="h-8 text-xs"
-                            />
-                        </div>
-                    </div>
-
-                    <div className="flex items-center gap-2 pt-1">
-                        <input
-                            id="gi_psc_detained"
-                            type="checkbox"
-                            checked={info.psc_detained_or_deficiencies}
-                            disabled={!isEditable}
-                            onChange={(e) => updateField('psc_detained_or_deficiencies', e.target.checked, false)}
-                            className="h-4 w-4 rounded border-gray-300 text-primary focus:ring-primary"
-                        />
-                        <Label htmlFor="gi_psc_detained" className="cursor-pointer text-xs font-medium text-muted-foreground">
-                            Vessel was detained or deficiencies were identified during last PSC (verify close out)
-                        </Label>
-                    </div>
-
-                    <div className="grid gap-4 md:grid-cols-2 pt-3 border-t">
-                        <div className="space-y-1">
-                            <Label htmlFor="gi_dd_last" className="text-xs">Date of Last Dry Dock</Label>
-                            <Input
-                                id="gi_dd_last"
-                                type="date"
-                                value={info.drydock_last_date}
-                                disabled={!isEditable}
-                                onChange={(e) => updateField('drydock_last_date', e.target.value)}
-                                className="h-8 text-xs"
-                            />
-                        </div>
-
-                        <div className="space-y-1">
-                            <Label htmlFor="gi_dd_next" className="text-xs">Next Dry Dock Date</Label>
-                            <Input
-                                id="gi_dd_next"
-                                type="date"
-                                value={info.drydock_next_date}
-                                disabled={!isEditable}
-                                onChange={(e) => updateField('drydock_next_date', e.target.value)}
-                                className="h-8 text-xs"
-                            />
-                        </div>
-                    </div>
-                </CardContent>
-            </Card>
-
-            {/* 4. Operations at the time of inspection */}
-            <Card>
-                <CardHeader className="pb-3">
-                    <CardTitle className="text-sm font-semibold flex items-center gap-2">
-                        <Info className="size-4 text-primary" />
-                        <span>Operations at the Time of Inspection</span>
-                    </CardTitle>
-                    <CardDescription className="text-xs">
-                        Select all operational activities occurring during attendance (Form D-062 Chapter 1).
-                    </CardDescription>
-                </CardHeader>
-                <CardContent>
-                    <div className="grid grid-cols-2 sm:grid-cols-3 md:grid-cols-5 gap-2.5">
-                        {INSPECTION_OPERATIONS.map((op) => {
-                            const isSelected = info.operations.includes(op);
-                            return (
-                                <button
-                                    key={op}
-                                    type="button"
-                                    disabled={!isEditable}
-                                    onClick={() => toggleOperation(op)}
-                                    className={`p-2.5 rounded-lg border text-left text-xs font-medium transition-all flex items-center gap-2 ${
-                                        isSelected
-                                            ? 'border-primary bg-primary/10 text-primary font-semibold ring-1 ring-primary'
-                                            : 'border-border hover:bg-muted/60 text-muted-foreground'
-                                    } disabled:opacity-60 disabled:cursor-not-allowed`}
-                                >
-                                    <span className={`size-3.5 rounded border flex items-center justify-center shrink-0 ${
-                                        isSelected ? 'bg-primary border-primary text-primary-foreground' : 'border-muted-foreground/50'
-                                    }`}>
-                                        {isSelected && <Check className="size-2.5" />}
-                                    </span>
-                                    <span className="truncate">{op}</span>
-                                </button>
-                            );
-                        })}
-                    </div>
-                </CardContent>
-            </Card>
-
-            {/* 5. Other Attendance-Related Activities (if available in Chapter 1) */}
-            {attendanceSubgroup && attendanceSubgroup.questions && attendanceSubgroup.questions.length > 0 && (
-                <Card>
-                    <CardHeader className="pb-3">
-                        <div className="flex items-center justify-between">
-                            <CardTitle className="text-sm font-semibold flex items-center gap-2">
-                                <Info className="size-4 text-primary" />
-                                <span>{attendanceSubgroup.title}</span>
-                            </CardTitle>
-                            {!attendanceSubgroup.is_applicable && (
-                                <Badge variant="outline" className="text-[10px] text-amber-600">
-                                    Inapplicable
-                                </Badge>
-                            )}
-                        </div>
-                        <CardDescription className="text-xs">
-                            Verify safety meetings, drills, training, and audits conducted during attendance.
-                        </CardDescription>
-                    </CardHeader>
-                    <CardContent className="space-y-3">
-                        {attendanceSubgroup.questions.filter(filterQuestion).map((q) => (
-                            <QuestionAnswerCard
-                                key={q.id}
-                                reportId={report.id}
-                                question={q}
-                                currentAnswer={answers[q.id]}
-                                isB008={isB008}
-                                answerChoices={answerChoices}
-                                isExpandedGuidance={Boolean(expandedGuidance[q.id])}
-                                saveStatus={saveStatuses[q.id]}
-                                isEditable={isEditable}
-                                onToggleGuidance={() => onToggleGuidance(q.id)}
-                                onSelectAnswer={(val) => onSelectAnswer(q.id, val)}
-                                onSaveExtraValue={(val) => onSaveExtraValue(q.id, val)}
-                                conflict={conflicts[q.id]}
-                                onAcceptServerAnswer={(srv) => onAcceptServerAnswer(q.id, srv)}
-                                onOverwriteAnswer={(srvVer) => onOverwriteAnswer(q.id, srvVer)}
-                                reportPhotos={reportPhotos}
-                                onPhotosUpdated={onPhotosUpdated}
-                                photoCategories={photoCategories}
-                            />
-                        ))}
-                    </CardContent>
-                </Card>
-            )}
-
-            {/* Next Chapter Navigation */}
-            {nextChapter && onChapterSwitch && (
-                <div className="flex justify-end pt-1 pb-4">
-                    <Button
-                        type="button"
-                        onClick={() => onChapterSwitch(nextChapter.id)}
-                        className="flex items-center gap-2 font-medium"
-                    >
-                        <span>
-                            Next: {nextChapter.chapter_no ? `Chapter ${nextChapter.chapter_no} - ${nextChapter.title}` : nextChapter.title}
-                        </span>
-                        <ChevronRight className="size-4" />
-                    </Button>
-                </div>
-            )}
-        </div>
-    );
-}
-
-// Subcomponent: Dynamic Schema-Driven Summary & Observations Chapter (Task 4.1, FM-7b)
-function ObservationsSection({
-    report,
-    isEditable,
-    findings,
-    chapterStats,
-    onAddFinding,
-    onUpdateFinding,
-    onDeleteFinding,
-    prevChapter,
-    nextChapter,
-    onChapterSwitch,
-    reportPhotos,
-    onPhotosUpdated,
-    photoCategories,
-}: {
-    report: ReportData;
-    isEditable: boolean;
-    findings: FindingData[];
-    chapterStats?: Record<
-        number,
-        { total: number; applicable: number; answered: number; noCount: number; nsCount: number }
-    >;
-    onAddFinding: (data: Partial<FindingData>) => Promise<void>;
-    onUpdateFinding: (id: number, data: Partial<FindingData>) => Promise<void>;
-    onDeleteFinding: (id: number) => Promise<void>;
-    prevChapter?: { id: number; title: string; chapter_no?: string | null; sort_order?: number } | null;
-    nextChapter?: { id: number; title: string; chapter_no?: string | null; sort_order?: number } | null;
-    onChapterSwitch: (targetId: number) => void;
-    reportPhotos?: PhotoRecord[];
-    onPhotosUpdated?: (photos: PhotoRecord[]) => void;
-    photoCategories?: PhotoCategoryItem[];
-}) {
-    const [evidenceFinding, setEvidenceFinding] = useState<FindingData | null>(null);
-
-    const handleDetachFindingPhoto = async (photo: PhotoRecord) => {
-        try {
-            const csrfToken = (document.querySelector('meta[name="csrf-token"]') as HTMLMetaElement)?.content || '';
-            const res = await fetch(`/reports/${report.id}/photos/${photo.id}`, {
-                method: 'PUT',
-                headers: {
-                    'Content-Type': 'application/json',
-                    'X-CSRF-TOKEN': csrfToken,
-                    Accept: 'application/json',
-                },
-                body: JSON.stringify({ finding_id: null }),
-            });
-            if (res.ok) {
-                const data = await res.json();
-                onPhotosUpdated?.(
-                    (reportPhotos || []).map((p) => (p.id === photo.id ? data.photo : p))
-                );
-            }
-        } catch (err) {
-            console.error('Failed to detach photo from finding:', err);
-        }
-    };
-
-    const summarySchema: SummarySchema = useMemo(() => {
-        if (report.form.summary_schema) {
-            return report.form.summary_schema;
-        }
-        return {
-            enabled: true,
-            title: report.form.code === 'B-008' ? 'Audit Summary & NCRs' : 'Summary & Observations',
-            has_ratings_matrix: report.form.code === 'D-062',
-            has_findings_register: true,
-        };
-    }, [report.form.summary_schema, report.form.code]);
-
-    // --- Report Summary State & Autosave ---
-    const [summaryRatings, setSummaryRatings] = useState<Record<string, string>>(
-        report.summary_ratings || {}
-    );
-
-    // Dynamic key-value summary data dictionary
-    const [summaryData, setSummaryData] = useState<Record<string, string>>(() => {
-        const initial: Record<string, string> = { ...(report.summary_data || {}) };
-        if (report.summary_comments_no && !initial.summary_comments_no) {
-            initial.summary_comments_no = report.summary_comments_no;
-        }
-        if (report.summary_safety_meetings && !initial.summary_safety_meetings) {
-            initial.summary_safety_meetings = report.summary_safety_meetings;
-        }
-        if (report.summary_participants && !initial.summary_participants) {
-            initial.summary_participants = report.summary_participants;
-        }
-        if (report.summary_concept_understanding && !initial.summary_concept_understanding) {
-            initial.summary_concept_understanding = report.summary_concept_understanding;
-        }
-        if (report.summary_training_needs && !initial.summary_training_needs) {
-            initial.summary_training_needs = report.summary_training_needs;
-        }
-        return initial;
-    });
-
-    const [summarySaveStatus, setSummarySaveStatus] = useState<'saved' | 'saving' | 'error'>('saved');
-    const summaryDebounceTimer = useRef<ReturnType<typeof setTimeout> | null>(null);
-
-    const saveSummaryToServer = async (payload: {
-        summary_ratings?: Record<string, string>;
-        summary_data?: Record<string, string>;
-        summary_comments_no?: string;
-        summary_safety_meetings?: string;
-        summary_participants?: string;
-        summary_concept_understanding?: string;
-        summary_training_needs?: string;
-    }) => {
-        setSummarySaveStatus('saving');
-        try {
-            const res = await fetch(`/reports/${report.id}/summary`, {
-                method: 'PUT',
-                headers: {
-                    'Content-Type': 'application/json',
-                    Accept: 'application/json',
-                    ...csrfHeaders(),
-                    'X-Requested-With': 'XMLHttpRequest',
-                },
-                body: JSON.stringify(payload),
-            });
-            if (res.ok) {
-                setSummarySaveStatus('saved');
-            } else {
-                setSummarySaveStatus('error');
-            }
-        } catch {
-            setSummarySaveStatus('error');
-        }
-    };
-
-    const triggerDebouncedSave = (updatedData: Record<string, string>) => {
-        if (summaryDebounceTimer.current) clearTimeout(summaryDebounceTimer.current);
-        summaryDebounceTimer.current = setTimeout(() => {
-            saveSummaryToServer({
-                summary_ratings: summaryRatings,
-                summary_data: updatedData,
-                summary_comments_no: updatedData.summary_comments_no,
-                summary_safety_meetings: updatedData.summary_safety_meetings,
-                summary_participants: updatedData.summary_participants,
-                summary_concept_understanding: updatedData.summary_concept_understanding,
-                summary_training_needs: updatedData.summary_training_needs,
-            });
-        }, 1200);
-    };
-
-    const handleRatingChange = (chKey: string, ratingVal: string) => {
-        if (!isEditable) return;
-        const newRatings: Record<string, string> = { ...summaryRatings };
-        if (newRatings[chKey] === ratingVal) {
-            delete newRatings[chKey];
-        } else {
-            newRatings[chKey] = ratingVal;
-        }
-        setSummaryRatings(newRatings);
-        saveSummaryToServer({
-            summary_ratings: newRatings,
-            summary_data: summaryData,
-            summary_comments_no: summaryData.summary_comments_no,
-            summary_safety_meetings: summaryData.summary_safety_meetings,
-            summary_participants: summaryData.summary_participants,
-            summary_concept_understanding: summaryData.summary_concept_understanding,
-            summary_training_needs: summaryData.summary_training_needs,
-        });
-    };
-
-    const handleFieldChange = (key: string, val: string) => {
-        const next = { ...summaryData, [key]: val };
-        setSummaryData(next);
-        triggerDebouncedSave(next);
-    };
-
-    // Default rating options if not explicitly specified in schema
-    const ratingOptions = useMemo(() => {
-        if (summarySchema.rating_options && summarySchema.rating_options.length > 0) {
-            return summarySchema.rating_options;
-        }
-        return [
-            { value: 'very_good', label: 'Very Good' },
-            { value: 'satisfactory', label: 'Satisfactory' },
-            { value: 'unsatisfactory', label: 'Unsatisfactory' },
-        ];
-    }, [summarySchema.rating_options]);
-
-    // Chapters list for the rating matrix derived dynamically from report groups
-    const ratingGroups = useMemo(() => {
-        return report.groups.filter(
-            (g) => g.chapter_no !== '1' && g.title !== 'General Information'
-        );
-    }, [report.groups]);
-
-    // --- Observations Table State ---
-    const [isDialogOpen, setIsDialogOpen] = useState(false);
-    const [editingFinding, setEditingFinding] = useState<FindingData | null>(null);
-    const [isDeletingId, setIsDeletingId] = useState<number | null>(null);
-    const [isSubmitting, setIsSubmitting] = useState(false);
-
-    const [formState, setFormState] = useState<{
-        chapter_label: string;
-        viq_paragraph: string;
-        description: string;
-        risk: 'high' | 'medium' | 'low';
-        job_order_no: string;
-    }>({
-        chapter_label: '',
-        viq_paragraph: '',
-        description: '',
-        risk: 'medium',
-        job_order_no: '',
-    });
-
-    const openAddDialog = () => {
-        setEditingFinding(null);
-        setFormState({
-            chapter_label: report.groups.find((g) => g.chapter_no !== '1' && g.title !== 'General Information')?.title
-                ? `${report.groups.find((g) => g.chapter_no !== '1' && g.title !== 'General Information')?.chapter_no || ''}. ${report.groups.find((g) => g.chapter_no !== '1' && g.title !== 'General Information')?.title}`
-                : '',
-            viq_paragraph: '',
-            description: '',
-            risk: 'medium',
-            job_order_no: '',
-        });
-        setIsDialogOpen(true);
-    };
-
-    const openEditDialog = (finding: FindingData) => {
-        setEditingFinding(finding);
-        setFormState({
-            chapter_label: finding.chapter_label || '',
-            viq_paragraph: finding.viq_paragraph || '',
-            description: finding.description || '',
-            risk: (finding.risk as 'high' | 'medium' | 'low') || 'medium',
-            job_order_no: finding.job_order_no || '',
-        });
-        setIsDialogOpen(true);
-    };
-
-    const handleFormSubmit = async (e: React.FormEvent) => {
-        e.preventDefault();
-        if (!formState.description.trim()) return;
-
-        setIsSubmitting(true);
-        try {
-            if (editingFinding) {
-                await onUpdateFinding(editingFinding.id, formState);
-            } else {
-                await onAddFinding(formState);
-            }
-            setIsDialogOpen(false);
-        } finally {
-            setIsSubmitting(false);
-        }
-    };
-
-    const confirmDelete = async () => {
-        if (!isDeletingId) return;
-        setIsSubmitting(true);
-        try {
-            await onDeleteFinding(isDeletingId);
-            setIsDeletingId(null);
-        } finally {
-            setIsSubmitting(false);
-        }
-    };
-
-    const highCount = findings.filter((f) => f.risk === 'high').length;
-    const medCount = findings.filter((f) => f.risk === 'medium').length;
-    const lowCount = findings.filter((f) => f.risk === 'low').length;
-
-    // Available chapter options from report groups
-    const chapterOptions = report.groups
-        .filter((g) => g.chapter_no !== '1' && g.title !== 'General Information')
-        .map((g) => ({
-            value: `${g.chapter_no ? `Chapter ${g.chapter_no}: ` : ''}${g.title}`,
-            label: `${g.chapter_no ? `Chapter ${g.chapter_no}: ` : ''}${g.title}`,
-        }));
-
-    return (
-        <div className="max-w-5xl mx-auto space-y-8">
-            {/* Header Banner */}
-            <div className="border-b pb-4">
-                <div className="flex items-center gap-2 mb-1">
-                    <Badge variant="outline" className="text-xs font-mono">
-                        {summarySchema.title || 'Summary & Observations'}
-                    </Badge>
-                    <Badge variant="secondary" className="text-xs font-mono">
-                        {report.form.code}
-                    </Badge>
-                    <span className="text-xs text-muted-foreground ml-auto flex items-center gap-1.5">
-                        {summarySaveStatus === 'saving' && (
-                            <>
-                                <Loader2 className="size-3.5 text-primary animate-spin" />
-                                <span className="text-[11px] font-medium">Saving summary...</span>
-                            </>
-                        )}
-                        {summarySaveStatus === 'saved' && (
-                            <>
-                                <CheckCircle2 className="size-3.5 text-emerald-500" />
-                                <span className="text-[11px] font-medium text-emerald-600 dark:text-emerald-400">
-                                    Summary Saved
-                                </span>
-                            </>
-                        )}
-                        {summarySaveStatus === 'error' && (
-                            <>
-                                <AlertCircle className="size-3.5 text-rose-500" />
-                                <span className="text-[11px] font-medium text-rose-600">Save failed</span>
-                            </>
-                        )}
-                    </span>
-                </div>
-                <div className="flex items-center justify-between gap-3 flex-wrap">
-                    <div className="flex items-center gap-3 flex-wrap">
-                        <h1 className="text-2xl font-bold tracking-tight text-foreground">
-                            {summarySchema.title || 'Summary & Observations'}
-                        </h1>
-                        {prevChapter && (
-                            <Button
-                                type="button"
-                                variant="outline"
-                                size="sm"
-                                onClick={() => onChapterSwitch(prevChapter.id)}
-                                className="h-7 px-2.5 text-xs flex items-center gap-1 text-muted-foreground hover:text-foreground"
-                            >
-                                <ChevronLeft className="size-3.5" />
-                                <span>Previous</span>
-                            </Button>
-                        )}
-                    </div>
-                </div>
-                <p className="text-xs text-muted-foreground mt-1">
-                    {report.form.name} summary assessment, executive evaluation, and observations register.
-                </p>
-            </div>
-
-            {/* ========================================================================= */}
-            {/* SECTION 1: REPORT SUMMARY - RATINGS MATRIX (DYNAMIC)                       */}
-            {/* ========================================================================= */}
-            {summarySchema.has_ratings_matrix && (
-                <Card className="gap-0 overflow-hidden py-0 border shadow-xs">
-                    <CardHeader className="pb-3 border-b bg-muted/20">
-                        <div className="flex items-center justify-between">
-                            <div>
-                                <CardTitle className="text-base font-semibold">
-                                    Chapter Performance Ratings Matrix
-                                </CardTitle>
-                                <CardDescription className="text-xs">
-                                    Overall assessment rating per chapter based on checklist results and onboard findings.
-                                </CardDescription>
-                            </div>
-                            <Badge variant="outline" className="text-[11px] font-mono">
-                                {report.form.code}
-                            </Badge>
-                        </div>
-                    </CardHeader>
-                    <CardContent className="p-0">
-                        <div className="overflow-x-auto">
-                            <table className="w-full text-left text-xs border-collapse">
-                                <thead className="bg-muted/50 border-b border-border text-[11px] font-semibold text-muted-foreground uppercase tracking-wider">
-                                    <tr>
-                                        <th className="py-2.5 px-3 w-12 text-center">Ch.</th>
-                                        <th className="py-2.5 px-3 min-w-[220px]">Chapter Title</th>
-                                        <th className="py-2.5 px-3 w-32 text-center">Deficiency Flags</th>
-                                        <th className="py-2.5 px-3 min-w-[300px] text-center">Rating</th>
-                                    </tr>
-                                </thead>
-                                <tbody className="divide-y divide-border/60">
-                                    {ratingGroups.map((grp) => {
-                                        const stats = chapterStats ? chapterStats[grp.id] : null;
-                                        const chKey = `chapter_${grp.chapter_no || grp.id}`;
-                                        const currentRating = summaryRatings[chKey];
-
-                                        return (
-                                            <tr key={grp.id} className="hover:bg-muted/20 transition-colors">
-                                                <td className="py-2.5 px-3 text-center font-mono font-semibold text-muted-foreground">
-                                                    {grp.chapter_no || grp.sort_order}
-                                                </td>
-                                                <td className="py-2.5 px-3 font-medium text-foreground">
-                                                    {grp.title}
-                                                </td>
-                                                <td className="py-2.5 px-3 text-center">
-                                                    {stats && (stats.noCount > 0 || stats.nsCount > 0) ? (
-                                                        <div className="flex items-center justify-center gap-1.5">
-                                                            {stats.noCount > 0 && (
-                                                                <span className="font-bold text-rose-600 bg-rose-50 dark:bg-rose-950 px-1.5 py-0.5 rounded text-[10px]">
-                                                                    {stats.noCount} No
-                                                                </span>
-                                                            )}
-                                                            {stats.nsCount > 0 && (
-                                                                <span className="font-bold text-amber-600 bg-amber-50 dark:bg-amber-950 px-1.5 py-0.5 rounded text-[10px]">
-                                                                    {stats.nsCount} NS
-                                                                </span>
-                                                            )}
-                                                        </div>
-                                                    ) : (
-                                                        <span className="text-muted-foreground/60 text-[11px]">—</span>
-                                                    )}
-                                                </td>
-                                                <td className="py-2.5 px-3">
-                                                    <div className="flex items-center justify-center gap-1.5">
-                                                        {ratingOptions.map((opt) => {
-                                                            const isSelected = currentRating === opt.value;
-                                                            return (
-                                                                <button
-                                                                    key={opt.value}
-                                                                    type="button"
-                                                                    disabled={!isEditable}
-                                                                    onClick={() => handleRatingChange(chKey, opt.value)}
-                                                                    className={`px-2.5 py-1 rounded text-[11px] font-semibold transition-all border ${
-                                                                        isSelected
-                                                                            ? opt.value === 'very_good'
-                                                                                ? 'bg-emerald-600 text-white border-emerald-600 shadow-xs ring-1 ring-emerald-500'
-                                                                                : opt.value === 'satisfactory'
-                                                                                ? 'bg-blue-600 text-white border-blue-600 shadow-xs ring-1 ring-blue-500'
-                                                                                : 'bg-rose-600 text-white border-rose-600 shadow-xs ring-1 ring-rose-500'
-                                                                            : 'bg-background hover:bg-muted/60 text-muted-foreground border-border'
-                                                                    } ${isEditable ? 'cursor-pointer' : 'cursor-default opacity-80'}`}
-                                                                >
-                                                                    {opt.label}
-                                                                </button>
-                                                            );
-                                                        })}
-                                                    </div>
-                                                </td>
-                                            </tr>
-                                        );
-                                    })}
-                                </tbody>
-                            </table>
-                        </div>
-                    </CardContent>
-                </Card>
-            )}
-
-            {/* ========================================================================= */}
-            {/* SECTION 2: REPORT SUMMARY - DYNAMIC EXECUTIVE TEXTAREAS                   */}
-            {/* ========================================================================= */}
-            {summarySchema.text_fields && summarySchema.text_fields.length > 0 && (
-                <Card className="gap-0 overflow-hidden py-0 border shadow-xs">
-                    <CardHeader className="pb-3 border-b bg-muted/20">
-                        <CardTitle className="text-base font-semibold">
-                            Executive Summary & Evaluation
-                        </CardTitle>
-                        <CardDescription className="text-xs">
-                            Review notes, general observations, and executive comments for this {report.form.name}.
-                        </CardDescription>
-                    </CardHeader>
-                    <CardContent className="p-4 sm:p-6">
-                        <div className="grid grid-cols-1 md:grid-cols-2 gap-5">
-                            {summarySchema.text_fields.map((field) => {
-                                const isFull = field.span === 'full' || !field.span;
-                                return (
-                                    <div
-                                        key={field.key}
-                                        className={`space-y-1.5 ${isFull ? 'md:col-span-2' : 'md:col-span-1'}`}
-                                    >
-                                        <Label
-                                            htmlFor={`sum_${field.key}`}
-                                            className="text-xs font-semibold text-foreground flex items-center justify-between"
-                                        >
-                                            <span>{field.label}</span>
-                                            <span className="text-[11px] text-muted-foreground font-normal">Autosaved</span>
-                                        </Label>
-                                        {field.description && (
-                                            <p className="text-[11px] text-muted-foreground">{field.description}</p>
-                                        )}
-                                        <textarea
-                                            id={`sum_${field.key}`}
-                                            rows={field.rows || 3}
-                                            disabled={!isEditable}
-                                            value={summaryData[field.key] || ''}
-                                            onChange={(e) => handleFieldChange(field.key, e.target.value)}
-                                            placeholder={field.placeholder || `Enter ${field.label}...`}
-                                            className="w-full rounded-md border border-input bg-transparent px-3 py-2 text-xs shadow-xs placeholder:text-muted-foreground focus-visible:outline-none focus-visible:ring-1 focus-visible:ring-ring disabled:opacity-60 leading-relaxed"
-                                        />
-                                    </div>
-                                );
-                            })}
-                        </div>
-                    </CardContent>
-                </Card>
-            )}
-
-            {/* ========================================================================= */}
-            {/* SECTION 3: SUMMARY OF OBSERVATIONS TABLE                                  */}
-            {/* ========================================================================= */}
-            {summarySchema.has_findings_register !== false && (
-                <div className="space-y-4">
-                    <div className="flex items-center justify-between gap-3 flex-wrap">
-                    <div>
-                        <h2 className="text-lg font-bold text-foreground">Summary of Observations</h2>
-                        <p className="text-xs text-muted-foreground">
-                            Specific deficiencies, condition notes, and observation records to be included in the inspection report.
-                        </p>
-                    </div>
-
-                    {isEditable && (
-                        <Button
-                            type="button"
-                            onClick={openAddDialog}
-                            size="sm"
-                            className="flex items-center gap-1.5"
-                        >
-                            <Plus className="size-4" />
-                            <span>Add Observation</span>
-                        </Button>
-                    )}
-                </div>
-
-                {/* Severity & Totals Metrics */}
-                <div className="grid grid-cols-2 md:grid-cols-4 gap-3">
-                    <Card className="bg-card border shadow-2xs p-3">
-                        <div className="text-xs text-muted-foreground font-medium">Total Observations</div>
-                        <div className="text-2xl font-bold text-foreground mt-0.5">{findings.length}</div>
-                    </Card>
-                    <Card className="bg-rose-50/50 border-rose-200 dark:bg-rose-950/20 dark:border-rose-900 shadow-2xs p-3">
-                        <div className="text-xs text-rose-700 dark:text-rose-400 font-medium">High Risk</div>
-                        <div className="text-2xl font-bold text-rose-700 dark:text-rose-400 mt-0.5">{highCount}</div>
-                    </Card>
-                    <Card className="bg-amber-50/50 border-amber-200 dark:bg-amber-950/20 dark:border-amber-900 shadow-2xs p-3">
-                        <div className="text-xs text-amber-700 dark:text-amber-400 font-medium">Medium Risk</div>
-                        <div className="text-2xl font-bold text-amber-700 dark:text-amber-400 mt-0.5">{medCount}</div>
-                    </Card>
-                    <Card className="bg-emerald-50/50 border-emerald-200 dark:bg-emerald-950/20 dark:border-emerald-900 shadow-2xs p-3">
-                        <div className="text-xs text-emerald-700 dark:text-emerald-400 font-medium">Low Risk</div>
-                        <div className="text-2xl font-bold text-emerald-700 dark:text-emerald-400 mt-0.5">{lowCount}</div>
-                    </Card>
-                </div>
-
-                {/* Observations Table */}
-                <Card className="gap-0 overflow-hidden py-0 border shadow-xs">
-                    <CardContent className="p-0">
-                        {findings.length === 0 ? (
-                            <div className="text-center py-12 px-4 space-y-3">
-                                <ShieldAlert className="size-10 text-muted-foreground/50 mx-auto" />
-                                <div className="space-y-1">
-                                    <p className="text-sm font-medium text-foreground">No observations recorded yet</p>
-                                    <p className="text-xs text-muted-foreground">
-                                        Click the button below to add an observation row for any defects found during attendance.
-                                    </p>
-                                </div>
-                                {isEditable && (
-                                    <Button
-                                        type="button"
-                                        variant="outline"
-                                        size="sm"
-                                        onClick={openAddDialog}
-                                        className="gap-1.5"
-                                    >
-                                        <Plus className="size-3.5" />
-                                        <span>Add Observation Row</span>
-                                    </Button>
-                                )}
-                            </div>
-                        ) : (
-                            <div className="overflow-x-auto">
-                                <table className="w-full text-left text-xs border-collapse">
-                                    <thead className="bg-muted/50 border-y border-border/80 text-[11px] font-semibold text-muted-foreground uppercase tracking-wider">
-                                        <tr>
-                                            <th className="py-2.5 px-3 w-10 text-center">#</th>
-                                            <th className="py-2.5 px-3 min-w-[140px]">Chapter</th>
-                                            <th className="py-2.5 px-3 min-w-[90px]">VIQ** Para</th>
-                                            <th className="py-2.5 px-3 min-w-[280px]">Observation Description</th>
-                                            <th className="py-2.5 px-3 min-w-[100px] text-center">Risk Mitigation*</th>
-                                            <th className="py-2.5 px-3 min-w-[100px]">Job Order No.</th>
-                                            <th className="py-2.5 px-3 min-w-[160px]">Evidence / Photos</th>
-                                            {isEditable && <th className="py-2.5 px-3 w-20 text-right">Actions</th>}
-                                        </tr>
-                                    </thead>
-                                    <tbody className="divide-y divide-border/60">
-                                        {findings.map((f, idx) => (
-                                            <tr key={f.id} className="hover:bg-muted/20 transition-colors">
-                                                <td className="py-3 px-3 text-center text-muted-foreground font-mono">
-                                                    {idx + 1}
-                                                </td>
-                                                <td className="py-3 px-3 font-medium text-foreground">
-                                                    {f.chapter_label || '—'}
-                                                </td>
-                                                <td className="py-3 px-3 font-mono text-muted-foreground">
-                                                    {f.viq_paragraph || '—'}
-                                                </td>
-                                                <td className="py-3 px-3 text-foreground whitespace-pre-line leading-relaxed">
-                                                    {f.description}
-                                                </td>
-                                                <td className="py-3 px-3 text-center">
-                                                    {f.risk === 'high' && (
-                                                        <Badge className="bg-rose-500 hover:bg-rose-600 text-white text-[10px] uppercase font-bold">
-                                                             High
-                                                        </Badge>
-                                                    )}
-                                                    {f.risk === 'medium' && (
-                                                        <Badge className="bg-amber-500 hover:bg-amber-600 text-white text-[10px] uppercase font-bold">
-                                                             Medium
-                                                        </Badge>
-                                                    )}
-                                                    {f.risk === 'low' && (
-                                                        <Badge className="bg-emerald-600 hover:bg-emerald-700 text-white text-[10px] uppercase font-bold">
-                                                             Low
-                                                        </Badge>
-                                                    )}
-                                                    {!f.risk && <span className="text-muted-foreground">—</span>}
-                                                </td>
-                                                <td className="py-3 px-3 font-mono text-xs text-muted-foreground">
-                                                    {f.job_order_no || '—'}
-                                                </td>
-                                                <td className="py-3 px-3">
-                                                    <PhotoEvidenceStrip
-                                                        photos={(reportPhotos || []).filter((p) => p.finding_id === f.id)}
-                                                        isEditable={isEditable}
-                                                        onAttachClick={() => setEvidenceFinding(f)}
-                                                        onDetachPhoto={handleDetachFindingPhoto}
-                                                    />
-                                                </td>
-                                                {isEditable && (
-                                                    <td className="py-3 px-3 text-right whitespace-nowrap">
-                                                        <div className="flex items-center justify-end gap-1">
-                                                            <Button
-                                                                type="button"
-                                                                variant="ghost"
-                                                                size="icon"
-                                                                className="h-7 w-7 text-muted-foreground hover:text-foreground cursor-pointer"
-                                                                onClick={() => openEditDialog(f)}
-                                                                title="Edit observation"
-                                                            >
-                                                                <Edit2 className="size-3.5" />
-                                                            </Button>
-                                                            <Button
-                                                                type="button"
-                                                                variant="ghost"
-                                                                size="icon"
-                                                                className="h-7 w-7 text-muted-foreground hover:text-destructive cursor-pointer"
-                                                                onClick={() => setIsDeletingId(f.id)}
-                                                                title="Delete observation"
-                                                            >
-                                                                <Trash2 className="size-3.5" />
-                                                            </Button>
-                                                        </div>
-                                                    </td>
-                                                )}
-                                            </tr>
-                                        ))}
-                                    </tbody>
-                                </table>
-                            </div>
-                        )}
-                    </CardContent>
-                </Card>
-
-                {/* Note block from Form D-062 */}
-                <div className="rounded-md bg-muted/40 border p-3 text-[11px] text-muted-foreground space-y-1">
-                    <p><strong>Note:</strong> Add or remove lines respectively.</p>
-                    <p><strong>*</strong>Against a <strong>LOW – MEDIUM – HIGH</strong> severity range.</p>
-                    <p><strong>**</strong>Enter relevant reference number from VIQ checklist, or cross-reference to any other Industry standard, which appears not adequately implemented.</p>
-                </div>
-
-                {/* Finding Photo Evidence Dialog */}
-                {evidenceFinding && (
-                    <PhotoEvidenceDialog
-                        open={Boolean(evidenceFinding)}
-                        onOpenChange={(open) => !open && setEvidenceFinding(null)}
-                        reportId={report.id}
-                        targetType="finding"
-                        targetId={evidenceFinding.id}
-                        targetTitle={`Observation #${evidenceFinding.viq_paragraph || evidenceFinding.id}: ${evidenceFinding.description.slice(0, 60)}`}
-                        reportPhotos={reportPhotos || []}
-                        categories={photoCategories || []}
-                        onPhotosUpdated={(updated) => onPhotosUpdated?.(updated)}
-                    />
-                )}
-            </div>
-            )}
-
-            {/* Next Chapter Navigation */}
-            {nextChapter && onChapterSwitch && (
-                <div className="flex justify-end pt-1 pb-4">
-                    <Button
-                        type="button"
-                        onClick={() => onChapterSwitch(nextChapter.id)}
-                        className="flex items-center gap-2 font-medium"
-                    >
-                        <span>
-                            Next: {nextChapter.chapter_no ? `Chapter ${nextChapter.chapter_no} - ${nextChapter.title}` : nextChapter.title}
-                        </span>
-                        <ChevronRight className="size-4" />
-                    </Button>
-                </div>
-            )}
-
-            {/* Add / Edit Dialog */}
-            <Dialog open={isDialogOpen} onOpenChange={(open) => !open && setIsDialogOpen(false)}>
-                <DialogContent className="sm:max-w-lg">
-                    <form onSubmit={handleFormSubmit}>
-                        <DialogHeader>
-                            <DialogTitle>
-                                {editingFinding ? 'Edit Observation' : 'Add Observation'}
-                            </DialogTitle>
-                            <DialogDescription className="text-xs">
-                                Enter the observation details, chapter reference, VIQ paragraph, and risk level.
-                            </DialogDescription>
-                        </DialogHeader>
-
-                        <div className="space-y-4 py-4">
-                            {/* Chapter Reference */}
-                            <div className="space-y-1.5">
-                                <Label htmlFor="obs_chapter" className="text-xs">
-                                    Chapter Reference
-                                </Label>
-                                <Input
-                                    id="obs_chapter"
-                                    list="chapters_datalist"
-                                    value={formState.chapter_label}
-                                    onChange={(e) => setFormState({ ...formState, chapter_label: e.target.value })}
-                                    placeholder="e.g. Chapter 2 - Certification & Documentation"
-                                    className="h-8 text-xs"
-                                />
-                                <datalist id="chapters_datalist">
-                                    {chapterOptions.map((opt) => (
-                                        <option key={opt.value} value={opt.value} />
-                                    ))}
-                                </datalist>
-                            </div>
-
-                            <div className="grid grid-cols-2 gap-3">
-                                {/* VIQ Paragraph */}
-                                <div className="space-y-1.5">
-                                    <Label htmlFor="obs_viq" className="text-xs">
-                                        VIQ Paragraph (i.e. 6.34)
-                                    </Label>
-                                    <Input
-                                        id="obs_viq"
-                                        value={formState.viq_paragraph}
-                                        onChange={(e) => setFormState({ ...formState, viq_paragraph: e.target.value })}
-                                        placeholder="e.g. 6.34"
-                                        className="h-8 text-xs font-mono"
-                                    />
-                                </div>
-
-                                {/* Job Order No. */}
-                                <div className="space-y-1.5">
-                                    <Label htmlFor="obs_jo" className="text-xs">
-                                        Job Order No.
-                                    </Label>
-                                    <Input
-                                        id="obs_jo"
-                                        value={formState.job_order_no}
-                                        onChange={(e) => setFormState({ ...formState, job_order_no: e.target.value })}
-                                        placeholder="e.g. JO-4029"
-                                        className="h-8 text-xs font-mono"
-                                    />
-                                </div>
-                            </div>
-
-                            {/* Risk Mitigation Level */}
-                            <div className="space-y-1.5">
-                                <Label className="text-xs">Risk Mitigation (Severity)</Label>
-                                <div className="grid grid-cols-3 gap-2">
-                                    {(['high', 'medium', 'low'] as const).map((lvl) => {
-                                        const isSelected = formState.risk === lvl;
-                                        return (
-                                            <button
-                                                key={lvl}
-                                                type="button"
-                                                onClick={() => setFormState({ ...formState, risk: lvl })}
-                                                className={`py-1.5 px-3 rounded-md text-xs font-bold uppercase transition-all border cursor-pointer ${
-                                                    isSelected
-                                                        ? lvl === 'high'
-                                                            ? 'bg-rose-600 text-white border-rose-600 shadow-xs'
-                                                            : lvl === 'medium'
-                                                            ? 'bg-amber-500 text-white border-amber-500 shadow-xs'
-                                                            : 'bg-emerald-600 text-white border-emerald-600 shadow-xs'
-                                                        : 'bg-muted/40 text-muted-foreground border-border hover:bg-muted'
-                                                }`}
-                                            >
-                                                {lvl}
-                                            </button>
-                                        );
-                                    })}
-                                </div>
-                            </div>
-
-                            {/* Observation Description */}
-                            <div className="space-y-1.5">
-                                <Label htmlFor="obs_desc" className="text-xs">
-                                    Observation Description <span className="text-rose-500">*</span>
-                                </Label>
-                                <textarea
-                                    id="obs_desc"
-                                    rows={4}
-                                    required
-                                    value={formState.description}
-                                    onChange={(e) => setFormState({ ...formState, description: e.target.value })}
-                                    placeholder="Enter complete description of the observed deficiency, condition, or non-compliance..."
-                                    className="w-full rounded-md border border-input bg-transparent px-3 py-2 text-xs shadow-xs placeholder:text-muted-foreground focus-visible:outline-none focus-visible:ring-1 focus-visible:ring-ring"
-                                />
-                            </div>
-                        </div>
-
-                        <DialogFooter>
-                            <Button
-                                type="button"
-                                variant="outline"
-                                size="sm"
-                                onClick={() => setIsDialogOpen(false)}
-                                disabled={isSubmitting}
-                            >
-                                <X className="size-3.5 mr-1" />
-                                Cancel
-                            </Button>
-                            <Button type="submit" size="sm" disabled={isSubmitting}>
-                                {isSubmitting ? (
-                                    <>
-                                        <Loader2 className="size-3.5 mr-1.5 animate-spin" />
-                                        Saving...
-                                    </>
-                                ) : (
-                                    'Save Observation'
-                                )}
-                            </Button>
-                        </DialogFooter>
-                    </form>
-                </DialogContent>
-            </Dialog>
-
-            {/* Delete Confirmation Dialog */}
-            <Dialog open={isDeletingId !== null} onOpenChange={(open) => !open && setIsDeletingId(null)}>
-                <DialogContent className="sm:max-w-md">
-                    <DialogHeader>
-                        <DialogTitle>Delete Observation</DialogTitle>
-                        <DialogDescription className="text-xs">
-                            Are you sure you want to remove this observation row from the report? This action cannot be undone.
-                        </DialogDescription>
-                    </DialogHeader>
-                    <DialogFooter>
-                        <Button
-                            type="button"
-                            variant="outline"
-                            size="sm"
-                            onClick={() => setIsDeletingId(null)}
-                            disabled={isSubmitting}
-                        >
-                            Cancel
-                        </Button>
-                        <Button
-                            type="button"
-                            variant="destructive"
-                            size="sm"
-                            onClick={confirmDelete}
-                            disabled={isSubmitting}
-                        >
-                            {isSubmitting ? 'Deleting...' : 'Delete Row'}
-                        </Button>
-                    </DialogFooter>
-                </DialogContent>
-            </Dialog>
-        </div>
-    );
-}
-
-function getQuestionInputMeta(question: QuestionData): { label: string; placeholder: string } {
-    const text = (question.question_text || '').toUpperCase();
-
-    if (text.includes('SAFETY MEETING HELD ONBOARD')) {
-        return { label: 'IF NO EXPLAIN REASON:', placeholder: 'Explain reason if No...' };
-    }
-    if (text.includes('SAFETY DRILL CONDUCTED ONBOARD') || text.includes('SAFETY DRILL CONDUCTED')) {
-        return { label: 'IF YES SPECIFY TYPE:', placeholder: 'Specify drill type if Yes...' };
-    }
-    if (text.includes('TRAINING SEMINAR')) {
-        return { label: 'IF YES SPECIFY TYPE:', placeholder: 'Specify training seminar type if Yes...' };
-    }
-    if (text.includes('PMS TRAINING PROVIDED')) {
-        return { label: 'PROVIDE DETAILS:', placeholder: 'Provide PMS training details...' };
-    }
-    if (text.includes('PMS RECORDS COMPARED')) {
-        return { label: 'COMMENTS (IF ANY):', placeholder: 'Enter comments if any...' };
-    }
-    if (text.includes('CRITICAL EQUIPMENT TESTED')) {
-        return { label: 'PROVIDE DETAILS:', placeholder: 'Provide details of critical equipment tested...' };
-    }
-    if (text.includes('WORK/REST HOURS RECORDS')) {
-        return { label: 'COMMENTS (IF ANY):', placeholder: 'Enter comments if any...' };
-    }
-    if (text.includes('RISK ASSESSMENTS REVIEWED')) {
-        return { label: 'COMMENTS (IF ANY):', placeholder: 'Enter comments if any...' };
-    }
-    if (text.includes('NEAR MISSES')) {
-        return { label: 'COMMENTS (IF ANY):', placeholder: 'Enter comments if any...' };
-    }
-    if (text.includes('APPRAISALS FOR CREW')) {
-        return { label: 'PROVIDE DETAILS (INCL. IDENTIFIED TRAINING NEEDS, IF ANY):', placeholder: 'Provide details (incl. identified training needs)...' };
-    }
-    if (text.includes('VERIFICATION OF PENDING WORKS')) {
-        return { label: 'PROVIDE FURTHER COMMENTS (IF ANY FURTHER FOLLOW-UP IS NEEDED):', placeholder: 'Provide further comments / follow-up...' };
-    }
-
-    if (question.input_type === 'date' || question.input_type === 'date_only') {
-        return { label: 'DATE:', placeholder: 'Select date...' };
-    }
-    if (question.input_type === 'file' || question.input_type === 'file_only') {
-        return { label: 'ATTACHMENT / FILE REFERENCE:', placeholder: 'Enter file name, document ID, or upload reference...' };
-    }
-    return { label: 'COMMENTS / DETAILS:', placeholder: 'Enter details...' };
-}
-
-export function parseQuestionInputType(inputType: string) {
-    const raw = (inputType || 'none').toLowerCase().trim();
-    if (raw === 'none') {
-        return { hasChoices: true, hasText: false, hasDate: false, hasFile: false };
-    }
-    const tokens = raw.split(',').map((t) => t.trim());
-    const isPureOnly = tokens.some((t) => t.endsWith('_only'));
-    const hasChoices = !isPureOnly && !tokens.includes('no_choices');
-
-    return {
-        hasChoices,
-        hasText: tokens.includes('text') || tokens.includes('text_only'),
-        hasDate: tokens.includes('date') || tokens.includes('date_only'),
-        hasFile: tokens.includes('file') || tokens.includes('file_only'),
-    };
-}
-
-export function formatExtraDisplay(raw: string): string {
-    if (!raw) return '';
-    if (raw.startsWith('{')) {
-        try {
-            const parsed = JSON.parse(raw) as Record<string, string>;
-            return Object.entries(parsed)
-                .filter(([_, v]) => Boolean(v))
-                .map(([k, v]) => `${k.toUpperCase()}: ${v}`)
-                .join(', ');
-        } catch {
-            return raw;
-        }
-    }
-    return raw;
-}
-
-// Subcomponent: Individual Question Answer Row (Task 3.3, 3.6)
-function QuestionAnswerCard({
-    reportId,
-    question,
-    currentAnswer,
-    isB008,
-    answerChoices,
-    isExpandedGuidance,
-    saveStatus,
-    isEditable,
-    onToggleGuidance,
-    onSelectAnswer,
-    onSaveExtraValue,
-    conflict,
-    onAcceptServerAnswer,
-    onOverwriteAnswer,
-    reportPhotos,
-    onPhotosUpdated,
-    photoCategories,
-}: {
-    reportId: number;
-    question: QuestionData;
-    currentAnswer?: AnswerData;
-    isB008: boolean;
-    answerChoices: { value: string; label: string; color: string }[];
-    isExpandedGuidance: boolean;
-    saveStatus?: string;
-    isEditable: boolean;
-    onToggleGuidance: () => void;
-    onSelectAnswer: (val: string) => void;
-    onSaveExtraValue: (val: string) => void;
-    conflict?: ConflictData;
-    onAcceptServerAnswer?: (serverAnswer: ConflictData['server_answer']) => void;
-    onOverwriteAnswer?: (serverRowVersion: number) => void;
-    reportPhotos?: PhotoRecord[];
-    onPhotosUpdated?: (photos: PhotoRecord[]) => void;
-    photoCategories?: PhotoCategoryItem[];
-}) {
-    const selectedAnswer = currentAnswer?.answer;
-    const isLockedNA = !question.is_applicable;
-    const flags = parseQuestionInputType(question.input_type);
-    const isPureInput = !flags.hasChoices;
-    const extraCount = (flags.hasDate ? 1 : 0) + (flags.hasFile ? 1 : 0) + (flags.hasText ? 1 : 0);
-    const hasAnyExtra = extraCount > 0;
-    const inputMeta = getQuestionInputMeta(question);
-
-    const [evidenceModalOpen, setEvidenceModalOpen] = useState(false);
-    const attachedPhotos = (reportPhotos || []).filter((p) => p.report_question_id === question.id);
-
-    const handleDetachPhoto = async (photo: PhotoRecord) => {
-        try {
-            const csrfToken = (document.querySelector('meta[name="csrf-token"]') as HTMLMetaElement)?.content || '';
-            const res = await fetch(`/reports/${reportId}/photos/${photo.id}`, {
-                method: 'PUT',
-                headers: {
-                    'Content-Type': 'application/json',
-                    'X-CSRF-TOKEN': csrfToken,
-                    Accept: 'application/json',
-                },
-                body: JSON.stringify({ report_question_id: null }),
-            });
-            if (res.ok) {
-                const data = await res.json();
-                onPhotosUpdated?.(
-                    (reportPhotos || []).map((p) => (p.id === photo.id ? data.photo : p))
-                );
-            }
-        } catch (err) {
-            console.error('Failed to detach photo:', err);
-        }
-    };
-
-    // Internal buffered inputs for extra values with debounced autosave (NFR-1)
-    const [extraBuffer, setExtraBuffer] = useState(currentAnswer?.extra_value || '');
-    const extraDebounceTimer = useRef<ReturnType<typeof setTimeout> | null>(null);
-    const lastSavedExtra = useRef(currentAnswer?.extra_value || '');
-    const extraBufferRef = useRef(extraBuffer);
-    extraBufferRef.current = extraBuffer;
-    const onSaveExtraValueRef = useRef(onSaveExtraValue);
-    onSaveExtraValueRef.current = onSaveExtraValue;
-
-    useEffect(() => {
-        setExtraBuffer(currentAnswer?.extra_value || '');
-        lastSavedExtra.current = currentAnswer?.extra_value || '';
-    }, [currentAnswer?.extra_value]);
-
-    const flushExtra = useCallback(() => {
-        if (extraDebounceTimer.current) clearTimeout(extraDebounceTimer.current);
-        if (extraBuffer !== lastSavedExtra.current) {
-            lastSavedExtra.current = extraBuffer;
-            onSaveExtraValue(extraBuffer);
-        }
-    }, [extraBuffer, onSaveExtraValue]);
-
-    const handleExtraChange = (val: string) => {
-        setExtraBuffer(val);
-        if (extraDebounceTimer.current) clearTimeout(extraDebounceTimer.current);
-        extraDebounceTimer.current = setTimeout(() => {
-            if (val !== lastSavedExtra.current) {
-                lastSavedExtra.current = val;
-                onSaveExtraValue(val);
-            }
-        }, 1500);
-    };
-
-    const parseExtraData = (raw: string): Record<string, string> => {
-        if (!raw) return {};
-        if (raw.startsWith('{')) {
-            try {
-                return JSON.parse(raw) as Record<string, string>;
-            } catch {
-                return { text: raw };
-            }
-        }
-        if (/^\d{4}-\d{2}-\d{2}$/.test(raw.trim())) {
-            return { date: raw.trim() };
-        }
-        if (flags.hasDate && !flags.hasFile && !flags.hasText) return { date: raw };
-        if (flags.hasFile && !flags.hasDate && !flags.hasText) return { file: raw };
-        return { text: raw };
-    };
-
-    const getFieldValue = (key: 'text' | 'date' | 'file') => {
-        const data = parseExtraData(extraBuffer);
-        return data[key] || '';
-    };
-
-    const setFieldValue = (key: 'text' | 'date' | 'file', val: string) => {
-        if (extraCount <= 1) {
-            handleExtraChange(val);
-        } else {
-            const current = parseExtraData(extraBuffer);
-            const next = { ...current, [key]: val };
-            const hasAny = Object.values(next).some((v) => Boolean(v && v.trim()));
-            handleExtraChange(hasAny ? JSON.stringify(next) : '');
-        }
-    };
-
-    const [undoTarget, setUndoTarget] = useState<string | null | undefined>(undefined);
-    const undoTimerRef = useRef<ReturnType<typeof setTimeout> | null>(null);
-
-    const handleAnswerClick = (val: string) => {
-        if (val === selectedAnswer) return;
-        flushExtra();
-        const prev = selectedAnswer ?? null;
-        setUndoTarget(prev);
-        if (undoTimerRef.current) clearTimeout(undoTimerRef.current);
-        undoTimerRef.current = setTimeout(() => {
-            setUndoTarget(undefined);
-        }, 8000);
-        onSelectAnswer(val);
-    };
-
-    const handleUndo = () => {
-        if (undoTarget === undefined) return;
-        if (undoTimerRef.current) clearTimeout(undoTimerRef.current);
-        const target = undoTarget;
-        setUndoTarget(undefined);
-        onSelectAnswer(target ?? '');
-    };
-
-    // Unmount-only flush (empty dependency array so it does NOT fire on every keystroke)
-    useEffect(() => {
-        return () => {
-            if (extraDebounceTimer.current) clearTimeout(extraDebounceTimer.current);
-            if (undoTimerRef.current) clearTimeout(undoTimerRef.current);
-            if (extraBufferRef.current !== lastSavedExtra.current) {
-                lastSavedExtra.current = extraBufferRef.current;
-                onSaveExtraValueRef.current(extraBufferRef.current);
-            }
-        };
-    }, []);
-
-    const fileInputRef = useRef<HTMLInputElement | null>(null);
-    const [isUploadingFile, setIsUploadingFile] = useState(false);
-
-    const handleFileUpload = async (e: React.ChangeEvent<HTMLInputElement>) => {
-        const files = e.target.files;
-        if (!files || files.length === 0) return;
-        const file = files[0];
-        setIsUploadingFile(true);
-
-        const formData = new FormData();
-        formData.append('file', file);
-
-        try {
-            const res = await fetch(`/reports/${reportId}/questions/${question.id}/attachment`, {
-                method: 'POST',
-                headers: {
-                    Accept: 'application/json',
-                    ...csrfHeaders(),
-                    'X-Requested-With': 'XMLHttpRequest',
-                },
-                body: formData,
-            });
-
-            const fileName = res.ok ? ((await res.json()).name || file.name) : file.name;
-
-            if (extraCount <= 1 && flags.hasFile && !flags.hasDate && !flags.hasText) {
-                setExtraBuffer(fileName);
-                lastSavedExtra.current = fileName;
-                if (extraDebounceTimer.current) clearTimeout(extraDebounceTimer.current);
-                onSaveExtraValue(fileName);
-            } else {
-                const current = parseExtraData(extraBuffer);
-                const next = { ...current, file: fileName };
-                const newExtra = JSON.stringify(next);
-                setExtraBuffer(newExtra);
-                lastSavedExtra.current = newExtra;
-                if (extraDebounceTimer.current) clearTimeout(extraDebounceTimer.current);
-                onSaveExtraValue(newExtra);
-            }
-        } catch {
-            // If upload network fails, still preserve file name locally
-            const fileName = file.name;
-            const current = parseExtraData(extraBuffer);
-            const next = { ...current, file: fileName };
-            const newExtra = JSON.stringify(next);
-            setExtraBuffer(newExtra);
-            lastSavedExtra.current = newExtra;
-            if (extraDebounceTimer.current) clearTimeout(extraDebounceTimer.current);
-            onSaveExtraValue(newExtra);
-        } finally {
-            setIsUploadingFile(false);
-            if (fileInputRef.current) fileInputRef.current.value = '';
-        }
-    };
-
-    const handleRemoveFile = () => {
-        if (extraCount <= 1 && flags.hasFile && !flags.hasDate && !flags.hasText) {
-            setExtraBuffer('');
-            lastSavedExtra.current = '';
-            if (extraDebounceTimer.current) clearTimeout(extraDebounceTimer.current);
-            onSaveExtraValue('');
-        } else {
-            const current = parseExtraData(extraBuffer);
-            const next = { ...current, file: '' };
-            const hasAny = Object.values(next).some((v) => Boolean(v && v.trim()));
-            const newExtra = hasAny ? JSON.stringify(next) : '';
-            setExtraBuffer(newExtra);
-            lastSavedExtra.current = newExtra;
-            if (extraDebounceTimer.current) clearTimeout(extraDebounceTimer.current);
-            onSaveExtraValue(newExtra);
-        }
-    };
-
-    return (
-        <div
-            className={`rounded-lg border p-4 transition-colors ${
-                isLockedNA
-                    ? 'bg-muted/30 border-muted opacity-75'
-                    : selectedAnswer === 'no'
-                    ? 'bg-rose-50/30 border-rose-200 dark:bg-rose-950/10 dark:border-rose-900/40'
-                    : 'bg-card border-border hover:border-muted-foreground/30'
-            }`}
-        >
-            <div className="flex flex-col gap-3 md:flex-row md:items-start md:justify-between">
-                {/* Question Text & Badges */}
-                <div className="space-y-1.5 flex-1 pr-2">
-                    <div className="flex items-center gap-2 flex-wrap">
-                        <span className="font-medium text-sm text-foreground leading-snug">
-                            {question.question_text}
-                        </span>
-
-                        {isLockedNA && (
-                            <Badge variant="outline" className="text-[10px] text-slate-500">
-                                Locked NA: {question.applicable_reason || 'Inapplicable'}
-                            </Badge>
-                        )}
-
-                        {undoTarget !== undefined && isEditable && !isLockedNA && (
-                            <button
-                                type="button"
-                                onClick={handleUndo}
-                                className="text-[10px] text-primary hover:text-primary/80 font-semibold flex items-center gap-1 bg-primary/10 hover:bg-primary/20 px-1.5 py-0.5 rounded transition-all cursor-pointer shadow-2xs"
-                                title="Undo recent answer change"
-                            >
-                                <RotateCcw className="size-2.5" />
-                                <span>Undo</span>
-                            </button>
-                        )}
-
-                        {saveStatus === 'saving' && (
-                            <span className="text-[10px] text-amber-500 animate-pulse flex items-center gap-1">
-                                <Loader2 className="size-2.5 animate-spin" /> Saving...
-                            </span>
-                        )}
-                        {saveStatus === 'saved' && (
-                            <span className="text-[10px] text-emerald-600 flex items-center gap-0.5">
-                                <Check className="size-3" /> Saved
-                            </span>
-                        )}
-                        {saveStatus === 'retrying' && (
-                            <span className="text-[10px] text-amber-600 dark:text-amber-400 flex items-center gap-1">
-                                <CloudOff className="size-3" /> Queued (retrying)
-                            </span>
-                        )}
-                        {saveStatus === 'error' && (
-                            <span className="text-[10px] text-rose-600 flex items-center gap-0.5">
-                                <AlertCircle className="size-3" /> Save failed
-                            </span>
-                        )}
-                        {saveStatus === 'conflict' && (
-                            <span className="text-[10px] text-amber-600 dark:text-amber-400 font-semibold flex items-center gap-1">
-                                <AlertTriangle className="size-3 text-amber-600 dark:text-amber-400" /> Conflict
-                            </span>
-                        )}
-                    </div>
-                </div>
-
-                {/* Answer Choice Buttons & Quick Expanders OR Pure Input */}
-                <div className="flex items-center gap-2 shrink-0 self-end md:self-start">
-                    {/* Guidance button */}
-                    {question.guidance && (
-                        <Button
-                            size="sm"
-                            variant="ghost"
-                            onClick={onToggleGuidance}
-                            className={`h-8 w-8 p-0 flex items-center justify-center ${
-                                isExpandedGuidance ? 'bg-primary/10 text-primary' : 'text-muted-foreground hover:text-foreground'
-                            }`}
-                            title="Inspection guidance notes"
-                            aria-label="Toggle inspection guidance"
-                        >
-                            <HelpCircle className="size-4" />
-                        </Button>
-                    )}
-
-                    {/* Answer Segmented Buttons (if choices enabled) */}
-                    {flags.hasChoices && (
-                        <div className="inline-flex rounded-md border p-0.5 bg-muted/30">
-                            {answerChoices.map((choice) => {
-                                const isSelected = selectedAnswer === choice.value;
-
-                                return (
-                                    <button
-                                        key={choice.value}
-                                        type="button"
-                                        disabled={!isEditable || isLockedNA}
-                                        onClick={() => handleAnswerClick(choice.value)}
-                                        className={`px-3 py-1 text-xs font-semibold rounded transition-all ${
-                                            isSelected
-                                                ? `${choice.color} shadow-xs font-bold ring-1`
-                                                : 'text-muted-foreground hover:text-foreground'
-                                        } disabled:opacity-40 disabled:cursor-not-allowed`}
-                                    >
-                                        {choice.label}
-                                    </button>
-                                );
-                            })}
-                        </div>
-                    )}
-                </div>
-            </div>
-
-            {/* Additional Input Fields (Date, File Attachment, Text/Remarks) */}
-            {hasAnyExtra && (
-                <div className="mt-3 pt-2.5 border-t border-border/40 space-y-3">
-                    <div className="flex flex-wrap items-end gap-3">
-                        {flags.hasDate && (
-                            <div className="space-y-1 w-44 shrink-0">
-                                <Label className="text-xs text-muted-foreground font-medium flex items-center gap-1.5">
-                                    <Calendar className="size-3.5 text-primary shrink-0" />
-                                    <span>Date:</span>
-                                </Label>
-                                <Input
-                                    type="date"
-                                    value={getFieldValue('date')}
-                                    disabled={!isEditable || isLockedNA}
-                                    onChange={(e) => setFieldValue('date', e.target.value)}
-                                    onBlur={flushExtra}
-                                    className="h-8 text-xs w-full bg-background"
-                                />
-                            </div>
-                        )}
-
-                        {flags.hasFile && (
-                            <div className="space-y-1 min-w-[220px] flex-1">
-                                <Label className="text-xs text-muted-foreground font-medium flex items-center gap-1.5">
-                                    <Paperclip className="size-3.5 text-primary shrink-0" />
-                                    <span>File / Attachment:</span>
-                                </Label>
-
-                                <input
-                                    type="file"
-                                    ref={fileInputRef}
-                                    onChange={handleFileUpload}
-                                    className="hidden"
-                                    disabled={!isEditable || isLockedNA || isUploadingFile}
-                                />
-
-                                {getFieldValue('file') ? (
-                                    <div className="flex items-center gap-2 rounded-md border bg-muted/40 px-2.5 py-1 text-xs h-8">
-                                        <File className="size-3.5 text-primary shrink-0" />
-                                        <span className="font-medium text-foreground truncate max-w-[220px]" title={getFieldValue('file')}>
-                                            {getFieldValue('file')}
-                                        </span>
-                                        {isEditable && !isLockedNA && (
-                                            <button
-                                                type="button"
-                                                onClick={handleRemoveFile}
-                                                className="ml-auto text-muted-foreground hover:text-destructive p-0.5 cursor-pointer"
-                                                title="Remove file"
-                                            >
-                                                <X className="size-3.5" />
-                                            </button>
-                                        )}
-                                    </div>
-                                ) : (
-                                    <Button
-                                        type="button"
-                                        variant="outline"
-                                        size="sm"
-                                        disabled={!isEditable || isLockedNA || isUploadingFile}
-                                        onClick={() => fileInputRef.current?.click()}
-                                        className="h-8 text-xs gap-1.5 w-full justify-start text-muted-foreground hover:text-foreground"
-                                    >
-                                        {isUploadingFile ? (
-                                            <>
-                                                <Loader2 className="size-3.5 animate-spin text-primary" />
-                                                <span>Uploading file...</span>
-                                            </>
-                                        ) : (
-                                            <>
-                                                <Upload className="size-3.5 text-primary" />
-                                                <span>Choose File / Document to Attach</span>
-                                            </>
-                                        )}
-                                    </Button>
-                                )}
-                            </div>
-                        )}
-
-                        {flags.hasText && (
-                            <div className="space-y-1 w-full">
-                                <Label className="text-xs text-muted-foreground font-medium flex items-center gap-1.5">
-                                    <FileText className="size-3.5 text-primary shrink-0" />
-                                    <span>{inputMeta.label}</span>
-                                </Label>
-                                <Input
-                                    type="text"
-                                    value={getFieldValue('text')}
-                                    disabled={!isEditable || isLockedNA}
-                                    onChange={(e) => setFieldValue('text', e.target.value)}
-                                    onBlur={flushExtra}
-                                    className="h-8 text-xs w-full bg-background"
-                                    placeholder={inputMeta.placeholder}
-                                />
-                            </div>
-                        )}
-                    </div>
-                </div>
-            )}
-
-            {/* Expandable Guidance Panel */}
-            {isExpandedGuidance && question.guidance && (
-                <div className="mt-3 rounded-md bg-muted/60 p-3 text-xs text-muted-foreground border border-border/60">
-                    <div className="flex items-start gap-2">
-                        <Info className="size-3.5 text-primary shrink-0 mt-0.5" />
-                        <div className="space-y-1">
-                            <p className="font-semibold text-foreground">Inspection Guidance:</p>
-                            <p className="leading-relaxed whitespace-pre-line">{question.guidance}</p>
-                        </div>
-                    </div>
-                </div>
-            )}
-
-            {/* Conflict Resolution Banner (NFR-15) */}
-            {conflict && onAcceptServerAnswer && onOverwriteAnswer && (
-                <div className="mt-3 rounded-lg border border-amber-300 bg-amber-50/90 p-3 text-xs dark:border-amber-700/60 dark:bg-amber-950/40 space-y-2">
-                    <div className="flex items-start gap-2">
-                        <AlertTriangle className="size-4 text-amber-600 dark:text-amber-400 shrink-0 mt-0.5" />
-                        <div className="space-y-1 flex-1">
-                            <p className="font-semibold text-amber-900 dark:text-amber-200">
-                                Edit Conflict Detected
-                            </p>
-                            <p className="text-amber-800 dark:text-amber-300 text-[11px]">
-                                This answer was modified by <strong>{conflict.server_answer.answered_by_name || 'another user'}</strong> while you were editing.
-                            </p>
-                            <div className="rounded bg-background/80 p-2 border border-amber-200 dark:border-amber-900 text-[11px] space-y-0.5">
-                                <div>
-                                    <span className="text-muted-foreground font-medium">Server Value:</span>{' '}
-                                    <Badge variant="outline" className="text-[10px] uppercase font-bold py-0 px-1">
-                                        {conflict.server_answer.answer || 'Unanswered'}
-                                    </Badge>
-                                    {conflict.server_answer.note ? ` — Note: "${conflict.server_answer.note}"` : ''}
-                                    {conflict.server_answer.extra_value ? ` — Details: "${formatExtraDisplay(conflict.server_answer.extra_value)}"` : ''}
-                                </div>
-                            </div>
-                        </div>
-                    </div>
-                    <div className="flex items-center gap-2 pt-1 pl-6">
-                        <Button
-                            size="sm"
-                            variant="outline"
-                            type="button"
-                            onClick={() => onAcceptServerAnswer(conflict.server_answer)}
-                            className="h-7 text-xs border-amber-300 hover:bg-amber-100 dark:border-amber-700 dark:hover:bg-amber-900/60"
-                        >
-                            Keep Server Value
-                        </Button>
-                        <Button
-                            size="sm"
-                            variant="default"
-                            type="button"
-                            onClick={() => onOverwriteAnswer(conflict.server_answer.row_version)}
-                            className="h-7 text-xs bg-amber-600 hover:bg-amber-700 text-white"
-                        >
-                            Overwrite with My Value
-                        </Button>
-                    </div>
-                </div>
-            )}
-
-            {/* Photographic Evidence Strip */}
-            <div className="mt-3 pt-2.5 border-t border-border/40 flex items-center justify-between gap-3 flex-wrap">
-                <div className="space-y-1">
-                    <span className="text-[11px] font-semibold text-muted-foreground uppercase tracking-wider flex items-center gap-1.5">
-                        <Camera className="size-3 text-primary" />
-                        <span>Photographic Evidence:</span>
-                    </span>
-                    <PhotoEvidenceStrip
-                        photos={attachedPhotos}
-                        isEditable={isEditable && !isLockedNA}
-                        onAttachClick={() => setEvidenceModalOpen(true)}
-                        onDetachPhoto={handleDetachPhoto}
-                    />
-                </div>
-            </div>
-
-            {/* Photo Evidence Modal */}
-            <PhotoEvidenceDialog
-                open={evidenceModalOpen}
-                onOpenChange={setEvidenceModalOpen}
-                reportId={reportId}
-                targetType="question"
-                targetId={question.id}
-                targetTitle={question.question_text}
-                reportPhotos={reportPhotos || []}
-                categories={photoCategories || []}
-                onPhotosUpdated={(updated) => onPhotosUpdated?.(updated)}
-            />
-        </div>
     );
 }

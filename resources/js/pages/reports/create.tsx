@@ -127,7 +127,7 @@ export default function ReportCreate({
                     </Button>
                     <div>
                         <h1 className="text-xl font-semibold tracking-tight text-foreground">Create Report</h1>
-                        <p className="text-sm text-muted-foreground">Initialise a new inspection or audit report (Form D-062 / B-008).</p>
+                        <p className="text-sm text-muted-foreground">Initialise a new inspection, audit, or photographic report.</p>
                     </div>
                 </div>
 

@@ -20,36 +20,7 @@ import { Input } from '@/components/ui/input';
 import { Label } from '@/components/ui/label';
 import { Select, SelectContent, SelectItem, SelectTrigger, SelectValue } from '@/components/ui/select';
 
-interface PhotoItem {
-    id: number;
-    report_id: number;
-    report_reference?: string;
-    report_date?: string;
-    vessel_name: string;
-    item_no: number;
-    title: string | null;
-    caption: string | null;
-    description: string | null;
-    category_id: number | null;
-    category_name?: string;
-    category_code?: string;
-    file_url: string;
-    thumbnail_url: string;
-    original_filename: string;
-    file_size: number;
-    created_at: string;
-    uploaded_by?: string;
-    report_question_id?: number | null;
-    question_item_no?: string | null;
-    finding_id?: number | null;
-    finding_no?: string | null;
-}
-
-interface CategoryOption {
-    id: number;
-    name: string;
-    code: string;
-}
+import type { PhotoCategoryItem as CategoryOption, PhotoRecord as PhotoItem } from '@/types';
 
 interface PaginatedData<T> {
     data: T[];
@@ -277,7 +248,7 @@ export default function PhotoGalleryIndex({
                                             <ExternalLink className="size-2.5 shrink-0" />
                                             <span>{photo.report_reference}</span>
                                         </Link>
-                                        <span>{photo.created_at.split('T')[0]}</span>
+                                        <span>{photo.created_at ? photo.created_at.split('T')[0] : ''}</span>
                                     </div>
                                 </div>
                             </div>

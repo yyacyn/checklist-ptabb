@@ -30,23 +30,32 @@ import { Select, SelectContent, SelectItem, SelectTrigger, SelectValue } from '@
 export interface PhotoRecord {
     id: number;
     report_id: number;
+    report_reference?: string;
+    report_date?: string;
+    vessel_name?: string;
     item_no: number;
     title: string | null;
     caption: string | null;
     description: string | null;
-    location: string | null;
+    location?: string | null;
     photo_category_id?: number | null;
+    category_id?: number | null;
     category?: {
         id: number;
         name: string;
         code: string;
     } | null;
+    category_name?: string;
+    category_code?: string;
     file_url?: string;
     thumbnail_url?: string;
+    original_filename?: string;
     file_size?: number;
-    sort_order: number;
+    sort_order?: number;
     report_question_id?: number | null;
+    question_item_no?: string | null;
     finding_id?: number | null;
+    finding_no?: string | null;
     uploaded_by?: string | null;
     created_at?: string;
 }
