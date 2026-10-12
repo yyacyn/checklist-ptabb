@@ -312,4 +312,184 @@ class PhotoTest extends TestCase
             'title' => 'Forward Deck Overview',
         ]);
     }
+
+    public function test_photo_can_be_attached_directly_to_question_on_upload(): void
+    {
+        $group = $this->report->groups()->create([
+            'title' => 'Test Group',
+            'sort_order' => 1,
+            'is_applicable' => true,
+        ]);
+
+        $question = $group->questions()->create([
+            'report_id' => $this->report->id,
+            'question_text' => 'Are fire extinguishers inspected?',
+            'input_type' => 'yes_no_na',
+            'sort_order' => 1,
+            'is_applicable' => true,
+        ]);
+
+        $fakeImage = UploadedFile::fake()->image('extinguisher.jpg', 800, 600);
+
+        $response = $this->actingAs($this->inspector)->postJson("/reports/{$this->report->id}/photos", [
+            'file' => $fakeImage,
+            'title' => 'Extinguisher Inspection Tag',
+            'report_question_id' => $question->id,
+        ]);
+
+        $response->assertStatus(201)
+            ->assertJsonPath('status', 'success')
+            ->assertJsonPath('photo.report_question_id', $question->id);
+
+        $this->assertDatabaseHas('photos', [
+            'report_id' => $this->report->id,
+            'report_question_id' => $question->id,
+            'title' => 'Extinguisher Inspection Tag',
+        ]);
+
+        $this->assertCount(1, $question->fresh()->photos);
+    }
+
+    public function test_existing_photo_can_be_linked_and_unlinked_to_question(): void
+    {
+        $group = $this->report->groups()->create([
+            'title' => 'Navigation Group',
+            'sort_order' => 1,
+            'is_applicable' => true,
+        ]);
+
+        $question = $group->questions()->create([
+            'report_id' => $this->report->id,
+            'question_text' => 'Are ECDIS charts updated?',
+            'input_type' => 'yes_no_na',
+            'sort_order' => 1,
+            'is_applicable' => true,
+        ]);
+
+        $photo = Photo::create([
+            'report_id' => $this->report->id,
+            'vessel_name' => $this->report->vessel_name,
+            'item_no' => 1,
+            'title' => 'ECDIS Screen',
+            'original_filename' => 'ecdis.jpg',
+            'file_path' => 'photos/1/ecdis.jpg',
+            'file_size' => 2048,
+            'mime_type' => 'image/jpeg',
+            'uploaded_by' => $this->inspector->id,
+            'sort_order' => 1,
+        ]);
+
+        // 1. Link to question
+        $linkRes = $this->actingAs($this->inspector)->putJson("/reports/{$this->report->id}/photos/{$photo->id}", [
+            'report_question_id' => $question->id,
+        ]);
+
+        $linkRes->assertStatus(200)
+            ->assertJsonPath('photo.report_question_id', $question->id);
+
+        $this->assertEquals($question->id, $photo->fresh()->report_question_id);
+
+        // 2. Unlink from question
+        $unlinkRes = $this->actingAs($this->inspector)->putJson("/reports/{$this->report->id}/photos/{$photo->id}", [
+            'report_question_id' => null,
+        ]);
+
+        $unlinkRes->assertStatus(200)
+            ->assertJsonPath('photo.report_question_id', null);
+
+        $this->assertNull($photo->fresh()->report_question_id);
+    }
+
+    public function test_existing_photo_can_be_linked_and_unlinked_to_finding(): void
+    {
+        $finding = Finding::create([
+            'report_id' => $this->report->id,
+            'finding_no' => 'OBS-1',
+            'finding_kind' => 'observation',
+            'risk_level' => 'medium',
+            'description' => 'Lifeboat painter frayed.',
+            'finding_status' => 'open',
+        ]);
+
+        $photo = Photo::create([
+            'report_id' => $this->report->id,
+            'vessel_name' => $this->report->vessel_name,
+            'item_no' => 1,
+            'title' => 'Lifeboat Painter',
+            'original_filename' => 'painter.jpg',
+            'file_path' => 'photos/1/painter.jpg',
+            'file_size' => 2048,
+            'mime_type' => 'image/jpeg',
+            'uploaded_by' => $this->inspector->id,
+            'sort_order' => 1,
+        ]);
+
+        // 1. Link to finding
+        $linkRes = $this->actingAs($this->inspector)->putJson("/reports/{$this->report->id}/photos/{$photo->id}", [
+            'finding_id' => $finding->id,
+        ]);
+
+        $linkRes->assertStatus(200)
+            ->assertJsonPath('photo.finding_id', $finding->id);
+
+        $this->assertEquals($finding->id, $photo->fresh()->finding_id);
+        $this->assertCount(1, $finding->fresh()->photos);
+
+        // 2. Unlink from finding
+        $unlinkRes = $this->actingAs($this->inspector)->putJson("/reports/{$this->report->id}/photos/{$photo->id}", [
+            'finding_id' => null,
+        ]);
+
+        $unlinkRes->assertStatus(200)
+            ->assertJsonPath('photo.finding_id', null);
+
+        $this->assertNull($photo->fresh()->finding_id);
+    }
+
+    public function test_linking_to_question_or_finding_from_different_report_is_refused(): void
+    {
+        $otherReport = Report::create([
+            'report_type' => 'inspection',
+            'form_id' => $this->formD062->id,
+            'template_version' => 1,
+            'reference_number' => 'INS-2026-OTHER-01',
+            'status' => 'draft',
+            'vessel_name' => 'MV Pacific Sun',
+            'report_date' => now()->toDateString(),
+            'created_by' => $this->inspector->id,
+        ]);
+
+        $foreignGroup = $otherReport->groups()->create([
+            'title' => 'Foreign Group',
+            'sort_order' => 1,
+            'is_applicable' => true,
+        ]);
+
+        $foreignQuestion = $foreignGroup->questions()->create([
+            'report_id' => $otherReport->id,
+            'question_text' => 'Foreign question?',
+            'input_type' => 'yes_no_na',
+            'sort_order' => 1,
+            'is_applicable' => true,
+        ]);
+
+        $photo = Photo::create([
+            'report_id' => $this->report->id,
+            'vessel_name' => $this->report->vessel_name,
+            'item_no' => 1,
+            'title' => 'My Photo',
+            'original_filename' => 'photo.jpg',
+            'file_path' => 'photos/1/photo.jpg',
+            'file_size' => 1024,
+            'mime_type' => 'image/jpeg',
+            'uploaded_by' => $this->inspector->id,
+            'sort_order' => 1,
+        ]);
+
+        $response = $this->actingAs($this->inspector)->putJson("/reports/{$this->report->id}/photos/{$photo->id}", [
+            'report_question_id' => $foreignQuestion->id,
+        ]);
+
+        $response->assertStatus(422);
+    }
 }

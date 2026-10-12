@@ -211,9 +211,11 @@ class ReportController extends Controller
             'groups.subgroups' => fn ($q) => $q->orderBy('sort_order'),
             'groups.questions' => fn ($q) => $q->orderBy('sort_order'),
             'groups.questions.answer.answeredBy:id,name',
+            'groups.questions.photos' => fn ($q) => $q->with(['category:id,name,code', 'uploader:id,name'])->orderBy('sort_order'),
             'groups.subgroups.questions' => fn ($q) => $q->orderBy('sort_order'),
             'groups.subgroups.questions.answer.answeredBy:id,name',
-            'findings' => fn ($q) => $q->orderBy('sort_order')->orderBy('id'),
+            'groups.subgroups.questions.photos' => fn ($q) => $q->with(['category:id,name,code', 'uploader:id,name'])->orderBy('sort_order'),
+            'findings' => fn ($q) => $q->with(['photos' => fn ($pq) => $pq->with(['category:id,name,code', 'uploader:id,name'])->orderBy('sort_order')])->orderBy('sort_order')->orderBy('id'),
             'photos' => fn ($q) => $q->with(['category:id,name,code', 'uploader:id,name'])->orderBy('sort_order')->orderBy('item_no')->orderBy('id'),
         ]);
 

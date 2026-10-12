@@ -135,7 +135,7 @@ This is the phase users feel. Budget it properly.
 | 5.6 | Upload API endpoint: 20–25 MB client accept, checksum deduplication, and payload protection | **done**: `PhotoController@store` with 25MB limit, sha256 checksum hashing & payload validation (IMG-1) |
 | 5.7 | Queued optimizer job: auto-orient, recompress, metadata strip, 400 px thumbnail generation | **done**: `ImageOptimizer` service with GD auto-orient, recompression, EXIF strip & 400px thumbnail generator (IMG-3, IMG-5, IMG-6) |
 | 5.8 | **Fleet Photo Gallery (`/photos`)**: Browse, search, and filter photos by vessel, category, date, and report; role-scoped for vessel users | **done**: `resources/js/pages/photos/index.tsx`, role scoping for vessel users, filters, lightbox inspection (PHO-4, PHO-8) |
-| 5.9 | **Cross-Form Attachment**: 1-click attach/link photo records to checklist questions (as evidence) or findings (as defect/closeout proof) | PHO-5, AUD-10 |
+| 5.9 | **Cross-Form Attachment**: 1-click attach/link photo records to checklist questions (as evidence) or findings (as defect/closeout proof) | **done**: `PhotoEvidenceDialog` & `PhotoEvidenceStrip`, 1-click modal for direct upload or library linking, eager loading in `ReportController`, cross-linking in questions, observations, and photo chapter (PHO-5, AUD-10) |
 | 5.10 | Chapter 16 Photo ordering and selection by inspector for PDF export appendix | PHO-6, REP-3 |
 | 5.11 | Soft delete with reason, photo record locking at `submitted` status | PHO-7, RLS-4 |
 | 5.12 | Comprehensive test suite (upload limits, multi-upload queues, thumbnail generation, role scoping) | IMG-8 |

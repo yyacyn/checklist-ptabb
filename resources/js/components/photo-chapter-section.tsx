@@ -7,6 +7,7 @@ import {
     ExternalLink,
     FileImage,
     Image as ImageIcon,
+    Link2,
     Loader2,
     Maximize2,
     Plus,
@@ -17,6 +18,7 @@ import {
 } from 'lucide-react';
 import React, { useState, useRef } from 'react';
 import { compressImage, formatFileSize } from '@/lib/image-compressor';
+import { MultiPhotoUploadDialog } from '@/components/multi-photo-upload-dialog';
 import { Badge } from '@/components/ui/badge';
 import { Button } from '@/components/ui/button';
 import { Card, CardContent, CardHeader, CardTitle } from '@/components/ui/card';
@@ -114,13 +116,12 @@ export function PhotoChapterSection({
     const [editingPhoto, setEditingPhoto] = useState<PhotoRecord | null>(null);
     const [isSavingEdit, setIsSavingEdit] = useState(false);
 
-    // Freeform Add Photo Modal State (when no schemaItems)
-    const [addModalOpen, setAddModalOpen] = useState(false);
-    const [addTitle, setAddTitle] = useState('');
-    const [addFile, setAddFile] = useState<File | null>(null);
+    // Multi-photo Upload Dialog State
+    const [isMultiUploadOpen, setIsMultiUploadOpen] = useState(false);
+    const [initialMultiFiles, setInitialMultiFiles] = useState<File[]>([]);
+    const [isCardDragOver, setIsCardDragOver] = useState(false);
 
     const fileInputRefs = useRef<Record<number, HTMLInputElement | null>>({});
-    const generalFileInputRef = useRef<HTMLInputElement>(null);
 
     const handleUploadForSlot = async (slotNo: number, slotTitle: string, file: File) => {
         setIsUploading(true);
@@ -183,64 +184,6 @@ export function PhotoChapterSection({
         }
     };
 
-    const handleAddFreeformPhoto = async (e: React.FormEvent) => {
-        e.preventDefault();
-        if (!addFile || !addTitle.trim()) return;
-
-        setIsUploading(true);
-        setUploadProgress('Optimizing image for VSAT bandwidth...');
-
-        try {
-            const { file: optimizedFile, compressedSize, savingsPercent } = await compressImage(addFile, {
-                maxEdge: 2000,
-                quality: 0.8,
-                onStatus: (status) => setUploadProgress(status),
-            });
-
-            setUploadProgress(`Uploading ${formatFileSize(compressedSize)} (${savingsPercent}% saved)...`);
-
-            const nextItemNo = photoList.length + 1;
-            const formData = new FormData();
-            formData.append('file', optimizedFile);
-            formData.append('title', addTitle.trim());
-            formData.append('caption', addTitle.trim());
-            formData.append('item_no', String(nextItemNo));
-
-            const csrfToken = (document.querySelector('meta[name="csrf-token"]') as HTMLMetaElement)?.content || '';
-            const response = await fetch(`/reports/${reportId}/photos`, {
-                method: 'POST',
-                headers: {
-                    'X-CSRF-TOKEN': csrfToken,
-                    'Accept': 'application/json',
-                },
-                body: formData,
-            });
-
-            if (!response.ok) {
-                const errData = await response.json().catch(() => null);
-                throw new Error(errData?.message || `Upload failed with status ${response.status}`);
-            }
-
-            const data = await response.json();
-            if (data.photo) {
-                const updatedList = [...photoList, data.photo];
-                setPhotoList(updatedList);
-                onPhotosChange?.(updatedList);
-                setAddModalOpen(false);
-                setAddTitle('');
-                setAddFile(null);
-            }
-        } catch (err: any) {
-            console.error('Photo upload error:', err);
-            alert(err?.message || 'Failed to upload photo.');
-        } finally {
-            setIsUploading(false);
-            setUploadProgress(null);
-            if (generalFileInputRef.current) {
-                generalFileInputRef.current.value = '';
-            }
-        }
-    };
 
     const handleOpenEdit = (photo: PhotoRecord) => {
         setEditingPhoto({ ...photo });
@@ -265,6 +208,9 @@ export function PhotoChapterSection({
                     title: editingPhoto.title,
                     caption: editingPhoto.caption,
                     description: editingPhoto.description,
+                    photo_category_id: editingPhoto.photo_category_id ?? null,
+                    report_question_id: editingPhoto.report_question_id ?? null,
+                    finding_id: editingPhoto.finding_id ?? null,
                 }),
             });
 
@@ -315,8 +261,45 @@ export function PhotoChapterSection({
 
     const hasConfiguredSlots = Boolean(schemaItems && schemaItems.length > 0);
 
+    const matchedPhotoIds = new Set<number>();
+    if (hasConfiguredSlots) {
+        schemaItems.forEach((slot, idx) => {
+            const slotNo = idx + 1;
+            const matched = photoList.find((p) => p.item_no === slotNo || (p.title && p.title.toLowerCase() === slot.title.toLowerCase()));
+            if (matched) {
+                matchedPhotoIds.add(matched.id);
+            }
+        });
+    }
+    const additionalPhotos = hasConfiguredSlots ? photoList.filter((p) => !matchedPhotoIds.has(p.id)) : [];
+
     return (
-        <Card id="photo-chapter" className="gap-0 overflow-hidden py-0 border shadow-sm">
+        <Card
+            id="photo-chapter"
+            className={`gap-0 overflow-hidden py-0 border shadow-sm transition-all ${
+                isCardDragOver ? 'ring-2 ring-primary border-primary bg-primary/5' : ''
+            }`}
+            onDragOver={(e) => {
+                if (isEditable) {
+                    e.preventDefault();
+                    setIsCardDragOver(true);
+                }
+            }}
+            onDragLeave={(e) => {
+                if (!e.currentTarget.contains(e.relatedTarget as Node)) {
+                    setIsCardDragOver(false);
+                }
+            }}
+            onDrop={(e) => {
+                e.preventDefault();
+                setIsCardDragOver(false);
+                if (!isEditable) return;
+                if (e.dataTransfer.files && e.dataTransfer.files.length > 0) {
+                    setInitialMultiFiles(Array.from(e.dataTransfer.files));
+                    setIsMultiUploadOpen(true);
+                }
+            }}
+        >
             <CardHeader className="bg-muted/30 border-b p-4 sm:p-5">
                 <div className="flex flex-col gap-3 sm:flex-row sm:items-center sm:justify-between">
                     <div>
@@ -332,16 +315,21 @@ export function PhotoChapterSection({
                         )}
                     </div>
 
-                    {isEditable && !hasConfiguredSlots && (
-                        <Button
-                            type="button"
-                            size="sm"
-                            onClick={() => setAddModalOpen(true)}
-                            className="gap-1.5 text-xs shadow-xs"
-                        >
-                            <Plus className="size-4" />
-                            <span>Add Photo</span>
-                        </Button>
+                    {isEditable && (
+                        <div className="flex items-center gap-2">
+                            <Button
+                                type="button"
+                                size="sm"
+                                onClick={() => {
+                                    setInitialMultiFiles([]);
+                                    setIsMultiUploadOpen(true);
+                                }}
+                                className="gap-1.5 text-xs shadow-xs"
+                            >
+                                <UploadCloud className="size-4" />
+                                <span>Upload Photos</span>
+                            </Button>
+                        </div>
                     )}
                 </div>
             </CardHeader>
@@ -378,9 +366,26 @@ export function PhotoChapterSection({
                                                         {slot.title}
                                                     </h4>
                                                     {matchedPhoto ? (
-                                                        <Badge variant="outline" className="text-emerald-600 border-emerald-500/30 text-[10px] font-medium">
-                                                            Uploaded
-                                                        </Badge>
+                                                        <>
+                                                            <Badge variant="outline" className="text-emerald-600 border-emerald-500/30 text-[10px] font-medium">
+                                                                Uploaded
+                                                            </Badge>
+                                                            {matchedPhoto.category && (
+                                                                <Badge variant="secondary" className="text-[10px]">
+                                                                    {matchedPhoto.category.name}
+                                                                </Badge>
+                                                            )}
+                                                            {matchedPhoto.report_question_id && (
+                                                                <Badge variant="outline" className="text-primary border-primary/30 text-[10px] gap-1">
+                                                                    <Link2 className="size-2.5" /> Q Linked
+                                                                </Badge>
+                                                            )}
+                                                            {matchedPhoto.finding_id && (
+                                                                <Badge variant="outline" className="text-amber-600 dark:text-amber-400 border-amber-500/30 text-[10px] gap-1">
+                                                                    <Link2 className="size-2.5" /> Obs Linked
+                                                                </Badge>
+                                                            )}
+                                                        </>
                                                     ) : (
                                                         <Badge variant="outline" className="text-muted-foreground border-border text-[10px] font-medium">
                                                             Pending
@@ -406,10 +411,14 @@ export function PhotoChapterSection({
                                                 <input
                                                     ref={(el) => { fileInputRefs.current[slotNo] = el; }}
                                                     type="file"
+                                                    multiple
                                                     accept="image/jpeg,image/png,image/webp,image/heic,image/heif"
                                                     className="hidden"
                                                     onChange={(e) => {
-                                                        if (e.target.files && e.target.files[0]) {
+                                                        if (e.target.files && e.target.files.length > 1) {
+                                                            setInitialMultiFiles(Array.from(e.target.files));
+                                                            setIsMultiUploadOpen(true);
+                                                        } else if (e.target.files && e.target.files[0]) {
                                                             handleUploadForSlot(slotNo, slot.title, e.target.files[0]);
                                                         }
                                                     }}
@@ -509,24 +518,169 @@ export function PhotoChapterSection({
                                 </div>
                             );
                         })}
+
+                        {/* Additional Photos that don't match the predefined schemaItems */}
+                        {additionalPhotos.length > 0 && (
+                            <div className="pt-6 border-t space-y-4">
+                                <div className="flex items-center justify-between">
+                                    <h4 className="font-semibold text-sm text-foreground flex items-center gap-2">
+                                        <span>Additional Photos & Evidence</span>
+                                        <Badge variant="secondary" className="text-xs font-mono">
+                                            {additionalPhotos.length}
+                                        </Badge>
+                                    </h4>
+                                </div>
+                                <div className="space-y-4">
+                                    {additionalPhotos.map((photo, extraIdx) => (
+                                        <div
+                                            key={photo.id}
+                                            className="rounded-xl border bg-card overflow-hidden shadow-2xs flex flex-col"
+                                        >
+                                            {/* Row 1: Info and Actions */}
+                                            <div className="p-3.5 sm:p-4 border-b bg-muted/20 flex flex-col sm:flex-row sm:items-center justify-between gap-3">
+                                                <div className="flex items-start gap-2.5 min-w-0 flex-1">
+                                                    <Badge variant="outline" className="text-xs font-mono shrink-0 mt-0.5">
+                                                        #{schemaItems.length + extraIdx + 1}
+                                                    </Badge>
+                                                    <div className="space-y-0.5 min-w-0 flex-1">
+                                                        <div className="flex items-center gap-2 flex-wrap">
+                                                            <h4 className="font-semibold text-sm text-foreground">
+                                                                {photo.title || `Photo #${schemaItems.length + extraIdx + 1}`}
+                                                            </h4>
+                                                            {photo.category && (
+                                                                <Badge variant="secondary" className="text-[10px]">
+                                                                    {photo.category.name}
+                                                                </Badge>
+                                                            )}
+                                                            {photo.report_question_id && (
+                                                                <Badge variant="outline" className="text-primary border-primary/30 text-[10px] gap-1">
+                                                                    <Link2 className="size-2.5" /> Q Linked
+                                                                </Badge>
+                                                            )}
+                                                            {photo.finding_id && (
+                                                                <Badge variant="outline" className="text-amber-600 dark:text-amber-400 border-amber-500/30 text-[10px] gap-1">
+                                                                    <Link2 className="size-2.5" /> Obs Linked
+                                                                </Badge>
+                                                            )}
+                                                        </div>
+                                                        {photo.caption && photo.caption !== photo.title && (
+                                                            <p className="text-xs text-muted-foreground italic">
+                                                                Caption: {photo.caption}
+                                                            </p>
+                                                        )}
+                                                    </div>
+                                                </div>
+
+                                                {isEditable && (
+                                                    <div className="flex items-center gap-1.5 shrink-0 self-end sm:self-center">
+                                                        <Button
+                                                            type="button"
+                                                            size="sm"
+                                                            variant="ghost"
+                                                            className="h-8 text-xs px-2"
+                                                            onClick={() => handleOpenEdit(photo)}
+                                                            title="Edit Caption"
+                                                        >
+                                                            <Edit2 className="size-3.5 mr-1" />
+                                                            <span>Caption</span>
+                                                        </Button>
+                                                        <Button
+                                                            type="button"
+                                                            size="sm"
+                                                            variant="ghost"
+                                                            className="h-8 w-8 p-0 text-destructive hover:bg-destructive/10"
+                                                            onClick={() => handleDeletePhoto(photo.id)}
+                                                            title="Delete Photo"
+                                                        >
+                                                            <Trash2 className="size-4" />
+                                                        </Button>
+                                                    </div>
+                                                )}
+                                            </div>
+
+                                            {/* Row 2: Image Preview Only */}
+                                            <div className="p-3.5 sm:p-4 bg-card flex items-center justify-center sm:justify-start">
+                                                <div
+                                                    onClick={() => setPreviewPhoto(photo)}
+                                                    className="relative rounded-lg overflow-hidden border bg-muted/30 group cursor-pointer shadow-xs hover:border-primary/50 transition-all max-w-sm"
+                                                    title="Click to view full size photo"
+                                                >
+                                                    <img
+                                                        src={photo.thumbnail_url || photo.file_url}
+                                                        alt={photo.title || `Photo #${schemaItems.length + extraIdx + 1}`}
+                                                        className="h-44 w-auto max-w-full object-contain rounded-lg group-hover:scale-[1.02] transition-transform duration-200"
+                                                    />
+                                                    <div className="absolute inset-0 bg-black/40 opacity-0 group-hover:opacity-100 transition-opacity flex items-center justify-center gap-1.5 text-white text-xs font-medium">
+                                                        <Maximize2 className="size-4" />
+                                                        <span>Click to Enlarge</span>
+                                                    </div>
+                                                </div>
+                                            </div>
+                                        </div>
+                                    ))}
+                                </div>
+                            </div>
+                        )}
+
+                        {/* Batch upload button below slots */}
+                        {isEditable && (
+                            <div className="pt-2 flex items-center justify-center sm:justify-start">
+                                <Button
+                                    type="button"
+                                    variant="outline"
+                                    size="sm"
+                                    onClick={() => {
+                                        setInitialMultiFiles([]);
+                                        setIsMultiUploadOpen(true);
+                                    }}
+                                    className="gap-1.5 text-xs shadow-xs"
+                                >
+                                    <UploadCloud className="size-4 text-primary" />
+                                    <span>Upload Additional Photos (Multi-select)</span>
+                                </Button>
+                            </div>
+                        )}
                     </div>
                 ) : (
                     /* Case 2: Freeform Photos (No predefined slots) */
                     <div>
                         {photoList.length === 0 ? (
-                            <div className="text-center py-12 text-muted-foreground space-y-3">
-                                <ImageIcon className="size-10 mx-auto opacity-40" />
-                                <p className="text-sm font-medium">No photos uploaded yet.</p>
+                            <div
+                                onClick={() => {
+                                    if (isEditable) {
+                                        setInitialMultiFiles([]);
+                                        setIsMultiUploadOpen(true);
+                                    }
+                                }}
+                                className={`border-2 border-dashed rounded-xl py-12 px-6 text-center transition-all ${
+                                    isEditable
+                                        ? 'border-border/80 hover:border-primary/60 bg-muted/10 hover:bg-primary/5 cursor-pointer'
+                                        : 'border-border/40 bg-muted/5'
+                                }`}
+                            >
+                                <div className="w-12 h-12 rounded-full bg-primary/10 text-primary flex items-center justify-center mx-auto mb-3">
+                                    <UploadCloud className="size-6" />
+                                </div>
+                                <h4 className="text-sm font-semibold text-foreground">No photos uploaded yet</h4>
+                                <p className="text-xs text-muted-foreground mt-1 max-w-sm mx-auto">
+                                    Click or drag & drop multiple photos to start uploading photographic records for this report.
+                                </p>
                                 {isEditable && (
-                                    <Button
-                                        type="button"
-                                        size="sm"
-                                        onClick={() => setAddModalOpen(true)}
-                                        className="gap-1.5"
-                                    >
-                                        <Plus className="size-4" />
-                                        <span>Add Photo</span>
-                                    </Button>
+                                    <div className="mt-4">
+                                        <Button
+                                            type="button"
+                                            size="sm"
+                                            className="gap-1.5 text-xs"
+                                            onClick={(e) => {
+                                                e.stopPropagation();
+                                                setInitialMultiFiles([]);
+                                                setIsMultiUploadOpen(true);
+                                            }}
+                                        >
+                                            <UploadCloud className="size-4" />
+                                            <span>Upload Photos (Multi-select)</span>
+                                        </Button>
+                                    </div>
                                 )}
                             </div>
                         ) : (
@@ -543,9 +697,26 @@ export function PhotoChapterSection({
                                                     #{idx + 1}
                                                 </Badge>
                                                 <div className="space-y-0.5 min-w-0 flex-1">
-                                                    <h4 className="font-semibold text-sm text-foreground">
-                                                        {photo.title || `Photo #${idx + 1}`}
-                                                    </h4>
+                                                    <div className="flex items-center gap-2 flex-wrap">
+                                                        <h4 className="font-semibold text-sm text-foreground">
+                                                            {photo.title || `Photo #${idx + 1}`}
+                                                        </h4>
+                                                        {photo.category && (
+                                                            <Badge variant="secondary" className="text-[10px]">
+                                                                {photo.category.name}
+                                                            </Badge>
+                                                        )}
+                                                        {photo.report_question_id && (
+                                                            <Badge variant="outline" className="text-primary border-primary/30 text-[10px] gap-1">
+                                                                <Link2 className="size-2.5" /> Q Linked
+                                                            </Badge>
+                                                        )}
+                                                        {photo.finding_id && (
+                                                            <Badge variant="outline" className="text-amber-600 dark:text-amber-400 border-amber-500/30 text-[10px] gap-1">
+                                                                <Link2 className="size-2.5" /> Obs Linked
+                                                            </Badge>
+                                                        )}
+                                                    </div>
                                                     {photo.caption && photo.caption !== photo.title && (
                                                         <p className="text-xs text-muted-foreground italic">
                                                             Caption: {photo.caption}
@@ -601,73 +772,50 @@ export function PhotoChapterSection({
                                         </div>
                                     </div>
                                 ))}
+
+                                {isEditable && (
+                                    <div className="pt-2 flex items-center justify-center sm:justify-start">
+                                        <Button
+                                            type="button"
+                                            variant="outline"
+                                            size="sm"
+                                            onClick={() => {
+                                                setInitialMultiFiles([]);
+                                                setIsMultiUploadOpen(true);
+                                            }}
+                                            className="gap-1.5 text-xs shadow-xs"
+                                        >
+                                            <UploadCloud className="size-4 text-primary" />
+                                            <span>Upload More Photos</span>
+                                        </Button>
+                                    </div>
+                                )}
                             </div>
                         )}
                     </div>
                 )}
             </CardContent>
 
-            {/* Simple Freeform Add Photo Modal */}
-            <Dialog open={addModalOpen} onOpenChange={setAddModalOpen}>
-                <DialogContent className="max-w-sm sm:max-w-md">
-                    <DialogHeader>
-                        <DialogTitle>Add Photo</DialogTitle>
-                    </DialogHeader>
-
-                    <form onSubmit={handleAddFreeformPhoto} className="space-y-4 py-2">
-                        <div className="space-y-1.5">
-                            <Label htmlFor="add_photo_title">Photo Title / Label</Label>
-                            <Input
-                                id="add_photo_title"
-                                placeholder="e.g. Engine Room Overview"
-                                value={addTitle}
-                                onChange={(e) => setAddTitle(e.target.value)}
-                                required
-                                autoFocus
-                            />
-                        </div>
-
-                        <div className="space-y-1.5">
-                            <Label htmlFor="add_photo_file">Image File</Label>
-                            <Input
-                                id="add_photo_file"
-                                ref={generalFileInputRef}
-                                type="file"
-                                accept="image/jpeg,image/png,image/webp,image/heic,image/heif"
-                                onChange={(e) => {
-                                    if (e.target.files && e.target.files[0]) {
-                                        setAddFile(e.target.files[0]);
-                                    }
-                                }}
-                                required
-                            />
-                        </div>
-
-                        <DialogFooter className="pt-2">
-                            <Button
-                                type="button"
-                                variant="outline"
-                                disabled={isUploading}
-                                onClick={() => setAddModalOpen(false)}
-                            >
-                                Cancel
-                            </Button>
-                            <Button
-                                type="submit"
-                                disabled={isUploading || !addFile || !addTitle.trim()}
-                            >
-                                {isUploading ? 'Uploading...' : 'Upload Photo'}
-                            </Button>
-                        </DialogFooter>
-                    </form>
-                </DialogContent>
-            </Dialog>
+            {/* Multi-Photo Batch Upload Modal */}
+            <MultiPhotoUploadDialog
+                open={isMultiUploadOpen}
+                onOpenChange={setIsMultiUploadOpen}
+                reportId={reportId}
+                categories={categories}
+                nextItemNo={photoList.length + 1}
+                initialFiles={initialMultiFiles}
+                onUploadSuccess={(newPhotos) => {
+                    const updated = [...photoList, ...newPhotos];
+                    setPhotoList(updated);
+                    onPhotosChange?.(updated);
+                }}
+            />
 
             {/* Simple Edit Caption Modal */}
             <Dialog open={editModalOpen} onOpenChange={setEditModalOpen}>
-                <DialogContent className="max-w-sm sm:max-w-md">
+                <DialogContent className="max-w-md">
                     <DialogHeader>
-                        <DialogTitle>Edit Photo Caption</DialogTitle>
+                        <DialogTitle>Edit Photo & Evidence Links</DialogTitle>
                     </DialogHeader>
 
                     {editingPhoto && (
@@ -684,6 +832,87 @@ export function PhotoChapterSection({
                                 />
                             </div>
 
+                            {/* Category Selector */}
+                            {categories.length > 0 && (
+                                <div className="space-y-1.5">
+                                    <Label className="text-xs">Photo Category</Label>
+                                    <Select
+                                        value={editingPhoto.photo_category_id ? String(editingPhoto.photo_category_id) : 'none'}
+                                        onValueChange={(val) =>
+                                            setEditingPhoto((prev) =>
+                                                prev ? { ...prev, photo_category_id: val === 'none' ? null : Number(val) } : null
+                                            )
+                                        }
+                                    >
+                                        <SelectTrigger className="text-xs h-9">
+                                            <SelectValue placeholder="Select Category" />
+                                        </SelectTrigger>
+                                        <SelectContent>
+                                            <SelectItem value="none">No Category</SelectItem>
+                                            {categories.map((c) => (
+                                                <SelectItem key={c.id} value={String(c.id)}>
+                                                    {c.name}
+                                                </SelectItem>
+                                            ))}
+                                        </SelectContent>
+                                    </Select>
+                                </div>
+                            )}
+
+                            {/* Link to Checklist Question */}
+                            {questions.length > 0 && (
+                                <div className="space-y-1.5">
+                                    <Label className="text-xs">Link as Evidence to Checklist Question</Label>
+                                    <Select
+                                        value={editingPhoto.report_question_id ? String(editingPhoto.report_question_id) : 'none'}
+                                        onValueChange={(val) =>
+                                            setEditingPhoto((prev) =>
+                                                prev ? { ...prev, report_question_id: val === 'none' ? null : Number(val) } : null
+                                            )
+                                        }
+                                    >
+                                        <SelectTrigger className="text-xs h-9">
+                                            <SelectValue placeholder="Select Question to link" />
+                                        </SelectTrigger>
+                                        <SelectContent>
+                                            <SelectItem value="none">Not linked to a question</SelectItem>
+                                            {questions.map((q) => (
+                                                <SelectItem key={q.id} value={String(q.id)}>
+                                                    {q.item_number ? `#${q.item_number} - ` : ''}{q.question_text.slice(0, 75)}
+                                                </SelectItem>
+                                            ))}
+                                        </SelectContent>
+                                    </Select>
+                                </div>
+                            )}
+
+                            {/* Link to Observation / Finding */}
+                            {findings.length > 0 && (
+                                <div className="space-y-1.5">
+                                    <Label className="text-xs">Link as Proof to Observation / Finding</Label>
+                                    <Select
+                                        value={editingPhoto.finding_id ? String(editingPhoto.finding_id) : 'none'}
+                                        onValueChange={(val) =>
+                                            setEditingPhoto((prev) =>
+                                                prev ? { ...prev, finding_id: val === 'none' ? null : Number(val) } : null
+                                            )
+                                        }
+                                    >
+                                        <SelectTrigger className="text-xs h-9">
+                                            <SelectValue placeholder="Select Observation to link" />
+                                        </SelectTrigger>
+                                        <SelectContent>
+                                            <SelectItem value="none">Not linked to an observation</SelectItem>
+                                            {findings.map((f) => (
+                                                <SelectItem key={f.id} value={String(f.id)}>
+                                                    Obs #{f.finding_no}: {f.description.slice(0, 65)}
+                                                </SelectItem>
+                                            ))}
+                                        </SelectContent>
+                                    </Select>
+                                </div>
+                            )}
+
                             <DialogFooter className="pt-2">
                                 <Button
                                     type="button"
@@ -698,7 +927,7 @@ export function PhotoChapterSection({
                                     onClick={handleSaveEdit}
                                     disabled={isSavingEdit}
                                 >
-                                    {isSavingEdit ? 'Saving...' : 'Save'}
+                                    {isSavingEdit ? 'Saving...' : 'Save Changes'}
                                 </Button>
                             </DialogFooter>
                         </div>

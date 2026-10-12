@@ -123,6 +123,20 @@ class PhotoController extends Controller
             'sort_order' => ['nullable', 'integer'],
         ]);
 
+        if (!empty($validated['report_question_id'])) {
+            $belongs = ReportQuestion::where('id', $validated['report_question_id'])->where('report_id', $report->id)->exists();
+            if (!$belongs) {
+                abort(422, 'The specified question does not belong to this report.');
+            }
+        }
+
+        if (!empty($validated['finding_id'])) {
+            $belongs = Finding::where('id', $validated['finding_id'])->where('report_id', $report->id)->exists();
+            if (!$belongs) {
+                abort(422, 'The specified finding does not belong to this report.');
+            }
+        }
+
         $file = $request->file('file');
         $optimized = $optimizer->storeAndOptimize($file, $report->id);
 
@@ -208,6 +222,20 @@ class PhotoController extends Controller
             'finding_id' => ['nullable', 'exists:findings,id'],
             'sort_order' => ['nullable', 'integer'],
         ]);
+
+        if (!empty($validated['report_question_id'])) {
+            $belongs = ReportQuestion::where('id', $validated['report_question_id'])->where('report_id', $report->id)->exists();
+            if (!$belongs) {
+                abort(422, 'The specified question does not belong to this report.');
+            }
+        }
+
+        if (!empty($validated['finding_id'])) {
+            $belongs = Finding::where('id', $validated['finding_id'])->where('report_id', $report->id)->exists();
+            if (!$belongs) {
+                abort(422, 'The specified finding does not belong to this report.');
+            }
+        }
 
         $photo->update($validated);
         $photo->load(['category:id,name,code', 'uploader:id,name']);

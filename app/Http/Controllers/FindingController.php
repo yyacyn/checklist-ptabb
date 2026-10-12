@@ -198,6 +198,8 @@ class FindingController extends Controller
             $report->id
         );
 
+        $finding->load(['photos' => fn ($pq) => $pq->with(['category:id,name,code', 'uploader:id,name'])]);
+
         return response()->json([
             'status' => 'created',
             'finding' => $finding,
@@ -239,6 +241,7 @@ class FindingController extends Controller
         ]);
 
         $finding->update($validated);
+        $finding->load(['photos' => fn ($pq) => $pq->with(['category:id,name,code', 'uploader:id,name'])]);
 
         ActivityLog::record(
             $finding,

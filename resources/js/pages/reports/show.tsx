@@ -38,6 +38,7 @@ import {
 import React, { useCallback, useEffect, useMemo, useRef, useState } from 'react';
 import Heading from '@/components/heading';
 import { PhotoChapterSection, type PhotoRecord, type PhotoCategoryItem, type QuestionOptionItem } from '@/components/photo-chapter-section';
+import { PhotoEvidenceDialog, PhotoEvidenceStrip } from '@/components/photo-evidence-dialog';
 import { Badge } from '@/components/ui/badge';
 import { Button } from '@/components/ui/button';
 import { Card, CardContent, CardDescription, CardHeader, CardTitle } from '@/components/ui/card';
@@ -1377,6 +1378,9 @@ export default function ReportDataEntry({
                                 onAcceptServerAnswer={handleAcceptServerAnswer}
                                 onOverwriteAnswer={handleOverwriteAnswer}
                                 filterQuestion={filterQuestion}
+                                reportPhotos={photos}
+                                onPhotosUpdated={setPhotos}
+                                photoCategories={photo_categories}
                             />
                         ) : activeChapterId === -999 || activeChapterId === -15 ? (
                             <ObservationsSection
@@ -1390,6 +1394,9 @@ export default function ReportDataEntry({
                                 prevChapter={prevChapter}
                                 nextChapter={nextChapter}
                                 onChapterSwitch={handleChapterSwitch}
+                                reportPhotos={photos}
+                                onPhotosUpdated={setPhotos}
+                                photoCategories={photo_categories}
                             />
                         ) : activeChapter ? (
                             <div className="max-w-4xl mx-auto space-y-6">
@@ -1455,6 +1462,9 @@ export default function ReportDataEntry({
                                                 conflict={conflicts[q.id]}
                                                 onAcceptServerAnswer={(srv) => handleAcceptServerAnswer(q.id, srv)}
                                                 onOverwriteAnswer={(srvVer) => handleOverwriteAnswer(q.id, srvVer)}
+                                                reportPhotos={photos}
+                                                onPhotosUpdated={setPhotos}
+                                                photoCategories={photo_categories}
                                             />
                                         ))}
                                     </div>
@@ -1509,6 +1519,9 @@ export default function ReportDataEntry({
                                                                 conflict={conflicts[q.id]}
                                                                 onAcceptServerAnswer={(srv) => handleAcceptServerAnswer(q.id, srv)}
                                                                 onOverwriteAnswer={(srvVer) => handleOverwriteAnswer(q.id, srvVer)}
+                                                                reportPhotos={photos}
+                                                                onPhotosUpdated={setPhotos}
+                                                                photoCategories={photo_categories}
                                                             />
                                                         ))}
                                                     </div>
@@ -1673,6 +1686,9 @@ function GeneralInfoSection({
     onAcceptServerAnswer,
     onOverwriteAnswer,
     filterQuestion,
+    reportPhotos,
+    onPhotosUpdated,
+    photoCategories,
 }: {
     report: ReportData;
     isEditable: boolean;
@@ -1691,6 +1707,9 @@ function GeneralInfoSection({
     onAcceptServerAnswer: (questionId: number, serverAnswer: ConflictData['server_answer']) => void;
     onOverwriteAnswer: (questionId: number, serverRowVersion: number) => void;
     filterQuestion: (q: QuestionData) => boolean;
+    reportPhotos?: PhotoRecord[];
+    onPhotosUpdated?: (photos: PhotoRecord[]) => void;
+    photoCategories?: PhotoCategoryItem[];
 }) {
     const [info, setInfo] = useState({
         report_date: formatDate(report.report_date),
@@ -2143,6 +2162,9 @@ function GeneralInfoSection({
                                 conflict={conflicts[q.id]}
                                 onAcceptServerAnswer={(srv) => onAcceptServerAnswer(q.id, srv)}
                                 onOverwriteAnswer={(srvVer) => onOverwriteAnswer(q.id, srvVer)}
+                                reportPhotos={reportPhotos}
+                                onPhotosUpdated={onPhotosUpdated}
+                                photoCategories={photoCategories}
                             />
                         ))}
                     </CardContent>
@@ -2180,6 +2202,9 @@ function ObservationsSection({
     prevChapter,
     nextChapter,
     onChapterSwitch,
+    reportPhotos,
+    onPhotosUpdated,
+    photoCategories,
 }: {
     report: ReportData;
     isEditable: boolean;
@@ -2194,7 +2219,35 @@ function ObservationsSection({
     prevChapter?: { id: number; title: string; chapter_no?: string | null; sort_order?: number } | null;
     nextChapter?: { id: number; title: string; chapter_no?: string | null; sort_order?: number } | null;
     onChapterSwitch: (targetId: number) => void;
+    reportPhotos?: PhotoRecord[];
+    onPhotosUpdated?: (photos: PhotoRecord[]) => void;
+    photoCategories?: PhotoCategoryItem[];
 }) {
+    const [evidenceFinding, setEvidenceFinding] = useState<FindingData | null>(null);
+
+    const handleDetachFindingPhoto = async (photo: PhotoRecord) => {
+        try {
+            const csrfToken = (document.querySelector('meta[name="csrf-token"]') as HTMLMetaElement)?.content || '';
+            const res = await fetch(`/reports/${report.id}/photos/${photo.id}`, {
+                method: 'PUT',
+                headers: {
+                    'Content-Type': 'application/json',
+                    'X-CSRF-TOKEN': csrfToken,
+                    Accept: 'application/json',
+                },
+                body: JSON.stringify({ finding_id: null }),
+            });
+            if (res.ok) {
+                const data = await res.json();
+                onPhotosUpdated?.(
+                    (reportPhotos || []).map((p) => (p.id === photo.id ? data.photo : p))
+                );
+            }
+        } catch (err) {
+            console.error('Failed to detach photo from finding:', err);
+        }
+    };
+
     const summarySchema: SummarySchema = useMemo(() => {
         if (report.form.summary_schema) {
             return report.form.summary_schema;
@@ -2701,6 +2754,7 @@ function ObservationsSection({
                                             <th className="py-2.5 px-3 min-w-[280px]">Observation Description</th>
                                             <th className="py-2.5 px-3 min-w-[100px] text-center">Risk Mitigation*</th>
                                             <th className="py-2.5 px-3 min-w-[100px]">Job Order No.</th>
+                                            <th className="py-2.5 px-3 min-w-[160px]">Evidence / Photos</th>
                                             {isEditable && <th className="py-2.5 px-3 w-20 text-right">Actions</th>}
                                         </tr>
                                     </thead>
@@ -2722,23 +2776,31 @@ function ObservationsSection({
                                                 <td className="py-3 px-3 text-center">
                                                     {f.risk === 'high' && (
                                                         <Badge className="bg-rose-500 hover:bg-rose-600 text-white text-[10px] uppercase font-bold">
-                                                            High
+                                                             High
                                                         </Badge>
                                                     )}
                                                     {f.risk === 'medium' && (
                                                         <Badge className="bg-amber-500 hover:bg-amber-600 text-white text-[10px] uppercase font-bold">
-                                                            Medium
+                                                             Medium
                                                         </Badge>
                                                     )}
                                                     {f.risk === 'low' && (
                                                         <Badge className="bg-emerald-600 hover:bg-emerald-700 text-white text-[10px] uppercase font-bold">
-                                                            Low
+                                                             Low
                                                         </Badge>
                                                     )}
                                                     {!f.risk && <span className="text-muted-foreground">—</span>}
                                                 </td>
                                                 <td className="py-3 px-3 font-mono text-xs text-muted-foreground">
                                                     {f.job_order_no || '—'}
+                                                </td>
+                                                <td className="py-3 px-3">
+                                                    <PhotoEvidenceStrip
+                                                        photos={(reportPhotos || []).filter((p) => p.finding_id === f.id)}
+                                                        isEditable={isEditable}
+                                                        onAttachClick={() => setEvidenceFinding(f)}
+                                                        onDetachPhoto={handleDetachFindingPhoto}
+                                                    />
                                                 </td>
                                                 {isEditable && (
                                                     <td className="py-3 px-3 text-right whitespace-nowrap">
@@ -2781,6 +2843,21 @@ function ObservationsSection({
                     <p><strong>*</strong>Against a <strong>LOW – MEDIUM – HIGH</strong> severity range.</p>
                     <p><strong>**</strong>Enter relevant reference number from VIQ checklist, or cross-reference to any other Industry standard, which appears not adequately implemented.</p>
                 </div>
+
+                {/* Finding Photo Evidence Dialog */}
+                {evidenceFinding && (
+                    <PhotoEvidenceDialog
+                        open={Boolean(evidenceFinding)}
+                        onOpenChange={(open) => !open && setEvidenceFinding(null)}
+                        reportId={report.id}
+                        targetType="finding"
+                        targetId={evidenceFinding.id}
+                        targetTitle={`Observation #${evidenceFinding.viq_paragraph || evidenceFinding.id}: ${evidenceFinding.description.slice(0, 60)}`}
+                        reportPhotos={reportPhotos || []}
+                        categories={photoCategories || []}
+                        onPhotosUpdated={(updated) => onPhotosUpdated?.(updated)}
+                    />
+                )}
             </div>
             )}
 
@@ -3065,6 +3142,9 @@ function QuestionAnswerCard({
     conflict,
     onAcceptServerAnswer,
     onOverwriteAnswer,
+    reportPhotos,
+    onPhotosUpdated,
+    photoCategories,
 }: {
     reportId: number;
     question: QuestionData;
@@ -3080,6 +3160,9 @@ function QuestionAnswerCard({
     conflict?: ConflictData;
     onAcceptServerAnswer?: (serverAnswer: ConflictData['server_answer']) => void;
     onOverwriteAnswer?: (serverRowVersion: number) => void;
+    reportPhotos?: PhotoRecord[];
+    onPhotosUpdated?: (photos: PhotoRecord[]) => void;
+    photoCategories?: PhotoCategoryItem[];
 }) {
     const selectedAnswer = currentAnswer?.answer;
     const isLockedNA = !question.is_applicable;
@@ -3088,6 +3171,32 @@ function QuestionAnswerCard({
     const extraCount = (flags.hasDate ? 1 : 0) + (flags.hasFile ? 1 : 0) + (flags.hasText ? 1 : 0);
     const hasAnyExtra = extraCount > 0;
     const inputMeta = getQuestionInputMeta(question);
+
+    const [evidenceModalOpen, setEvidenceModalOpen] = useState(false);
+    const attachedPhotos = (reportPhotos || []).filter((p) => p.report_question_id === question.id);
+
+    const handleDetachPhoto = async (photo: PhotoRecord) => {
+        try {
+            const csrfToken = (document.querySelector('meta[name="csrf-token"]') as HTMLMetaElement)?.content || '';
+            const res = await fetch(`/reports/${reportId}/photos/${photo.id}`, {
+                method: 'PUT',
+                headers: {
+                    'Content-Type': 'application/json',
+                    'X-CSRF-TOKEN': csrfToken,
+                    Accept: 'application/json',
+                },
+                body: JSON.stringify({ report_question_id: null }),
+            });
+            if (res.ok) {
+                const data = await res.json();
+                onPhotosUpdated?.(
+                    (reportPhotos || []).map((p) => (p.id === photo.id ? data.photo : p))
+                );
+            }
+        } catch (err) {
+            console.error('Failed to detach photo:', err);
+        }
+    };
 
     // Internal buffered inputs for extra values with debounced autosave (NFR-1)
     const [extraBuffer, setExtraBuffer] = useState(currentAnswer?.extra_value || '');
@@ -3530,6 +3639,35 @@ function QuestionAnswerCard({
                     </div>
                 </div>
             )}
+
+            {/* Photographic Evidence Strip */}
+            <div className="mt-3 pt-2.5 border-t border-border/40 flex items-center justify-between gap-3 flex-wrap">
+                <div className="space-y-1">
+                    <span className="text-[11px] font-semibold text-muted-foreground uppercase tracking-wider flex items-center gap-1.5">
+                        <Camera className="size-3 text-primary" />
+                        <span>Photographic Evidence:</span>
+                    </span>
+                    <PhotoEvidenceStrip
+                        photos={attachedPhotos}
+                        isEditable={isEditable && !isLockedNA}
+                        onAttachClick={() => setEvidenceModalOpen(true)}
+                        onDetachPhoto={handleDetachPhoto}
+                    />
+                </div>
+            </div>
+
+            {/* Photo Evidence Modal */}
+            <PhotoEvidenceDialog
+                open={evidenceModalOpen}
+                onOpenChange={setEvidenceModalOpen}
+                reportId={reportId}
+                targetType="question"
+                targetId={question.id}
+                targetTitle={question.question_text}
+                reportPhotos={reportPhotos || []}
+                categories={photoCategories || []}
+                onPhotosUpdated={(updated) => onPhotosUpdated?.(updated)}
+            />
         </div>
     );
 }
