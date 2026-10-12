@@ -32,17 +32,66 @@ class ReportController extends Controller
         $user = $request->user();
 
         $query = Report::query()
-            ->with(['form:id,code,name', 'vesselType:id,name'])
-            ->orderByDesc('report_date')
-            ->orderByDesc('id');
+            ->with(['form:id,code,name', 'vesselType:id,name']);
 
         // Scoping by role (SRS §2, PLAN 1.10)
         if ($user->role === 'vessel') {
             $query->where('report_type', 'audit')
                 ->where('vessel_name', VesselName::normalize($user->vessel_name));
+        } elseif ($request->filled('vessel_name') && $request->input('vessel_name') !== 'all') {
+            $vesselFilter = VesselName::normalize($request->input('vessel_name'));
+            $query->whereRaw('LOWER(vessel_name) = ?', [mb_strtolower($vesselFilter)]);
         }
 
-        $reports = $query->paginate(15)->through(fn (Report $report) => [
+        // Search: reference_number, vessel_name, vessel_imo, port, inspected_by
+        if ($request->filled('search')) {
+            $search = trim($request->input('search'));
+            $query->where(function ($q) use ($search) {
+                $q->where('reference_number', 'like', "%{$search}%")
+                    ->orWhere('vessel_name', 'like', "%{$search}%")
+                    ->orWhere('vessel_imo', 'like', "%{$search}%")
+                    ->orWhere('port', 'like', "%{$search}%")
+                    ->orWhere('inspected_by', 'like', "%{$search}%");
+            });
+        }
+
+        // Filter: Status
+        if ($request->filled('status') && $request->input('status') !== 'all') {
+            $query->where('status', $request->input('status'));
+        }
+
+        // Filter: Report Type (inspection | audit)
+        if ($request->filled('report_type') && $request->input('report_type') !== 'all') {
+            $query->where('report_type', $request->input('report_type'));
+        }
+
+        // Filter: Form Code
+        if ($request->filled('form_code') && $request->input('form_code') !== 'all') {
+            $formCode = $request->input('form_code');
+            $query->whereHas('form', fn ($fq) => $fq->where('code', $formCode));
+        }
+
+        // Filter: Date range
+        if ($request->filled('date_from')) {
+            $query->whereDate('report_date', '>=', $request->input('date_from'));
+        }
+        if ($request->filled('date_to')) {
+            $query->whereDate('report_date', '<=', $request->input('date_to'));
+        }
+
+        // Sorting
+        $allowedSorts = ['report_date', 'reference_number', 'vessel_name', 'status', 'created_at'];
+        $sortBy = in_array($request->input('sort_by'), $allowedSorts, true) ? $request->input('sort_by') : 'report_date';
+        $sortDir = strtolower($request->input('sort_dir', 'desc')) === 'asc' ? 'asc' : 'desc';
+
+        $query->orderBy($sortBy, $sortDir)->orderBy('id', 'desc');
+
+        $perPage = (int) $request->input('per_page', 15);
+        if (!in_array($perPage, [10, 15, 25, 50, 100], true)) {
+            $perPage = 15;
+        }
+
+        $reports = $query->paginate($perPage)->withQueryString()->through(fn (Report $report) => [
             'id' => $report->id,
             'report_type' => $report->report_type,
             'reference_number' => $report->reference_number,
@@ -57,8 +106,27 @@ class ReportController extends Controller
             'can_delete' => Gate::allows('delete', $report),
         ]);
 
+        $forms = Form::query()->orderBy('code')->get(['id', 'code', 'name']);
+        $knownVessels = $user->role === 'vessel'
+            ? [VesselName::normalize($user->vessel_name)]
+            : VesselName::knownNames();
+
         return Inertia::render('reports/index', [
             'reports' => $reports,
+            'filters' => [
+                'search' => $request->input('search', ''),
+                'status' => $request->input('status', 'all'),
+                'report_type' => $request->input('report_type', 'all'),
+                'form_code' => $request->input('form_code', 'all'),
+                'vessel_name' => $request->input('vessel_name', 'all'),
+                'date_from' => $request->input('date_from', ''),
+                'date_to' => $request->input('date_to', ''),
+                'sort_by' => $sortBy,
+                'sort_dir' => $sortDir,
+                'per_page' => $perPage,
+            ],
+            'forms' => $forms,
+            'known_vessels' => $knownVessels,
         ]);
     }
 
@@ -217,6 +285,8 @@ class ReportController extends Controller
             'groups.subgroups.questions.photos' => fn ($q) => $q->with(['category:id,name,code', 'uploader:id,name'])->orderBy('sort_order'),
             'findings' => fn ($q) => $q->with(['photos' => fn ($pq) => $pq->with(['category:id,name,code', 'uploader:id,name'])->orderBy('sort_order')])->orderBy('sort_order')->orderBy('id'),
             'photos' => fn ($q) => $q->with(['category:id,name,code', 'uploader:id,name'])->orderBy('sort_order')->orderBy('item_no')->orderBy('id'),
+            'linkedPhotoReport:id,reference_number,vessel_name,report_date,status,form_id',
+            'linkedPhotoReport.form:id,code,name,form_type',
         ]);
 
         $photoCategories = PhotoCategory::query()
@@ -232,6 +302,40 @@ class ReportController extends Controller
                 $schema['items'] = $attachedForm->photo_schema['items'];
                 $report->form->photo_schema = $schema;
             }
+        }
+
+        // Available photo reports for the vessel to link/import if normal form
+        $availablePhotoReports = [];
+        if ($report->form?->form_type !== 'photo') {
+            $availablePhotoReports = Report::query()
+                ->whereRaw('LOWER(vessel_name) = ?', [mb_strtolower(VesselName::normalize($report->vessel_name))])
+                ->where('id', '!=', $report->id)
+                ->whereHas('photos')
+                ->with([
+                    'form:id,code,name,form_type',
+                    'photos' => fn ($q) => $q->orderBy('sort_order')->limit(4),
+                ])
+                ->withCount('photos')
+                ->orderByDesc('report_date')
+                ->orderByDesc('id')
+                ->limit(20)
+                ->get()
+                ->map(fn ($r) => [
+                    'id' => $r->id,
+                    'reference_number' => $r->reference_number,
+                    'vessel_name' => $r->vessel_name,
+                    'report_date' => $r->report_date?->toDateString(),
+                    'status' => $r->status,
+                    'form_code' => $r->form?->code,
+                    'form_name' => $r->form?->name,
+                    'form_type' => $r->form?->form_type,
+                    'photos_count' => $r->photos_count,
+                    'preview_photos' => $r->photos->map(fn ($p) => [
+                        'id' => $p->id,
+                        'title' => $p->title,
+                        'thumbnail_url' => $p->thumbnail_url,
+                    ]),
+                ]);
         }
 
         $isEditable = Gate::allows('update', $report);
@@ -254,6 +358,7 @@ class ReportController extends Controller
             'initial_lock' => $activeLock,
             'can_delete' => Gate::allows('delete', $report),
             'photo_categories' => $photoCategories,
+            'available_photo_reports' => $availablePhotoReports,
         ]);
     }
 

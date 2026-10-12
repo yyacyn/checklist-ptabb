@@ -39,6 +39,9 @@ Route::middleware(['auth', 'verified'])->group(function () {
     Route::put('reports/{report}/photos/{photo}', [PhotoController::class, 'update'])->name('reports.photos.update');
     Route::delete('reports/{report}/photos/{photo}', [PhotoController::class, 'destroy'])->name('reports.photos.destroy');
     Route::post('reports/{report}/photos/reorder', [PhotoController::class, 'reorder'])->name('reports.photos.reorder');
+    Route::get('reports/{report}/available-photo-reports', [PhotoController::class, 'availablePhotoReports'])->name('reports.photos.available');
+    Route::post('reports/{report}/link-photo-report', [PhotoController::class, 'linkPhotoReport'])->name('reports.photos.link');
+    Route::post('reports/{report}/unlink-photo-report', [PhotoController::class, 'unlinkPhotoReport'])->name('reports.photos.unlink');
 
     Route::middleware('can:manage-forms')->prefix('admin')->name('admin.')->group(function () {
         Route::get('forms', [FormController::class, 'index'])->name('forms.index');

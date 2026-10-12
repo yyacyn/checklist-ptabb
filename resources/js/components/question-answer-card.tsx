@@ -558,34 +558,38 @@ export function QuestionAnswerCard({
                 </div>
             )}
 
-            {/* Photographic Evidence Strip */}
-            <div className="mt-3 pt-2.5 border-t border-border/40 flex items-center justify-between gap-3 flex-wrap">
-                <div className="space-y-1">
-                    <span className="text-[11px] font-semibold text-muted-foreground uppercase tracking-wider flex items-center gap-1.5">
-                        <Camera className="size-3 text-primary" />
-                        <span>Photographic Evidence:</span>
-                    </span>
-                    <PhotoEvidenceStrip
-                        photos={attachedPhotos}
-                        isEditable={isEditable && !isLockedNA}
-                        onAttachClick={() => setEvidenceModalOpen(true)}
-                        onDetachPhoto={handleDetachPhoto}
-                    />
+            {/* Attached Photographic Evidence (only visible when photos are attached) */}
+            {attachedPhotos.length > 0 && (
+                <div className="mt-3 pt-2.5 border-t border-border/40 flex items-center justify-between gap-3 flex-wrap">
+                    <div className="space-y-1">
+                        <span className="text-[11px] font-semibold text-muted-foreground uppercase tracking-wider flex items-center gap-1.5">
+                            <Camera className="size-3 text-primary" />
+                            <span>Attached Evidence ({attachedPhotos.length}):</span>
+                        </span>
+                        <PhotoEvidenceStrip
+                            photos={attachedPhotos}
+                            isEditable={isEditable && !isLockedNA}
+                            onAttachClick={() => setEvidenceModalOpen(true)}
+                            onDetachPhoto={handleDetachPhoto}
+                        />
+                    </div>
                 </div>
-            </div>
+            )}
 
-            {/* Photo Evidence Modal */}
-            <PhotoEvidenceDialog
-                open={evidenceModalOpen}
-                onOpenChange={setEvidenceModalOpen}
-                reportId={reportId}
-                targetType="question"
-                targetId={question.id}
-                targetTitle={question.question_text}
-                reportPhotos={reportPhotos || []}
-                categories={photoCategories || []}
-                onPhotosUpdated={(updated) => onPhotosUpdated?.(updated)}
-            />
+            {/* Photo Evidence Modal (only if opened) */}
+            {evidenceModalOpen && (
+                <PhotoEvidenceDialog
+                    open={evidenceModalOpen}
+                    onOpenChange={setEvidenceModalOpen}
+                    reportId={reportId}
+                    targetType="question"
+                    targetId={question.id}
+                    targetTitle={question.question_text}
+                    reportPhotos={reportPhotos || []}
+                    categories={photoCategories || []}
+                    onPhotosUpdated={(updated) => onPhotosUpdated?.(updated)}
+                />
+            )}
         </div>
     );
 }

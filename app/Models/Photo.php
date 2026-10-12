@@ -40,6 +40,7 @@ use Illuminate\Database\Eloquent\SoftDeletes;
  */
 #[Fillable([
     'report_id',
+    'source_photo_id',
     'report_question_id',
     'finding_id',
     'photo_category_id',
@@ -73,6 +74,11 @@ class Photo extends Model
         });
     }
 
+    protected $appends = [
+        'file_url',
+        'thumbnail_url',
+    ];
+
     protected function casts(): array
     {
         return [
@@ -81,6 +87,24 @@ class Photo extends Model
             'sort_order' => 'integer',
             'captured_at' => 'datetime',
         ];
+    }
+
+    public function getFileUrlAttribute(): ?string
+    {
+        if (!$this->file_path) {
+            return null;
+        }
+
+        return asset('storage/' . $this->file_path);
+    }
+
+    public function getThumbnailUrlAttribute(): ?string
+    {
+        if ($this->thumbnail_path) {
+            return asset('storage/' . $this->thumbnail_path);
+        }
+
+        return $this->file_url;
     }
 
     public function report(): BelongsTo
@@ -106,5 +130,10 @@ class Photo extends Model
     public function uploader(): BelongsTo
     {
         return $this->belongsTo(User::class, 'uploaded_by');
+    }
+
+    public function sourcePhoto(): BelongsTo
+    {
+        return $this->belongsTo(Photo::class, 'source_photo_id');
     }
 }

@@ -28,7 +28,12 @@ import { Input } from '@/components/ui/input';
 import { Label } from '@/components/ui/label';
 import { Select, SelectContent, SelectItem, SelectTrigger, SelectValue } from '@/components/ui/select';
 import { compressImage, formatFileSize } from '@/lib/image-compressor';
-import type { PhotoCategoryItem, PhotoRecord } from '@/components/photo-chapter-section';
+import {
+    getPhotoFullSrc,
+    getPhotoThumbnailSrc,
+    type PhotoCategoryItem,
+    type PhotoRecord,
+} from '@/components/photo-chapter-section';
 
 interface PhotoEvidenceDialogProps {
     open: boolean;
@@ -474,7 +479,7 @@ export function PhotoEvidenceDialog({
                                                         onClick={() => setPreviewPhoto(photo)}
                                                     >
                                                         <img
-                                                            src={photo.thumbnail_url || photo.file_url}
+                                                            src={getPhotoThumbnailSrc(photo)}
                                                             alt={photo.title || `Photo #${photo.item_no}`}
                                                             className="w-full h-full object-cover"
                                                             loading="lazy"
@@ -547,7 +552,7 @@ export function PhotoEvidenceDialog({
                         <X className="size-6" />
                     </button>
                     <img
-                        src={previewPhoto.file_url || previewPhoto.thumbnail_url}
+                        src={getPhotoFullSrc(previewPhoto)}
                         alt={previewPhoto.title || `Photo #${previewPhoto.item_no}`}
                         className="max-h-[80vh] max-w-[90vw] object-contain rounded-lg shadow-2xl"
                     />
@@ -563,13 +568,15 @@ export function PhotoEvidenceDialog({
 }
 
 /**
- * Compact inline strip showing attached photo thumbnails with preview and detach options
+ * Compact inline strip showing attached photo thumbnails with preview, direct multi-upload, and detach options
  */
 interface PhotoEvidenceStripProps {
     photos: PhotoRecord[];
     isEditable?: boolean;
     onAttachClick: () => void;
     onDetachPhoto?: (photo: PhotoRecord) => void;
+    onUploadPhotos?: (files: FileList | File[]) => void;
+    isUploading?: boolean;
 }
 
 export function PhotoEvidenceStrip({
@@ -577,8 +584,11 @@ export function PhotoEvidenceStrip({
     isEditable = true,
     onAttachClick,
     onDetachPhoto,
+    onUploadPhotos,
+    isUploading = false,
 }: PhotoEvidenceStripProps) {
     const [previewPhoto, setPreviewPhoto] = useState<PhotoRecord | null>(null);
+    const fileInputRef = useRef<HTMLInputElement | null>(null);
 
     return (
         <>
@@ -589,7 +599,7 @@ export function PhotoEvidenceStrip({
                         className="group relative rounded-md border bg-muted/30 overflow-hidden w-12 h-12 shadow-2xs hover:border-primary/50 transition-all shrink-0"
                     >
                         <img
-                            src={photo.thumbnail_url || photo.file_url}
+                            src={getPhotoThumbnailSrc(photo)}
                             alt={photo.title || `Photo #${photo.item_no}`}
                             className="w-full h-full object-cover cursor-pointer group-hover:scale-105 transition-transform"
                             onClick={() => setPreviewPhoto(photo)}
@@ -620,17 +630,56 @@ export function PhotoEvidenceStrip({
                     </div>
                 ))}
 
+                {isEditable && onUploadPhotos && (
+                    <>
+                        <input
+                            ref={fileInputRef}
+                            type="file"
+                            multiple
+                            accept="image/jpeg,image/png,image/webp,image/heic,image/heif"
+                            className="hidden"
+                            onChange={(e) => {
+                                if (e.target.files && e.target.files.length > 0) {
+                                    onUploadPhotos(e.target.files);
+                                    e.target.value = '';
+                                }
+                            }}
+                        />
+                        <Button
+                            type="button"
+                            variant="outline"
+                            size="sm"
+                            disabled={isUploading}
+                            onClick={() => fileInputRef.current?.click()}
+                            className="h-8 text-xs gap-1.5 border-dashed text-primary hover:text-primary hover:border-primary/50 font-medium"
+                            title="Upload multiple photos directly"
+                        >
+                            {isUploading ? (
+                                <>
+                                    <Loader2 className="size-3.5 animate-spin text-primary" />
+                                    <span>Uploading...</span>
+                                </>
+                            ) : (
+                                <>
+                                    <UploadCloud className="size-3.5 text-primary" />
+                                    <span>Upload Photos</span>
+                                </>
+                            )}
+                        </Button>
+                    </>
+                )}
+
                 {isEditable && (
                     <Button
                         type="button"
-                        variant="outline"
+                        variant="ghost"
                         size="sm"
                         onClick={onAttachClick}
-                        className="h-8 text-xs gap-1.5 border-dashed text-muted-foreground hover:text-foreground hover:border-primary/50"
-                        title="Attach photographic evidence"
+                        className="h-8 text-xs gap-1.5 text-muted-foreground hover:text-foreground"
+                        title="Link from report photo library"
                     >
-                        <Camera className="size-3.5 text-primary" />
-                        <span>{photos.length > 0 ? '+ Add Photo' : 'Attach Photo Evidence'}</span>
+                        <Camera className="size-3.5 text-muted-foreground" />
+                        <span>Library</span>
                     </Button>
                 )}
             </div>
@@ -649,7 +698,7 @@ export function PhotoEvidenceStrip({
                         <X className="size-6" />
                     </button>
                     <img
-                        src={previewPhoto.file_url || previewPhoto.thumbnail_url}
+                        src={getPhotoFullSrc(previewPhoto)}
                         alt={previewPhoto.title || `Photo #${previewPhoto.item_no}`}
                         className="max-h-[80vh] max-w-[90vw] object-contain rounded-lg shadow-2xl"
                     />

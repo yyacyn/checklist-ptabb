@@ -44,6 +44,7 @@ import {
 } from '@/components/reports';
 import type {
     AnswerData,
+    AvailablePhotoReport,
     ConflictData,
     FindingData,
     LockData,
@@ -80,6 +81,7 @@ interface Props {
     initial_lock?: LockData | null;
     can_delete?: boolean;
     photo_categories?: PhotoCategoryItem[];
+    available_photo_reports?: AvailablePhotoReport[];
 }
 
 export default function ReportDataEntry({
@@ -88,7 +90,10 @@ export default function ReportDataEntry({
     initial_lock = null,
     can_delete = false,
     photo_categories = [],
+    available_photo_reports = [],
 }: Props) {
+    const [linkedPhotoReport, setLinkedPhotoReport] = useState(report.linked_photo_report || null);
+
     // Advisory edit lock state (NFR-15)
     const [lockState, setLockState] = useState<LockData | null>(initial_lock);
 
@@ -796,13 +801,50 @@ export default function ReportDataEntry({
     const overallStats = useMemo(() => {
         let totalApplicable = 0;
         let totalAnswered = 0;
-        Object.values(chapterStats).forEach((s) => {
-            totalApplicable += s.applicable;
-            totalAnswered += s.answered;
-        });
+
+        if (isPhotoForm) {
+            // Photo Form: progress is based on configured photo slots
+            const slots = photoSchema.items || [];
+            totalApplicable = slots.length;
+            totalAnswered = slots.filter((slot, idx) => {
+                const slotNo = idx + 1;
+                return photos.some(
+                    (p) =>
+                        p.item_no === slotNo ||
+                        (p.title && p.title.toLowerCase() === slot.title.toLowerCase())
+                );
+            }).length;
+
+            // Freeform photo form fallback (no defined slots in template)
+            if (totalApplicable === 0 && photos.length > 0) {
+                totalApplicable = photos.length;
+                totalAnswered = photos.length;
+            }
+        } else {
+            // Standard Form: progress is based on question answers
+            Object.values(chapterStats).forEach((s) => {
+                totalApplicable += s.applicable;
+                totalAnswered += s.answered;
+            });
+
+            // If the standard form also has configured photo slots in its photo chapter
+            if (photoSchema.enabled && photoSchema.items && photoSchema.items.length > 0) {
+                const slots = photoSchema.items;
+                totalApplicable += slots.length;
+                totalAnswered += slots.filter((slot, idx) => {
+                    const slotNo = idx + 1;
+                    return photos.some(
+                        (p) =>
+                            p.item_no === slotNo ||
+                            (p.title && p.title.toLowerCase() === slot.title.toLowerCase())
+                    );
+                }).length;
+            }
+        }
+
         const percent = totalApplicable > 0 ? Math.round((totalAnswered / totalApplicable) * 100) : 0;
         return { totalApplicable, totalAnswered, percent };
-    }, [chapterStats]);
+    }, [chapterStats, isPhotoForm, photoSchema, photos]);
 
     return (
         <>
@@ -870,6 +912,9 @@ export default function ReportDataEntry({
                                         description: f.description,
                                     }))}
                                     onPhotosChange={setPhotos}
+                                    linkedReport={linkedPhotoReport}
+                                    availableReports={available_photo_reports}
+                                    onLinkedReportChange={setLinkedPhotoReport}
                                 />
                                 {prevChapter && (
                                     <div className="flex justify-between pt-2 pb-4">

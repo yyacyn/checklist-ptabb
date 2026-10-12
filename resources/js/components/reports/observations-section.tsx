@@ -354,6 +354,51 @@ export function ObservationsSection({
         }
     };
 
+    const [uploadingFindingId, setUploadingFindingId] = useState<number | null>(null);
+
+    const handleDirectUploadFindingPhotos = async (findingId: number, files: FileList | File[]) => {
+        const fileArr = Array.from(files);
+        if (fileArr.length === 0) return;
+
+        setUploadingFindingId(findingId);
+        try {
+            const formData = new FormData();
+            for (let i = 0; i < fileArr.length; i++) {
+                formData.append('files[]', fileArr[i]);
+            }
+            formData.append('finding_id', String(findingId));
+            formData.append('title', `Obs #${findingId} Evidence`);
+            formData.append('caption', `Obs #${findingId} Evidence`);
+
+            const csrfToken =
+                (document.querySelector('meta[name="csrf-token"]') as HTMLMetaElement)?.content || '';
+            const res = await fetch(`/reports/${report.id}/photos`, {
+                method: 'POST',
+                headers: {
+                    'X-CSRF-TOKEN': csrfToken,
+                    Accept: 'application/json',
+                },
+                body: formData,
+            });
+
+            if (res.ok) {
+                const data = await res.json();
+                const newPhotos: PhotoRecord[] = data.photos || (data.photo ? [data.photo] : []);
+                if (newPhotos.length > 0) {
+                    onPhotosUpdated?.([...(reportPhotos || []), ...newPhotos]);
+                }
+            } else {
+                const errData = await res.json().catch(() => null);
+                alert(errData?.message || 'Failed to upload photos to finding.');
+            }
+        } catch (err) {
+            console.error('Failed to upload photos:', err);
+            alert('Failed to upload photos to finding.');
+        } finally {
+            setUploadingFindingId(null);
+        }
+    };
+
     return (
         <div className="max-w-5xl mx-auto space-y-8">
             {/* Header Banner */}
@@ -692,6 +737,8 @@ export function ObservationsSection({
                                                         onDetachPhoto={(photo) => {
                                                             void handleDetachPhotoFromFinding(photo);
                                                         }}
+                                                        onUploadPhotos={(files) => handleDirectUploadFindingPhotos(f.id, files)}
+                                                        isUploading={uploadingFindingId === f.id}
                                                     />
                                                 </div>
                                             </div>

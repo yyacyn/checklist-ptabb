@@ -50,11 +50,6 @@ export function AppSidebar() {
             href: '/findings',
             icon: ShieldAlert,
         },
-        {
-            title: 'Photo Gallery',
-            href: '/photos',
-            icon: Camera,
-        },
         ...(isSuperadmin
             ? [
                   {

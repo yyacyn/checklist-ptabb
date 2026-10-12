@@ -180,6 +180,36 @@ export interface ReportData {
     summary_safety_meetings?: string | null;
     summary_participants?: string | null;
     summary_concept_understanding?: string | null;
-    summary_training_needs?: string | null;
     summary_data?: Record<string, string> | null;
+    linked_photo_report_id?: number | null;
+    linked_photo_report?: {
+        id: number;
+        reference_number: string;
+        vessel_name: string;
+        report_date: string | null;
+        status: string;
+        form?: {
+            id: number;
+            code: string;
+            name: string;
+            form_type?: string;
+        } | null;
+    } | null;
+}
+
+export interface AvailablePhotoReport {
+    id: number;
+    reference_number: string;
+    vessel_name: string;
+    report_date: string | null;
+    status: string;
+    form_code?: string;
+    form_name?: string;
+    form_type?: 'standard' | 'photo';
+    photos_count: number;
+    preview_photos: Array<{
+        id: number;
+        title: string | null;
+        thumbnail_url?: string;
+    }>;
 }

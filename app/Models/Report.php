@@ -44,6 +44,7 @@ use Illuminate\Database\Eloquent\SoftDeletes;
 #[Fillable([
     'report_type',
     'form_id',
+    'linked_photo_report_id',
     'template_version',
     'reference_number',
     'status',
@@ -193,5 +194,10 @@ class Report extends Model
     public function photos(): HasMany
     {
         return $this->hasMany(Photo::class)->orderBy('sort_order')->orderBy('item_no')->orderBy('id');
+    }
+
+    public function linkedPhotoReport(): BelongsTo
+    {
+        return $this->belongsTo(Report::class, 'linked_photo_report_id');
     }
 }
