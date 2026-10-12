@@ -18,6 +18,8 @@ export interface PhotoSchema {
     title?: string;
     description?: string;
     attached_form_id?: number | null;
+    attached_form_code?: string | null;
+    attached_form_name?: string | null;
     items?: PhotoFormItem[];
     allowed_categories?: string[];
 }
@@ -207,6 +209,7 @@ export interface AvailablePhotoReport {
     form_name?: string;
     form_type?: 'standard' | 'photo';
     photos_count: number;
+    is_same_vessel?: boolean;
     preview_photos: Array<{
         id: number;
         title: string | null;

@@ -598,4 +598,141 @@ class PhotoTest extends TestCase
         // Original photo in source report must still exist
         $this->assertDatabaseHas('photos', ['id' => $sourcePhoto->id, 'deleted_at' => null]);
     }
+
+    public function test_uploading_photo_transitions_draft_report_to_in_progress(): void
+    {
+        $this->assertEquals('draft', $this->report->status);
+
+        $fakeImage = UploadedFile::fake()->image('test.jpg');
+        $this->actingAs($this->inspector)->postJson("/reports/{$this->report->id}/photos", [
+            'file' => $fakeImage,
+            'item_no' => 1,
+            'title' => 'Test Photo',
+        ])->assertStatus(201);
+
+        $this->assertEquals('in_progress', $this->report->fresh()->status);
+    }
+
+    public function test_submit_photo_report_requires_all_schema_items_uploaded(): void
+    {
+        // Create a standalone photo report with 2 items in photo_schema
+        $photoForm = Form::factory()->create([
+            'code' => 'P-TEST',
+            'form_type' => 'photo',
+            'photo_schema' => [
+                'items' => [
+                    ['item_no' => 1, 'title' => 'Bow'],
+                    ['item_no' => 2, 'title' => 'Stern'],
+                ],
+            ],
+        ]);
+
+        $photoReport = Report::create([
+            'report_type' => 'inspection',
+            'form_id' => $photoForm->id,
+            'template_version' => 1,
+            'reference_number' => 'P-TEST-001',
+            'status' => 'draft',
+            'vessel_name' => 'MV Oceanic Star',
+            'report_date' => now()->toDateString(),
+            'created_by' => $this->inspector->id,
+        ]);
+
+        // Attempt submit when 0 photos uploaded -> should fail 422
+        $response = $this->actingAs($this->inspector)->postJson("/reports/{$photoReport->id}/submit");
+        $response->assertStatus(422)
+            ->assertJsonValidationErrors(['status']);
+
+        // Upload photo 1
+        Photo::create([
+            'report_id' => $photoReport->id,
+            'vessel_name' => $photoReport->vessel_name,
+            'item_no' => 1,
+            'title' => 'Bow',
+            'original_filename' => 'test1.jpg',
+            'file_path' => 'photos/test1.jpg',
+            'file_size' => 1024,
+            'mime_type' => 'image/jpeg',
+            'uploaded_by' => $this->inspector->id,
+            'sort_order' => 1,
+        ]);
+
+        // Still missing item 2 -> should fail 422
+        $this->actingAs($this->inspector)->postJson("/reports/{$photoReport->id}/submit")
+            ->assertStatus(422);
+
+        // Upload photo 2
+        Photo::create([
+            'report_id' => $photoReport->id,
+            'vessel_name' => $photoReport->vessel_name,
+            'item_no' => 2,
+            'title' => 'Stern',
+            'original_filename' => 'test2.jpg',
+            'file_path' => 'photos/test2.jpg',
+            'file_size' => 1024,
+            'mime_type' => 'image/jpeg',
+            'uploaded_by' => $this->inspector->id,
+            'sort_order' => 2,
+        ]);
+
+        // Now all items are fulfilled -> submit succeeds 200
+        $submitResponse = $this->actingAs($this->inspector)->postJson("/reports/{$photoReport->id}/submit");
+        $submitResponse->assertStatus(200)
+            ->assertJsonPath('status', 'success');
+
+        $this->assertEquals('submitted', $photoReport->fresh()->status);
+        $this->assertNotNull($photoReport->fresh()->submitted_at);
+    }
+
+    public function test_photo_modifications_are_forbidden_when_report_is_submitted_or_closed(): void
+    {
+        $photo = Photo::create([
+            'report_id' => $this->report->id,
+            'vessel_name' => $this->report->vessel_name,
+            'item_no' => 1,
+            'title' => 'Test Photo',
+            'original_filename' => 'test.jpg',
+            'file_path' => 'photos/test.jpg',
+            'file_size' => 1024,
+            'mime_type' => 'image/jpeg',
+            'uploaded_by' => $this->inspector->id,
+            'sort_order' => 1,
+        ]);
+
+        // Submit the report
+        $this->report->update(['status' => 'submitted']);
+
+        // 1. Uploading a new photo must be forbidden (403)
+        $file = UploadedFile::fake()->image('new.jpg');
+        $this->actingAs($this->inspector)
+            ->postJson("/reports/{$this->report->id}/photos", [
+                'photos' => [$file],
+            ])
+            ->assertStatus(403);
+
+        // 2. Editing photo metadata must be forbidden (403)
+        $this->actingAs($this->inspector)
+            ->putJson("/reports/{$this->report->id}/photos/{$photo->id}", [
+                'title' => 'Updated Title',
+            ])
+            ->assertStatus(403);
+
+        // 3. Deleting a photo must be forbidden (403)
+        $this->actingAs($this->inspector)
+            ->deleteJson("/reports/{$this->report->id}/photos/{$photo->id}")
+            ->assertStatus(403);
+
+        // 4. Reordering photos must be forbidden (403)
+        $this->actingAs($this->inspector)
+            ->postJson("/reports/{$this->report->id}/photos/reorder", [
+                'order' => [$photo->id],
+            ])
+            ->assertStatus(403);
+
+        // 5. Unlinking photo report must be forbidden (403)
+        $this->actingAs($this->inspector)
+            ->postJson("/reports/{$this->report->id}/unlink-photo-report")
+            ->assertStatus(403);
+    }
 }
+

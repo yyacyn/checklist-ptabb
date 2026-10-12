@@ -108,18 +108,49 @@ class ReportStatusService
             }
         }
 
-        // 4. RLS-2: 'submitted' requires every applicable question answered
+        // 4. RLS-2: 'submitted' requires every applicable question answered (or photo items satisfied)
         if ($targetStatus === ReportStatus::Submitted->value) {
-            $unanswered = static::getUnansweredApplicableQuestions($report);
-            if ($unanswered->isNotEmpty()) {
-                throw ValidationException::withMessages([
-                    'status' => [
-                        sprintf(
-                            'Cannot submit report: %d applicable question(s) remain unanswered (RLS-2).',
-                            $unanswered->count()
-                        ),
-                    ],
-                ]);
+            $isPhotoForm = $report->form && $report->form->form_type === 'photo';
+
+            if ($isPhotoForm) {
+                $schemaItems = $report->form->photo_schema['items'] ?? [];
+                if (!empty($schemaItems)) {
+                    $uploadedItemNos = $report->photos()->pluck('item_no')->unique()->toArray();
+                    $missingSlots = [];
+                    foreach ($schemaItems as $idx => $slot) {
+                        $slotNo = $idx + 1;
+                        if (!in_array($slotNo, $uploadedItemNos)) {
+                            $missingSlots[] = "#{$slotNo} " . ($slot['title'] ?? 'Item');
+                        }
+                    }
+                    if (!empty($missingSlots)) {
+                        throw ValidationException::withMessages([
+                            'status' => [
+                                sprintf(
+                                    'Cannot submit photo report: %d required photo item(s) are missing (%s).',
+                                    count($missingSlots),
+                                    implode(', ', array_slice($missingSlots, 0, 3)) . (count($missingSlots) > 3 ? '...' : '')
+                                ),
+                            ],
+                        ]);
+                    }
+                } elseif ($report->photos()->count() === 0) {
+                    throw ValidationException::withMessages([
+                        'status' => ['Cannot submit photo report: at least one photo is required.'],
+                    ]);
+                }
+            } else {
+                $unanswered = static::getUnansweredApplicableQuestions($report);
+                if ($unanswered->isNotEmpty()) {
+                    throw ValidationException::withMessages([
+                        'status' => [
+                            sprintf(
+                                'Cannot submit report: %d applicable question(s) remain unanswered (RLS-2).',
+                                $unanswered->count()
+                            ),
+                        ],
+                    ]);
+                }
             }
         }
 

@@ -18,7 +18,7 @@ class ReportPolicy
     public function before(User $user, string $ability): ?bool
     {
         if ($user->role === 'superadmin') {
-            if ($ability === 'delete') {
+            if ($ability === 'delete' || $ability === 'update') {
                 return null;
             }
 
@@ -80,6 +80,10 @@ class ReportPolicy
         $status = ReportStatus::tryFrom($report->status);
         if ($status === null || ! $status->isEditable()) {
             return false;
+        }
+
+        if ($user->role === 'superadmin') {
+            return true;
         }
 
         if ($user->role === 'corporate') {

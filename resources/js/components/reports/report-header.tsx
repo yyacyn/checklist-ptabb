@@ -15,6 +15,7 @@ import React from 'react';
 import { Badge } from '@/components/ui/badge';
 import { Button } from '@/components/ui/button';
 import { Input } from '@/components/ui/input';
+import { ReportStatusBadge } from './report-status-badge';
 import type { QueueSyncState } from '@/lib/autosave-queue';
 import { formatDate } from '@/lib/question-utils';
 import type { LockData, ReportData } from '@/types';
@@ -39,6 +40,7 @@ export interface ReportHeaderProps {
     onDeleteClick?: () => void;
     lockState: LockData | null;
     onAcquireLock: (takeOver?: boolean) => void;
+    isEditable?: boolean;
 }
 
 export function ReportHeader({
@@ -57,6 +59,7 @@ export function ReportHeader({
     onDeleteClick,
     lockState,
     onAcquireLock,
+    isEditable = true,
 }: ReportHeaderProps) {
     return (
         <>
@@ -90,6 +93,7 @@ export function ReportHeader({
                                 <Badge variant="secondary" className="text-[10px] px-1.5 py-0 shrink-0 font-medium">
                                     {report.form.code}
                                 </Badge>
+                                <ReportStatusBadge status={report.status} className="text-[10px] px-1.5 py-0 shrink-0" />
                             </div>
                             <p className="text-[11px] text-muted-foreground truncate">
                                 Inspection Date: {formatDate(report.report_date)} • {report.form.code} v{report.template_version}
@@ -185,7 +189,9 @@ export function ReportHeader({
                         </Button>
 
                         {/* Delete Draft Action */}
-                        {canDelete && (
+
+
+                        {canDelete && isEditable && (
                             <>
                                 <div className="h-4 w-px bg-border shrink-0" />
                                 <Button

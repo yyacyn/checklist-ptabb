@@ -1,5 +1,6 @@
 import {
     Camera,
+    CheckCircle2,
     Image as ImageIcon,
     Link2,
     Loader2,
@@ -101,6 +102,7 @@ interface PhotoChapterSectionProps {
     description?: string;
     isPhotoForm?: boolean;
     isEditable?: boolean;
+    photoFormCode?: string;
     photos: PhotoRecord[];
     schemaItems?: Array<{ id?: string; title: string; description?: string }>;
     categories?: PhotoCategoryItem[];
@@ -126,6 +128,7 @@ export function PhotoChapterSection({
     description = 'Photographic evidence and vessel condition records.',
     isPhotoForm = false,
     isEditable = true,
+    photoFormCode = 'P-001',
     photos = [],
     schemaItems = [],
     onPhotosChange,
@@ -445,17 +448,13 @@ export function PhotoChapterSection({
                         )}
                     </div>
 
-                    {!isPhotoForm && isEditable && !currentLinkedReport && (
-                        <Button
-                            type="button"
-                            variant="outline"
-                            size="sm"
-                            onClick={handleOpenImportDialog}
-                            className="h-8 gap-1.5 text-xs font-medium self-start sm:self-center bg-background"
-                        >
-                            <Link2 className="size-3.5 text-primary" />
-                            <span>Use Photos from Existing Form</span>
-                        </Button>
+                    {!isPhotoForm && (
+                        <div className="flex items-center gap-1.5 self-start sm:self-center">
+                            <span className="text-xs text-muted-foreground font-medium">Template:</span>
+                            <Badge variant="outline" className="font-mono text-xs font-semibold px-2 py-0.5">
+                                {photoFormCode || 'P-001'}
+                            </Badge>
+                        </div>
                     )}
                 </div>
             </CardHeader>
@@ -532,7 +531,7 @@ export function PhotoChapterSection({
                                 <h4 className="text-sm font-bold text-foreground">Set Up Photographic Evidence</h4>
                             </div>
                             <p className="text-xs text-muted-foreground max-w-xl">
-                                Would you like to use and link photos from an existing photo report for this vessel (e.g. P-001), or start clean and upload photos directly?
+                                Would you like to use and link photos from an existing photo report for this vessel (e.g. {photoFormCode || 'P-001'}), or start clean and upload photos directly?
                             </p>
                         </div>
                         <div className="flex items-center gap-2 shrink-0 flex-wrap">
@@ -936,20 +935,17 @@ export function PhotoChapterSection({
                                 <div className="space-y-1">
                                     <p className="text-sm font-semibold text-foreground">No Photo Reports Found</p>
                                     <p className="text-xs text-muted-foreground max-w-sm mx-auto">
-                                        There are no existing reports with photos for this vessel yet. You can start clean and upload photos directly.
+                                        There are no reports with photos available to import yet.
                                     </p>
                                 </div>
                                 <Button
                                     type="button"
                                     variant="outline"
                                     size="sm"
-                                    onClick={() => {
-                                        setIsImportDialogOpen(false);
-                                        setDismissedSetupPrompt(true);
-                                    }}
+                                    onClick={() => setIsImportDialogOpen(false)}
                                     className="text-xs"
                                 >
-                                    Start Clean
+                                    Close
                                 </Button>
                             </div>
                         ) : (
@@ -980,6 +976,14 @@ export function PhotoChapterSection({
                                                         <Badge variant="secondary" className="text-[11px] font-mono">
                                                             {r.photos_count} photo{r.photos_count !== 1 ? 's' : ''}
                                                         </Badge>
+                                                        <Badge variant="secondary" className="text-[11px] font-medium">
+                                                            {r.vessel_name}
+                                                        </Badge>
+                                                        {r.is_same_vessel && (
+                                                            <Badge variant="outline" className="text-emerald-600 border-emerald-500/40 text-[10px] font-semibold">
+                                                                This Vessel
+                                                            </Badge>
+                                                        )}
                                                         {isCurrent && (
                                                             <Badge variant="outline" className="text-emerald-600 border-emerald-500/40 text-[10px] font-semibold">
                                                                 Currently Linked

@@ -2,6 +2,7 @@ import {
     AlertTriangle,
     Camera,
     Check,
+    CheckCircle2,
     ChevronLeft,
     ChevronRight,
     Edit2,
@@ -916,6 +917,8 @@ export function ObservationsSection({
                     </form>
                 </DialogContent>
             </Dialog>
+
+
 
             {/* Previous Chapter Navigation */}
             {prevChapter && (

@@ -136,9 +136,9 @@ This is the phase users feel. Budget it properly.
 | 5.7 | Queued optimizer job: auto-orient, recompress, metadata strip, 400 px thumbnail generation | **done**: `ImageOptimizer` service with GD auto-orient, recompression, EXIF strip & 400px thumbnail generator (IMG-3, IMG-5, IMG-6) |
 | 5.8 | **Fleet Photo Gallery (`/photos`)**: Browse, search, and filter photos by vessel, category, date, and report; role-scoped for vessel users | **done**: `resources/js/pages/photos/index.tsx`, role scoping for vessel users, filters, lightbox inspection (PHO-4, PHO-8) |
 | 5.9 | **Cross-Form Attachment**: 1-click attach/link photo records to checklist questions (as evidence) or findings (as defect/closeout proof) | **done**: `PhotoEvidenceDialog` & `PhotoEvidenceStrip`, 1-click modal for direct upload or library linking, eager loading in `ReportController`, cross-linking in questions, observations, and photo chapter (PHO-5, AUD-10) |
-| 5.10 | Chapter 16 Photo ordering and selection by inspector for PDF export appendix | PHO-6, REP-3 |
-| 5.11 | Soft delete with reason, photo record locking at `submitted` status | PHO-7, RLS-4 |
-| 5.12 | Comprehensive test suite (upload limits, multi-upload queues, thumbnail generation, role scoping) | IMG-8 |
+| 5.10 | **Automatic Photo Appendix Sequencing**: all photos attached to the Photo Chapter are rendered sequentially by item number/category into the PDF appendix (manual include/exclude toggle dropped as unnecessary friction) | **done**: automatic sequential ordering by item_no/slot in Photo Chapter (PHO-6, REP-3) |
+| 5.11 | Soft delete with reason, photo record locking at `submitted` status | **done**: `SoftDeletes` with `delete_reason` on `Photo`, activity log audit trail, `ReportPolicy` locks photo add/edit/delete/reorder/unlink on `submitted` and `closed` (PHO-7, RLS-4) |
+| 5.12 | Comprehensive test suite (upload limits, multi-upload queues, thumbnail generation, role scoping, locking) | **done**: 17 `PhotoTest` suite cases verifying upload constraints, thumbnails, role scoping, and submit locking (IMG-8) |
 
 ---
 
@@ -233,17 +233,17 @@ These are needed at specific points. Late answers cost rework, not just delay.
 
 ## 3. Risk register
 
-| Risk | Impact | Mitigation |
-| --- | --- | --- |
-| Parser misses questions or mis-merges "(continuing)" tables | Whole app built on a wrong template | S1 first, human review of the review file, source keys for traceability |
-| PDF layout does not fit host limits | v1 slips by weeks | S2 first. REP-8 appendix split is pre-approved, not a debate |
-| `upload_max_filesize` smaller than a resized photo | Uploads fail at sea | S3 first. Client-side resize is already mandatory (SRS 13.1); the spike measures the real ceiling and sets target edge and quality to fit under it |
-| A queue job killed by the host's `memory_limit` or `max_execution_time` | Photo stuck in `processing` | Separate queue, explicit `failed` state with retry. Nothing is lost because the original never left the phone |
-| Photo pipeline exceeds shared memory | Uploads fail on the ship | S3 first, megapixel cap with a clear message, client-side resize doing all the heavy work |
-| Vessel name typos break access control | Crew cannot see their own records | Pick-from-list for vessel users, normalisation, superadmin notified on unmatched names |
-| VSAT too slow to be usable in the field | Users go back to Word | NFR-13 measured on a throttled link before v1 ships, not after |
-| Scope creep into v1.1 features | v1 never ships | The non-goals list in SRS §16.1 exists to be quoted back |
-| Findings close-out loop has no notification | Findings pile up unclosed | Explicitly accepted for v1; the dashboard surfaces them (REP-5, v1.1) |
+| Risk                                                                    | Impact                              | Mitigation                                                                                                                                         |
+| ----------------------------------------------------------------------- | ----------------------------------- | -------------------------------------------------------------------------------------------------------------------------------------------------- |
+| Parser misses questions or mis-merges "(continuing)" tables             | Whole app built on a wrong template | S1 first, human review of the review file, source keys for traceability                                                                            |
+| PDF layout does not fit host limits                                     | v1 slips by weeks                   | S2 first. REP-8 appendix split is pre-approved, not a debate                                                                                       |
+| `upload_max_filesize` smaller than a resized photo                      | Uploads fail at sea                 | S3 first. Client-side resize is already mandatory (SRS 13.1); the spike measures the real ceiling and sets target edge and quality to fit under it |
+| A queue job killed by the host's `memory_limit` or `max_execution_time` | Photo stuck in `processing`         | Separate queue, explicit `failed` state with retry. Nothing is lost because the original never left the phone                                      |
+| Photo pipeline exceeds shared memory                                    | Uploads fail on the ship            | S3 first, megapixel cap with a clear message, client-side resize doing all the heavy work                                                          |
+| Vessel name typos break access control                                  | Crew cannot see their own records   | Pick-from-list for vessel users, normalisation, superadmin notified on unmatched names                                                             |
+| VSAT too slow to be usable in the field                                 | Users go back to Word               | NFR-13 measured on a throttled link before v1 ships, not after                                                                                     |
+| Scope creep into v1.1 features                                          | v1 never ships                      | The non-goals list in SRS §16.1 exists to be quoted back                                                                                           |
+| Findings close-out loop has no notification                             | Findings pile up unclosed           | Explicitly accepted for v1; the dashboard surfaces them (REP-5, v1.1)                                                                              |
 
 ---
 

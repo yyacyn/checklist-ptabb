@@ -13,6 +13,7 @@ use App\Models\ReportQuestion;
 use App\Models\User;
 use App\Models\VesselType;
 use App\Services\ReportSnapshot;
+use App\Services\ReportStatusService;
 use App\Services\VesselName;
 use Illuminate\Http\JsonResponse;
 use Illuminate\Http\RedirectResponse;
@@ -294,12 +295,17 @@ class ReportController extends Controller
             ->orderBy('sort_order')
             ->get(['id', 'name', 'code']);
 
-        // Resolve attached photo form items if attached_form_id is specified
-        if ($report->form && !empty($report->form->photo_schema['attached_form_id'])) {
-            $attachedForm = Form::find($report->form->photo_schema['attached_form_id']);
-            if ($attachedForm && !empty($attachedForm->photo_schema['items'])) {
-                $schema = $report->form->photo_schema;
-                $schema['items'] = $attachedForm->photo_schema['items'];
+        // Resolve attached photo form items and code
+        if ($report->form && !empty($report->form->photo_schema)) {
+            $schema = $report->form->photo_schema;
+            $attachedFormId = $schema['attached_form_id'] ?? null;
+            $attachedForm = $attachedFormId ? Form::find($attachedFormId) : Form::where('form_type', 'photo')->first();
+            if ($attachedForm) {
+                if (!empty($attachedForm->photo_schema['items'])) {
+                    $schema['items'] = $attachedForm->photo_schema['items'];
+                }
+                $schema['attached_form_code'] = $attachedForm->code;
+                $schema['attached_form_name'] = $attachedForm->name;
                 $report->form->photo_schema = $schema;
             }
         }
@@ -307,18 +313,26 @@ class ReportController extends Controller
         // Available photo reports for the vessel to link/import if normal form
         $availablePhotoReports = [];
         if ($report->form?->form_type !== 'photo') {
-            $availablePhotoReports = Report::query()
-                ->whereRaw('LOWER(vessel_name) = ?', [mb_strtolower(VesselName::normalize($report->vessel_name))])
+            $currentUser = $request->user();
+            $normalizedVessel = mb_strtolower(VesselName::normalize($report->vessel_name));
+            $availableQuery = Report::query()
                 ->where('id', '!=', $report->id)
-                ->whereHas('photos')
+                ->whereHas('photos');
+
+            if ($currentUser && $currentUser->role === 'vessel') {
+                $availableQuery->whereRaw('LOWER(vessel_name) = ?', [$normalizedVessel]);
+            }
+
+            $availablePhotoReports = $availableQuery
                 ->with([
                     'form:id,code,name,form_type',
                     'photos' => fn ($q) => $q->orderBy('sort_order')->limit(4),
                 ])
                 ->withCount('photos')
+                ->orderByRaw('CASE WHEN LOWER(vessel_name) = ? THEN 0 ELSE 1 END', [$normalizedVessel])
                 ->orderByDesc('report_date')
                 ->orderByDesc('id')
-                ->limit(20)
+                ->limit(30)
                 ->get()
                 ->map(fn ($r) => [
                     'id' => $r->id,
@@ -330,6 +344,7 @@ class ReportController extends Controller
                     'form_name' => $r->form?->name,
                     'form_type' => $r->form?->form_type,
                     'photos_count' => $r->photos_count,
+                    'is_same_vessel' => mb_strtolower($r->vessel_name) === $normalizedVessel,
                     'preview_photos' => $r->photos->map(fn ($p) => [
                         'id' => $p->id,
                         'title' => $p->title,
@@ -355,6 +370,7 @@ class ReportController extends Controller
         return Inertia::render('reports/show', [
             'report' => $report,
             'is_editable' => $isEditable,
+            'can_submit' => in_array($report->status, ['draft', 'in_progress'], true) && $isEditable,
             'initial_lock' => $activeLock,
             'can_delete' => Gate::allows('delete', $report),
             'photo_categories' => $photoCategories,
@@ -727,5 +743,40 @@ class ReportController extends Controller
         });
 
         return redirect()->route('reports.index')->with('success', "Draft report {$report->reference_number} deleted successfully.");
+    }
+
+    /**
+     * Submit/finish a report (RLS-2, RLS-3, RLS-4).
+     */
+    public function submit(Request $request, Report $report): JsonResponse
+    {
+        Gate::authorize('update', $report);
+
+        // Release any active lock on submission
+        if ($report->lock_owner_id === $request->user()->id) {
+            $report->update([
+                'lock_owner_id' => null,
+                'lock_expires_at' => null,
+            ]);
+        }
+
+        $oldStatus = $report->status;
+        $report = ReportStatusService::transitionTo($report, ReportStatus::Submitted, $request->user());
+
+        ActivityLog::record(
+            entity: $report,
+            action: 'report_submitted',
+            field: 'status',
+            before: $oldStatus,
+            after: 'submitted',
+            reportId: $report->id
+        );
+
+        return response()->json([
+            'status' => 'success',
+            'message' => "Report {$report->reference_number} has been submitted successfully.",
+            'report_status' => $report->status,
+            'submitted_at' => $report->submitted_at?->toIso8601String(),
+        ]);
     }
 }

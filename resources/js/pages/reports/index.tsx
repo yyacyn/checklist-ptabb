@@ -16,6 +16,7 @@ import React, { useState, useRef, useEffect } from 'react';
 import Heading from '@/components/heading';
 import { Badge } from '@/components/ui/badge';
 import { Button } from '@/components/ui/button';
+import { ReportStatusBadge } from '@/components/reports';
 import { Card } from '@/components/ui/card';
 import {
     Dialog,
@@ -93,36 +94,7 @@ interface Props {
     known_vessels?: string[];
 }
 
-function getStatusBadge(status: string) {
-    switch (status) {
-        case 'draft':
-            return <Badge variant="secondary">Draft</Badge>;
-        case 'in_progress':
-            return <Badge variant="default">In Progress</Badge>;
-        case 'submitted':
-            return (
-                <Badge variant="outline" className="border-amber-500 text-amber-500">
-                    Submitted
-                </Badge>
-            );
-        case 'reviewed':
-            return (
-                <Badge variant="outline" className="border-blue-500 text-blue-500">
-                    Reviewed
-                </Badge>
-            );
-        case 'closed':
-            return (
-                <Badge variant="outline" className="border-green-600 text-green-600">
-                    Closed
-                </Badge>
-            );
-        case 'reopened':
-            return <Badge variant="destructive">Reopened</Badge>;
-        default:
-            return <Badge variant="outline">{status}</Badge>;
-    }
-}
+
 
 export default function ReportsIndex({
     reports,
@@ -468,7 +440,7 @@ export default function ReportsIndex({
                                                 {report.report_date}
                                             </td>
                                             <td className="px-4 py-3">
-                                                {getStatusBadge(report.status)}
+                                                <ReportStatusBadge status={report.status} />
                                             </td>
                                             <td className="px-4 py-3 text-right">
                                                 <div className="flex items-center justify-end gap-2">

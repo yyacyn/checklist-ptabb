@@ -26,6 +26,7 @@ Route::middleware(['auth', 'verified'])->group(function () {
     Route::post('reports/{report}/groups/{group}/comments', [ReportController::class, 'saveGroupComments'])->name('reports.groups.comments');
     Route::post('reports/{report}/lock', [ReportController::class, 'acquireLock'])->name('reports.lock.acquire');
     Route::delete('reports/{report}/lock', [ReportController::class, 'releaseLock'])->name('reports.lock.release');
+    Route::post('reports/{report}/submit', [ReportController::class, 'submit'])->name('reports.submit');
 
     // Findings & Chapter 15 Summary of Observations (Task 4.1, 4.2)
     Route::get('findings', [FindingController::class, 'index'])->name('findings.index');

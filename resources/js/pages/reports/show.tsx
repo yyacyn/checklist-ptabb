@@ -3,6 +3,7 @@ import {
     Check,
     ChevronLeft,
     ChevronRight,
+    Loader2,
     MessageSquare,
 } from 'lucide-react';
 import React, { useCallback, useEffect, useMemo, useRef, useState } from 'react';
@@ -78,6 +79,7 @@ export {
 interface Props {
     report: ReportData;
     is_editable: boolean;
+    can_submit?: boolean;
     initial_lock?: LockData | null;
     can_delete?: boolean;
     photo_categories?: PhotoCategoryItem[];
@@ -87,12 +89,17 @@ interface Props {
 export default function ReportDataEntry({
     report,
     is_editable = true,
+    can_submit = true,
     initial_lock = null,
     can_delete = false,
     photo_categories = [],
     available_photo_reports = [],
 }: Props) {
     const [linkedPhotoReport, setLinkedPhotoReport] = useState(report.linked_photo_report || null);
+    const [reportStatus, setReportStatus] = useState<string>(report.status);
+    const canSubmit = Boolean(
+        (reportStatus === 'draft' || reportStatus === 'in_progress') && (can_submit ?? is_editable)
+    );
 
     // Advisory edit lock state (NFR-15)
     const [lockState, setLockState] = useState<LockData | null>(initial_lock);
@@ -111,6 +118,48 @@ export default function ReportDataEntry({
                 setIsDeleteDialogOpen(false);
             },
         });
+    };
+
+    // Submit Report state (RLS-2, RLS-3, RLS-4)
+    const [isSubmitDialogOpen, setIsSubmitDialogOpen] = useState(false);
+    const [isSubmittingReport, setIsSubmittingReport] = useState(false);
+    const [submitError, setSubmitError] = useState<string | null>(null);
+
+    const handleSubmitReport = async () => {
+        if (reportStatus !== 'draft' && reportStatus !== 'in_progress') {
+            return;
+        }
+        setIsSubmittingReport(true);
+        setSubmitError(null);
+        try {
+            await flushSaveQueue(report.id);
+
+            const res = await fetch(`/reports/${report.id}/submit`, {
+                method: 'POST',
+                headers: {
+                    'Content-Type': 'application/json',
+                    Accept: 'application/json',
+                    ...csrfHeaders(),
+                    'X-Requested-With': 'XMLHttpRequest',
+                },
+            });
+
+            if (!res.ok) {
+                const errData = await res.json().catch(() => null);
+                const msg = errData?.errors?.status?.[0] || errData?.message || 'Failed to submit report.';
+                throw new Error(msg);
+            }
+
+            setReportStatus('submitted');
+            report.status = 'submitted';
+            setIsSubmitDialogOpen(false);
+            router.visit(window.location.href, { replace: true });
+        } catch (err: any) {
+            console.error('Submit report error:', err);
+            setSubmitError(err.message || 'Failed to submit report.');
+        } finally {
+            setIsSubmittingReport(false);
+        }
     };
 
     // Question edit conflicts state (NFR-15): questionId -> ConflictData
@@ -853,7 +902,7 @@ export default function ReportDataEntry({
             <div className="flex h-screen flex-col overflow-hidden bg-background">
                 {/* Top Sticky Header */}
                 <ReportHeader
-                    report={report}
+                    report={{ ...report, status: reportStatus }}
                     globalSyncState={globalSyncState}
                     isOffline={isOffline}
                     pendingQueueCount={pendingQueueCount}
@@ -871,6 +920,7 @@ export default function ReportDataEntry({
                     }}
                     lockState={lockState}
                     onAcquireLock={acquireLock}
+                    isEditable={is_editable}
                 />
 
                 {/* Main 2-Column Split: Sticky Sidebar (Left) + Current Group Form (Right) */}
@@ -901,6 +951,7 @@ export default function ReportDataEntry({
                                     description={photoSchema.description}
                                     isPhotoForm={isPhotoForm}
                                     isEditable={is_editable}
+                                    photoFormCode={photoSchema.attached_form_code || 'P-001'}
                                     photos={photos}
                                     schemaItems={photoSchema.items || []}
                                     categories={photo_categories}
@@ -1191,6 +1242,47 @@ export default function ReportDataEntry({
                 </div>
             </div>
 
+            {/* 100% Completion Floating Bar - Summoned dynamically anywhere when progress reaches 100% */}
+            {canSubmit && overallStats.percent === 100 && (
+                <div className="fixed bottom-6 left-1/2 -translate-x-1/2 z-50 animate-in fade-in slide-in-from-bottom-5 duration-300">
+                    <div className="bg-card/95 backdrop-blur-md border-2 border-emerald-500/30 text-card-foreground shadow-2xl rounded-full pl-5 pr-3 py-2 flex items-center gap-4 ring-1 ring-emerald-500/20">
+                        <div className="flex items-center gap-2.5">
+                            <span className="flex size-7 items-center justify-center rounded-full bg-emerald-100 text-emerald-700 dark:bg-emerald-950 dark:text-emerald-300">
+                                <Check className="size-4 stroke-[3]" />
+                            </span>
+                            <div className="flex flex-col">
+                                <span className="text-xs font-bold leading-tight text-foreground flex items-center gap-1.5">
+                                    100% Completed
+                                    <span className="text-[10px] font-normal text-muted-foreground hidden sm:inline">
+                                        ({overallStats.totalAnswered} of {overallStats.totalApplicable} items)
+                                    </span>
+                                </span>
+                                <span className="text-[11px] text-muted-foreground leading-tight hidden xs:inline">
+                                    All requirements satisfied
+                                </span>
+                            </div>
+                        </div>
+
+                        <Button
+                            type="button"
+                            variant="default"
+                            size="sm"
+                            onClick={() => {
+                                setSubmitError(null);
+                                setIsSubmitDialogOpen(true);
+                            }}
+                            disabled={isSubmittingReport}
+                            className="h-8 rounded-full px-4 text-xs font-semibold gap-1.5 shadow-xs"
+                        >
+                            {isSubmittingReport ? (
+                                <Loader2 className="size-3.5 animate-spin" />
+                            ) : null}
+                            <span>Finish & Submit</span>
+                        </Button>
+                    </div>
+                </div>
+            )}
+
             {/* Confirmation Dialog for Deleting Draft */}
             <Dialog open={isDeleteDialogOpen} onOpenChange={(open) => !open && setIsDeleteDialogOpen(false)}>
                 <DialogContent className="sm:max-w-md">
@@ -1233,6 +1325,89 @@ export default function ReportDataEntry({
                         >
                             {isDeleting ? 'Deleting...' : 'Delete Draft'}
                         </Button>
+                    </DialogFooter>
+                </DialogContent>
+            </Dialog>
+
+            {/* Confirmation / Guard Dialog for Submitting Report (RLS-2, RLS-3, RLS-4) */}
+            <Dialog open={isSubmitDialogOpen} onOpenChange={(open) => !open && !isSubmittingReport && setIsSubmitDialogOpen(false)}>
+                <DialogContent className="sm:max-w-md">
+                    <DialogHeader>
+                        <DialogTitle>
+                            {overallStats.percent === 100 ? 'Finish & Submit Report' : 'Report Incomplete'}
+                        </DialogTitle>
+                        <DialogDescription>
+                            {overallStats.percent === 100 ? (
+                                <>
+                                    Are you sure you want to finalize and submit report{' '}
+                                    <span className="font-semibold text-foreground">{report.reference_number}</span> (
+                                    {report.vessel_name})?
+                                </>
+                            ) : (
+                                <>
+                                    This report cannot be submitted yet because it has not reached 100% completion.
+                                </>
+                            )}
+                        </DialogDescription>
+                    </DialogHeader>
+
+                    {overallStats.percent === 100 ? (
+                        <div className="py-2 text-xs text-muted-foreground space-y-2">
+                            <p>
+                                All items ({overallStats.totalAnswered}/{overallStats.totalApplicable}) have been completed.
+                            </p>
+                            <p>
+                                Once submitted, the report will transition to <strong>Submitted</strong> status, editing will be locked, and photographic records will be frozen for corporate review (RLS-2, RLS-4).
+                            </p>
+                            {submitError && (
+                                <div className="p-3 rounded-lg bg-destructive/10 border border-destructive/20 text-destructive text-xs font-medium">
+                                    {submitError}
+                                </div>
+                            )}
+                        </div>
+                    ) : (
+                        <div className="py-2 text-xs text-muted-foreground space-y-2">
+                            <div className="p-3 rounded-lg bg-amber-500/10 border border-amber-500/20 text-amber-700 dark:text-amber-300">
+                                <strong>Progress: {overallStats.totalAnswered} of {overallStats.totalApplicable} items completed ({overallStats.percent}%).</strong>
+                            </div>
+                            <p>
+                                Rule RLS-2 requires every applicable checklist question and required photo slot to be answered, uploaded, or marked NS/NA before submission.
+                            </p>
+                            {submitError && (
+                                <div className="p-3 rounded-lg bg-destructive/10 border border-destructive/20 text-destructive text-xs font-medium">
+                                    {submitError}
+                                </div>
+                            )}
+                        </div>
+                    )}
+
+                    <DialogFooter className="gap-2 sm:gap-0">
+                        <Button
+                            type="button"
+                            variant="outline"
+                            onClick={() => setIsSubmitDialogOpen(false)}
+                            disabled={isSubmittingReport}
+                        >
+                            {overallStats.percent === 100 ? 'Cancel' : 'Close'}
+                        </Button>
+                        {overallStats.percent === 100 && (
+                            <Button
+                                type="button"
+                                variant="default"
+                                className="gap-1.5 font-semibold"
+                                disabled={isSubmittingReport}
+                                onClick={handleSubmitReport}
+                            >
+                                {isSubmittingReport ? (
+                                    <>
+                                        <Loader2 className="size-4 animate-spin" />
+                                        Submitting...
+                                    </>
+                                ) : (
+                                    'Confirm & Submit'
+                                )}
+                            </Button>
+                        )}
                     </DialogFooter>
                 </DialogContent>
             </Dialog>

@@ -212,6 +212,10 @@ class PhotoController extends Controller
             ];
         }
 
+        if ($report->status === 'draft') {
+            $report->update(['status' => 'in_progress']);
+        }
+
         return response()->json([
             'status' => 'success',
             'photos' => $createdPhotos,
@@ -344,18 +348,27 @@ class PhotoController extends Controller
     {
         Gate::authorize('view', $report);
 
-        $reports = Report::query()
-            ->whereRaw('LOWER(vessel_name) = ?', [mb_strtolower($report->vessel_name)])
+        $currentUser = $request->user();
+        $normalizedVessel = mb_strtolower(VesselName::normalize($report->vessel_name));
+
+        $query = Report::query()
             ->where('id', '!=', $report->id)
-            ->whereHas('photos')
+            ->whereHas('photos');
+
+        if ($currentUser && $currentUser->role === 'vessel') {
+            $query->whereRaw('LOWER(vessel_name) = ?', [$normalizedVessel]);
+        }
+
+        $reports = $query
             ->with([
                 'form:id,code,name,form_type',
                 'photos' => fn ($q) => $q->orderBy('sort_order')->limit(4),
             ])
             ->withCount('photos')
+            ->orderByRaw('CASE WHEN LOWER(vessel_name) = ? THEN 0 ELSE 1 END', [$normalizedVessel])
             ->orderByDesc('report_date')
             ->orderByDesc('id')
-            ->limit(20)
+            ->limit(30)
             ->get()
             ->map(fn ($r) => [
                 'id' => $r->id,
@@ -367,6 +380,7 @@ class PhotoController extends Controller
                 'form_name' => $r->form?->name,
                 'form_type' => $r->form?->form_type,
                 'photos_count' => $r->photos_count,
+                'is_same_vessel' => mb_strtolower($r->vessel_name) === $normalizedVessel,
                 'preview_photos' => $r->photos->map(fn ($p) => [
                     'id' => $p->id,
                     'title' => $p->title,
@@ -457,6 +471,10 @@ class PhotoController extends Controller
             $sourceReport->reference_number,
             $report->id
         );
+
+        if ($report->status === 'draft') {
+            $report->update(['status' => 'in_progress']);
+        }
 
         $updatedPhotos = $report->photos()
             ->with(['category:id,name,code', 'uploader:id,name'])

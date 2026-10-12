@@ -284,7 +284,7 @@ Managed by the superadmin (add, rename, disable). Seeded with:
 - PHO-3: Capture time, file metadata, and uploader are recorded automatically in `activity_log` and cannot be edited.
 - PHO-4: Centralized Fleet Photo Gallery (`/photos`) filtered by vessel name, category, date range, and report.
 - PHO-5: Photos attach/link to findings and question answers in one action from the Photo Library or direct upload.
-- PHO-6: For inspection and audit reports, photos in the Photo Chapter are rendered sequentially with their numbers, titles, and descriptions, and printed in the PDF appendix.
+- PHO-6: For inspection and audit reports, all photos attached to the Photo Chapter are automatically rendered sequentially with their numbers, titles, and descriptions, and printed in the PDF appendix (automatic sequential inclusion; no manual include/exclude toggles).
 - PHO-7: When a report is submitted, its attached photos are locked (see the lifecycle in section 10). Before that, deletion is a soft delete and is logged.
 - PHO-8: Vessel Users can only upload and view photos whose vessel name matches their own account (section 2.1). Corporate Users see all.
 
@@ -470,7 +470,7 @@ There is no `vessels` table. See section 2.1.
 | report_attendance | report, question key (the ten in INS-13), answer yes/no, detail |
 | report_appraisals | report, rank (Master / Chief Engineer / Chief Officer / Second Engineer), appraised yes/no, officer name, comments, attachment_id |
 | report_circulation | report, role, date_sent, reviewer_name, date_reviewed |
-| report_photo_selections | report, photo_id, included (chapter 16 selection, PHO-6) |
+| report_photo_selections | *(Dropped — unneeded. All chapter photos are included sequentially by default, PHO-6)* |
 
 ### 14.4 Audit specifics
 
