@@ -1,7 +1,6 @@
 import { Head, router } from '@inertiajs/react';
 import {
     ArrowRightLeft,
-    Camera,
     ChevronDown,
     ChevronsDownUp,
     ChevronsUpDown,
@@ -35,6 +34,7 @@ import {
     type FormHistoryItem,
     type FormQuestionData,
     type FormVesselTypeItem,
+    type LayoutSchema,
     type PhotoCategoryItem,
     type PhotoFormItem,
     type PhotoFormOption,
@@ -71,6 +71,7 @@ interface FormData {
     form_type?: 'standard' | 'photo';
     summary_schema?: SummarySchema | null;
     photo_schema?: PhotoSchema | null;
+    layout_schema?: LayoutSchema | null;
 }
 
 interface Props {
@@ -79,7 +80,6 @@ interface Props {
     all_groups?: FormGroupOption[];
     flat_groups?: FormGroupOption[];
     vessel_types?: FormVesselTypeItem[];
-    available_photo_forms?: PhotoFormOption[];
     photo_categories?: PhotoCategoryOption[];
 }
 
@@ -89,7 +89,6 @@ export default function FormShow({
     all_groups = [],
     flat_groups = [],
     vessel_types = [],
-    available_photo_forms = [],
 }: Props) {
     const groupsList = all_groups.length > 0 ? all_groups : flat_groups;
 
@@ -148,7 +147,6 @@ export default function FormShow({
         enabled: isPhotoForm || Boolean(form.photo_schema?.enabled),
         title: form.photo_schema?.title ?? (isPhotoForm ? form.name : 'Photographic Records'),
         description: form.photo_schema?.description ?? '',
-        attached_form_id: form.photo_schema?.attached_form_id ?? null,
         items: form.photo_schema?.items ?? [],
     }));
     const [isSavingPhoto, setIsSavingPhoto] = useState(false);
@@ -180,7 +178,7 @@ export default function FormShow({
         ...(!isPhotoForm && summaryFormState.enabled
             ? [{ id: 'summary' as const, title: summaryFormState.title || 'Summary & Observations' }]
             : []),
-        ...(photoFormState.enabled || isPhotoForm
+        ...(isPhotoForm
             ? [{ id: 'photo' as const, title: photoFormState.title || 'Photographic Records' }]
             : []),
     ];
@@ -213,7 +211,7 @@ export default function FormShow({
     const handleRemovePhotoChapter = () => {
         if (confirm('Are you sure you want to remove the Photo Form from this template?')) {
             setIsSavingPhoto(true);
-            const updated = { ...photoFormState, enabled: false, attached_form_id: null, items: [] };
+            const updated = { ...photoFormState, enabled: false, items: [] };
             setPhotoFormState(updated);
             router.put(
                 `/admin/forms/${form.id}/photo-schema`,
@@ -592,22 +590,6 @@ export default function FormShow({
                                         <span>Summary Chapter</span>
                                     </DropdownMenuItem>
                                 )}
-                                <DropdownMenuItem
-                                    onClick={() => {
-                                        const updated = { ...photoFormState, enabled: true };
-                                        setPhotoFormState(updated);
-                                        handleSelectTab('photo');
-                                        router.put(
-                                            `/admin/forms/${form.id}/photo-schema`,
-                                            { photo_schema: updated as any },
-                                            { preserveScroll: true }
-                                        );
-                                    }}
-                                    className="cursor-pointer"
-                                >
-                                    <Camera className="size-4 mr-2" />
-                                    <span>Attach Photo Form</span>
-                                </DropdownMenuItem>
                             </DropdownMenuContent>
                         </DropdownMenu>
                     </div>
@@ -620,7 +602,6 @@ export default function FormShow({
                         chapters={chapters}
                         isPhotoForm={isPhotoForm}
                         summaryFormState={summaryFormState}
-                        photoFormState={photoFormState}
                         activeNavChapterId={activeNavChapterId}
                         onSelectTab={handleSelectTab}
                         getAllGroupQuestionIds={getAllGroupQuestionIds}
@@ -651,7 +632,6 @@ export default function FormShow({
                                 formName={form.name}
                                 photoFormState={photoFormState}
                                 setPhotoFormState={setPhotoFormState}
-                                availablePhotoForms={available_photo_forms}
                                 isSavingPhoto={isSavingPhoto}
                                 onSavePhotoSchema={handleSavePhotoSchema}
                                 onRemovePhotoChapter={handleRemovePhotoChapter}

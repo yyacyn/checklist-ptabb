@@ -208,12 +208,8 @@ class FormSeeder extends Seeder
             'has_findings_register' => true,
         ];
 
-        $photoSchema = $code === 'D-062' ? [
-            'enabled' => true,
-            'title' => 'Chapter 16 - Photographic Records',
-            'description' => 'Photographic record of vessel inspection items, defects, and overall condition.',
-            'allowed_categories' => ['hull', 'deck', 'engine_room', 'room_condition', 'bridge', 'navigational_equipment', 'safety_equipment', 'other'],
-        ] : null;
+        $photoSchema = null; // Photo form is standalone (P-001); regular forms have no photo chapter
+        $layoutSchema = $code === 'D-062' ? $this->d062LayoutSchema($summarySchema) : $this->b008LayoutSchema($summarySchema);
 
         $form = Form::query()->updateOrCreate(
             ['code' => $code],
@@ -224,6 +220,7 @@ class FormSeeder extends Seeder
                 'answer_set' => $code === 'D-062' ? 'd062_yes_no_ns_na' : 'b008_yes_no_ns',
                 'summary_schema' => $summarySchema,
                 'photo_schema' => $photoSchema,
+                'layout_schema' => $layoutSchema,
             ],
         );
         $summary['forms']++;
@@ -416,6 +413,99 @@ class FormSeeder extends Seeder
                 ['label' => $label, 'sort_order' => $index + 1],
             );
         }
+    }
+
+    /**
+     * Layout schema for D-062 PDF (SRS REP-1, REP-1b, REP-1c, REP-1d, REP-1e, REP-1f, REP-1g).
+     *
+     * Defines the ordered sections that the shared ReportPdfRenderer walks to produce
+     * the D-062 Vessel Inspection Report. The checklist_chapters section dynamically
+     * pulls chapters from the report snapshot; the other sections are static structure.
+     *
+     * @param array $summarySchema The summary schema for this form (for title/position references)
+     */
+    private function d062LayoutSchema(array $summarySchema): array
+    {
+        return [
+            'sections' => [
+                ['type' => 'cover', 'title_key' => 'inspection_report'],
+                [
+                    'type' => 'general_info',
+                    'title' => 'Chapter 1 - General Information',
+                    'components' => ['vessel_particulars', 'operations_grid', 'psc_drydock', 'voyage_info', 'open_items_table', 'internal_circulation'],
+                    'static_texts' => [
+                        'fill_in_instructions' => "This report form is to be completed by the corporate surveyor. All findings must be clearly described and referenced to the appropriate chapter.",
+                        'add_remove_lines' => "Add or remove lines respectively",
+                    ],
+                ],
+                [
+                    'type' => 'checklist_chapters',
+                    'column_labels' => ['No.', 'Item', 'Yes', 'No', 'NS', 'NA', 'Remarks'],
+                ],
+                ['type' => 'best_practices', 'chapter_no' => '14', 'title' => 'Chapter 14 - Best Practices'],
+                [
+                    'type' => 'summary_of_observations',
+                    'chapter_no' => '15',
+                    'title' => 'Chapter 15 - Summary of Observations',
+                ],
+                [
+                    'type' => 'report_summary',
+                    'position' => 'after_chapter_15',
+                    'heading' => 'REPORT SUMMARY',
+                    'subheading' => '(Printed after Chapter 15; shown in Chapter 1 of form D-062 v01.01)',
+                ],
+                [
+                    'type' => 'photo_chapter',
+                    'chapter_no' => '16',
+                    'title' => 'Chapter 16 - Photographic Records',
+                ],
+                ['type' => 'comparison_blocks'],
+                ['type' => 'circulation'],
+                ['type' => 'signature_lines'],
+            ],
+            'footer' => [
+                'fields' => ['form_code', 'form_version', 'template_version', 'report_number', 'generation_date', 'page_number'],
+            ],
+            'watermark' => ['draft_label' => 'DRAFT'],
+            'photo_appendix_threshold' => 100,
+        ];
+    }
+
+    /**
+     * Layout schema for B-008 PDF (SRS REP-1, AUD-1, AUD-2, AUD-3, AUD-4).
+     *
+     * Defines the ordered sections for the B-008 Vessel Internal Audit Checklist.
+     * Checklist chapters span all 17 form sections.
+     */
+    private function b008LayoutSchema(array $summarySchema): array
+    {
+        return [
+            'sections' => [
+                ['type' => 'cover', 'title_key' => 'audit_report'],
+                [
+                    'type' => 'audit_header',
+                    'title' => 'General Information',
+                    'components' => ['vessel_particulars', 'operations_grid', 'followup'],
+                ],
+                [
+                    'type' => 'checklist_chapters',
+                    'column_labels' => ['No.', 'Item', 'Yes', 'No', 'N/S', 'Remarks'],
+                ],
+                [
+                    'type' => 'audit_summary',
+                    'chapter_no' => '18',
+                    'title' => 'Chapter 18 - Audit Summary & NCRs',
+                ],
+                ['type' => 'comparison_blocks'],
+                ['type' => 'circulation'],
+                ['type' => 'signature_lines'],
+            ],
+            'footer' => [
+                'fields' => ['form_code', 'form_version', 'template_version', 'report_number', 'generation_date', 'page_number'],
+            ],
+            'watermark' => ['draft_label' => 'DRAFT'],
+            'photo_appendix_threshold' => 100,
+        ];
     }
 
     /**

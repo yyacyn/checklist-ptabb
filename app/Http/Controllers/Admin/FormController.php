@@ -191,10 +191,7 @@ class FormController extends Controller
             ->orderBy('sort_order')
             ->get(['id', 'title', 'chapter_no', 'parent_id']);
 
-        $availablePhotoForms = Form::query()
-            ->where('form_type', 'photo')
-            ->where('id', '!=', $form->id)
-            ->get(['id', 'code', 'name', 'photo_schema', 'form_version', 'template_version']);
+        $availablePhotoForms = null;
 
         return Inertia::render('forms/show', [
             'form' => [
@@ -207,12 +204,12 @@ class FormController extends Controller
                 'answer_set' => $form->answer_set,
                 'summary_schema' => $form->summary_schema,
                 'photo_schema' => $form->photo_schema,
+                'layout_schema' => $form->layout_schema,
             ],
             'chapters' => $chapters,
             'all_groups' => $flatGroups,
             'flat_groups' => $flatGroups,
             'vessel_types' => $vesselTypes,
-            'available_photo_forms' => $availablePhotoForms,
             'photo_categories' => PhotoCategory::where('is_active', true)->orderBy('sort_order')->get(['id', 'name', 'code']),
         ]);
     }
@@ -274,7 +271,6 @@ class FormController extends Controller
             'enabled' => ['required', 'boolean'],
             'title' => ['required', 'string', 'max:255'],
             'description' => ['nullable', 'string'],
-            'attached_form_id' => ['nullable', 'integer'],
             'items' => ['nullable', 'array'],
             'items.*.id' => ['nullable', 'string'],
             'items.*.title' => ['required_with:items', 'string', 'max:255'],
@@ -299,5 +295,55 @@ class FormController extends Controller
         }
 
         return back()->with('success', 'Photo chapter settings updated successfully.');
+    }
+
+    /**
+     * Update the form's PDF layout schema (SRS REP-1g, PLAN 6.1).
+     *
+     * The layout schema defines the ordered sections and rendering configuration for
+     * the PDF output. It is template-driven: one definition per form, both forms
+     * sharing the same ReportPdfRenderer engine.
+     */
+    public function updateLayoutSchema(Request $request, Form $form)
+    {
+        $payload = $request->has('layout_schema') && is_array($request->input('layout_schema'))
+            ? $request->input('layout_schema')
+            : $request->all();
+
+        $validated = \Illuminate\Support\Facades\Validator::make($payload, [
+            'sections' => ['required', 'array', 'min:1'],
+            'sections.*.type' => ['required', 'string', 'max:50'],
+            'sections.*.title' => ['nullable', 'string', 'max:255'],
+            'sections.*.title_key' => ['nullable', 'string', 'max:50'],
+            'sections.*.chapter_no' => ['nullable', 'string', 'max:8'],
+            'sections.*.position' => ['nullable', 'string', 'max:50'],
+            'sections.*.heading' => ['nullable', 'string', 'max:255'],
+            'sections.*.subheading' => ['nullable', 'string', 'max:500'],
+            'sections.*.components' => ['nullable', 'array'],
+            'sections.*.components.*' => ['string', 'max:50'],
+            'sections.*.column_labels' => ['nullable', 'array'],
+            'sections.*.column_labels.*' => ['string', 'max:50'],
+            'sections.*.static_texts' => ['nullable', 'array'],
+            'footer.fields' => ['nullable', 'array'],
+            'footer.fields.*' => ['string', 'max:30'],
+            'watermark.draft_label' => ['nullable', 'string', 'max:50'],
+            'photo_appendix_threshold' => ['nullable', 'integer', 'min:0'],
+        ])->validate();
+
+        $form->update([
+            'layout_schema' => $validated,
+        ]);
+
+        $form->bumpTemplateVersion();
+
+        if ($request->wantsJson()) {
+            return response()->json([
+                'status' => 'saved',
+                'layout_schema' => $form->layout_schema,
+                'template_version' => $form->template_version,
+            ]);
+        }
+
+        return back()->with('success', 'PDF layout schema updated successfully.');
     }
 }

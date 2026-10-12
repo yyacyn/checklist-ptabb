@@ -493,111 +493,6 @@ class PhotoTest extends TestCase
         $response->assertStatus(422);
     }
 
-    public function test_available_photo_reports_returns_reports_for_vessel_with_photos(): void
-    {
-        // Standalone photo report for the same vessel
-        $photoReport = Report::factory()->create([
-            'vessel_name' => $this->report->vessel_name,
-            'report_type' => 'inspection',
-            'created_by' => $this->inspector->id,
-        ]);
-
-        Photo::create([
-            'report_id' => $photoReport->id,
-            'vessel_name' => $photoReport->vessel_name,
-            'item_no' => 1,
-            'title' => 'Bridge Equipment',
-            'original_filename' => 'bridge.jpg',
-            'file_path' => "photos/{$photoReport->id}/bridge.jpg",
-            'file_size' => 1024,
-            'mime_type' => 'image/jpeg',
-            'uploaded_by' => $this->inspector->id,
-            'sort_order' => 1,
-        ]);
-
-        $response = $this->actingAs($this->inspector)->getJson("/reports/{$this->report->id}/available-photo-reports");
-
-        $response->assertStatus(200)
-            ->assertJsonPath('status', 'success')
-            ->assertJsonCount(1, 'reports')
-            ->assertJsonPath('reports.0.id', $photoReport->id)
-            ->assertJsonPath('reports.0.photos_count', 1);
-    }
-
-    public function test_can_link_photo_report_and_import_linked_photos(): void
-    {
-        $sourceReport = Report::factory()->create([
-            'vessel_name' => $this->report->vessel_name,
-            'created_by' => $this->inspector->id,
-        ]);
-
-        $sourcePhoto = Photo::create([
-            'report_id' => $sourceReport->id,
-            'vessel_name' => $sourceReport->vessel_name,
-            'item_no' => 1,
-            'title' => 'Hull Condition',
-            'original_filename' => 'hull.jpg',
-            'file_path' => "photos/{$sourceReport->id}/hull.jpg",
-            'thumbnail_path' => "photos/{$sourceReport->id}/hull_thumb.jpg",
-            'file_size' => 2048,
-            'mime_type' => 'image/jpeg',
-            'uploaded_by' => $this->inspector->id,
-            'sort_order' => 1,
-        ]);
-
-        $response = $this->actingAs($this->inspector)->postJson("/reports/{$this->report->id}/link-photo-report", [
-            'source_report_id' => $sourceReport->id,
-        ]);
-
-        $response->assertStatus(200)
-            ->assertJsonPath('status', 'success')
-            ->assertJsonPath('linked_photo_report.id', $sourceReport->id);
-
-        $this->assertEquals($sourceReport->id, $this->report->fresh()->linked_photo_report_id);
-
-        $linkedPhotos = $this->report->fresh()->photos;
-        $this->assertCount(1, $linkedPhotos);
-        $this->assertEquals($sourcePhoto->id, $linkedPhotos->first()->source_photo_id);
-        $this->assertEquals('Hull Condition', $linkedPhotos->first()->title);
-        $this->assertEquals("photos/{$sourceReport->id}/hull.jpg", $linkedPhotos->first()->file_path);
-    }
-
-    public function test_can_unlink_photo_report(): void
-    {
-        $sourceReport = Report::factory()->create([
-            'vessel_name' => $this->report->vessel_name,
-            'created_by' => $this->inspector->id,
-        ]);
-
-        $sourcePhoto = Photo::create([
-            'report_id' => $sourceReport->id,
-            'vessel_name' => $sourceReport->vessel_name,
-            'item_no' => 1,
-            'title' => 'Galley Inspection',
-            'original_filename' => 'galley.jpg',
-            'file_path' => "photos/{$sourceReport->id}/galley.jpg",
-            'file_size' => 2048,
-            'mime_type' => 'image/jpeg',
-            'uploaded_by' => $this->inspector->id,
-            'sort_order' => 1,
-        ]);
-
-        $this->actingAs($this->inspector)->postJson("/reports/{$this->report->id}/link-photo-report", [
-            'source_report_id' => $sourceReport->id,
-        ])->assertStatus(200);
-
-        // Test unlinking with remove_photos = true
-        $unlinkResponse = $this->actingAs($this->inspector)->postJson("/reports/{$this->report->id}/unlink-photo-report", [
-            'remove_photos' => true,
-        ]);
-
-        $unlinkResponse->assertStatus(200);
-
-        $this->assertNull($this->report->fresh()->linked_photo_report_id);
-        $this->assertCount(0, $this->report->fresh()->photos);
-        // Original photo in source report must still exist
-        $this->assertDatabaseHas('photos', ['id' => $sourcePhoto->id, 'deleted_at' => null]);
-    }
 
     public function test_uploading_photo_transitions_draft_report_to_in_progress(): void
     {
@@ -728,11 +623,7 @@ class PhotoTest extends TestCase
                 'order' => [$photo->id],
             ])
             ->assertStatus(403);
-
-        // 5. Unlinking photo report must be forbidden (403)
-        $this->actingAs($this->inspector)
-            ->postJson("/reports/{$this->report->id}/unlink-photo-report")
-            ->assertStatus(403);
     }
 }
+
 

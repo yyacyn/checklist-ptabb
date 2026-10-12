@@ -1,4 +1,5 @@
 import type {
+    LayoutSchema,
     PhotoCategoryItem,
     PhotoFormItem,
     PhotoSchema,
@@ -69,6 +70,7 @@ export interface PhotoFormOption {
 }
 
 export type {
+    LayoutSchema,
     PhotoCategoryItem,
     PhotoFormItem,
     PhotoSchema,

@@ -60,6 +60,8 @@ use Illuminate\Database\Eloquent\SoftDeletes;
     'chief_engineer_name',
     'chief_officer_name',
     'current_version',
+    'pdf_path',
+    'pdf_version',
     'created_by',
     'submitted_at',
     'reviewed_by',

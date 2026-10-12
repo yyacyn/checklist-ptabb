@@ -141,15 +141,19 @@ class ReportController extends Controller
         // Check if user is allowed to create reports
         $canCreateInspection = Gate::allows('create', [Report::class, 'inspection']);
         $canCreateAudit = Gate::allows('create', [Report::class, 'audit']);
+        $canCreatePhoto = Gate::allows('create', [Report::class, 'photo']);
 
-        if (! $canCreateInspection && ! $canCreateAudit) {
+        if (! $canCreateInspection && ! $canCreateAudit && ! $canCreatePhoto) {
             abort(403, 'You do not have permission to create reports.');
         }
 
         $forms = Form::query()
             ->get(['id', 'code', 'form_type', 'name', 'template_version', 'form_version'])
-            ->filter(function (Form $form) use ($canCreateInspection, $canCreateAudit) {
-                if ($form->code === 'D-062' || $form->form_type === 'photo') {
+            ->filter(function (Form $form) use ($canCreateInspection, $canCreateAudit, $canCreatePhoto) {
+                if ($form->form_type === 'photo') {
+                    return $canCreatePhoto;
+                }
+                if ($form->code === 'D-062') {
                     return $canCreateInspection;
                 }
                 if ($form->code === 'B-008') {
@@ -210,7 +214,7 @@ class ReportController extends Controller
         ]);
 
         $form = Form::findOrFail($validated['form_id']);
-        $reportType = ($form->code === 'D-062' || $form->form_type === 'photo') ? 'inspection' : 'audit';
+        $reportType = $form->form_type === 'photo' ? 'photo' : ($form->code === 'D-062' ? 'inspection' : 'audit');
 
         // Authorize creation for this specific type
         Gate::authorize('create', [Report::class, $reportType]);
@@ -273,7 +277,7 @@ class ReportController extends Controller
         Gate::authorize('view', $report);
 
         $report->load([
-            'form:id,code,name,answer_set,summary_schema,photo_schema,form_type',
+            'form:id,code,name,answer_set,summary_schema,photo_schema,layout_schema,form_type',
             'vesselType:id,name',
             'lockOwner:id,name',
             'groups' => fn ($q) => $q->whereNull('parent_id')->orderBy('sort_order'),
@@ -286,72 +290,12 @@ class ReportController extends Controller
             'groups.subgroups.questions.photos' => fn ($q) => $q->with(['category:id,name,code', 'uploader:id,name'])->orderBy('sort_order'),
             'findings' => fn ($q) => $q->with(['photos' => fn ($pq) => $pq->with(['category:id,name,code', 'uploader:id,name'])->orderBy('sort_order')])->orderBy('sort_order')->orderBy('id'),
             'photos' => fn ($q) => $q->with(['category:id,name,code', 'uploader:id,name'])->orderBy('sort_order')->orderBy('item_no')->orderBy('id'),
-            'linkedPhotoReport:id,reference_number,vessel_name,report_date,status,form_id',
-            'linkedPhotoReport.form:id,code,name,form_type',
         ]);
 
         $photoCategories = PhotoCategory::query()
             ->where('is_active', true)
             ->orderBy('sort_order')
             ->get(['id', 'name', 'code']);
-
-        // Resolve attached photo form items and code
-        if ($report->form && !empty($report->form->photo_schema)) {
-            $schema = $report->form->photo_schema;
-            $attachedFormId = $schema['attached_form_id'] ?? null;
-            $attachedForm = $attachedFormId ? Form::find($attachedFormId) : Form::where('form_type', 'photo')->first();
-            if ($attachedForm) {
-                if (!empty($attachedForm->photo_schema['items'])) {
-                    $schema['items'] = $attachedForm->photo_schema['items'];
-                }
-                $schema['attached_form_code'] = $attachedForm->code;
-                $schema['attached_form_name'] = $attachedForm->name;
-                $report->form->photo_schema = $schema;
-            }
-        }
-
-        // Available photo reports for the vessel to link/import if normal form
-        $availablePhotoReports = [];
-        if ($report->form?->form_type !== 'photo') {
-            $currentUser = $request->user();
-            $normalizedVessel = mb_strtolower(VesselName::normalize($report->vessel_name));
-            $availableQuery = Report::query()
-                ->where('id', '!=', $report->id)
-                ->whereHas('photos');
-
-            if ($currentUser && $currentUser->role === 'vessel') {
-                $availableQuery->whereRaw('LOWER(vessel_name) = ?', [$normalizedVessel]);
-            }
-
-            $availablePhotoReports = $availableQuery
-                ->with([
-                    'form:id,code,name,form_type',
-                    'photos' => fn ($q) => $q->orderBy('sort_order')->limit(4),
-                ])
-                ->withCount('photos')
-                ->orderByRaw('CASE WHEN LOWER(vessel_name) = ? THEN 0 ELSE 1 END', [$normalizedVessel])
-                ->orderByDesc('report_date')
-                ->orderByDesc('id')
-                ->limit(30)
-                ->get()
-                ->map(fn ($r) => [
-                    'id' => $r->id,
-                    'reference_number' => $r->reference_number,
-                    'vessel_name' => $r->vessel_name,
-                    'report_date' => $r->report_date?->toDateString(),
-                    'status' => $r->status,
-                    'form_code' => $r->form?->code,
-                    'form_name' => $r->form?->name,
-                    'form_type' => $r->form?->form_type,
-                    'photos_count' => $r->photos_count,
-                    'is_same_vessel' => mb_strtolower($r->vessel_name) === $normalizedVessel,
-                    'preview_photos' => $r->photos->map(fn ($p) => [
-                        'id' => $p->id,
-                        'title' => $p->title,
-                        'thumbnail_url' => $p->thumbnail_url,
-                    ]),
-                ]);
-        }
 
         $isEditable = Gate::allows('update', $report);
 
@@ -374,7 +318,6 @@ class ReportController extends Controller
             'initial_lock' => $activeLock,
             'can_delete' => Gate::allows('delete', $report),
             'photo_categories' => $photoCategories,
-            'available_photo_reports' => $availablePhotoReports,
         ]);
     }
 

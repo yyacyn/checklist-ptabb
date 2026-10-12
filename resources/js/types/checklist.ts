@@ -17,9 +17,6 @@ export interface PhotoSchema {
     enabled: boolean;
     title?: string;
     description?: string;
-    attached_form_id?: number | null;
-    attached_form_code?: string | null;
-    attached_form_name?: string | null;
     items?: PhotoFormItem[];
     allowed_categories?: string[];
 }
@@ -31,6 +28,34 @@ export interface SummarySchemaTextField {
     rows?: number;
     span?: 'full' | 'half';
     description?: string;
+}
+
+export interface LayoutSchemaSection {
+    type: string;
+    title?: string;
+    title_key?: string;
+    chapter_no?: string;
+    position?: string;
+    heading?: string;
+    subheading?: string;
+    components?: string[];
+    column_labels?: string[];
+    static_texts?: Record<string, string>;
+}
+
+export interface LayoutSchemaFooter {
+    fields?: string[];
+}
+
+export interface LayoutSchemaWatermark {
+    draft_label?: string;
+}
+
+export interface LayoutSchema {
+    sections: LayoutSchemaSection[];
+    footer?: LayoutSchemaFooter;
+    watermark?: LayoutSchemaWatermark;
+    photo_appendix_threshold?: number;
 }
 
 export interface SummarySchemaRatingOption {
@@ -136,7 +161,7 @@ export interface FindingData {
 
 export interface ReportData {
     id: number;
-    report_type: 'inspection' | 'audit';
+    report_type: 'inspection' | 'audit' | 'photo';
     reference_number: string;
     status: string;
     template_version: number;
@@ -169,6 +194,7 @@ export interface ReportData {
         form_type?: 'standard' | 'photo';
         summary_schema?: SummarySchema | null;
         photo_schema?: PhotoSchema | null;
+        layout_schema?: LayoutSchema | null;
     };
     vessel_type?: {
         id: number;
@@ -183,36 +209,4 @@ export interface ReportData {
     summary_participants?: string | null;
     summary_concept_understanding?: string | null;
     summary_data?: Record<string, string> | null;
-    linked_photo_report_id?: number | null;
-    linked_photo_report?: {
-        id: number;
-        reference_number: string;
-        vessel_name: string;
-        report_date: string | null;
-        status: string;
-        form?: {
-            id: number;
-            code: string;
-            name: string;
-            form_type?: string;
-        } | null;
-    } | null;
-}
-
-export interface AvailablePhotoReport {
-    id: number;
-    reference_number: string;
-    vessel_name: string;
-    report_date: string | null;
-    status: string;
-    form_code?: string;
-    form_name?: string;
-    form_type?: 'standard' | 'photo';
-    photos_count: number;
-    is_same_vessel?: boolean;
-    preview_photos: Array<{
-        id: number;
-        title: string | null;
-        thumbnail_url?: string;
-    }>;
 }

@@ -62,7 +62,7 @@ class ReportPolicy
     public function create(User $user, string $reportType): bool
     {
         if ($user->role === 'corporate') {
-            return $reportType === 'inspection';
+            return in_array($reportType, ['inspection', 'photo'], true);
         }
 
         if ($user->role === 'vessel') {
@@ -87,8 +87,8 @@ class ReportPolicy
         }
 
         if ($user->role === 'corporate') {
-            // Corporate users edit D-062 inspections; audits are read-only for corporate
-            return $report->report_type === 'inspection';
+            // Corporate users edit D-062 inspections and photo reports; audits are read-only for corporate
+            return in_array($report->report_type, ['inspection', 'photo'], true);
         }
 
         if ($user->role === 'vessel') {
@@ -116,7 +116,7 @@ class ReportPolicy
         }
 
         if ($user->role === 'corporate') {
-            return $report->report_type === 'inspection';
+            return in_array($report->report_type, ['inspection', 'photo'], true);
         }
 
         if ($user->role === 'vessel') {
@@ -139,7 +139,7 @@ class ReportPolicy
         }
 
         if ($user->role === 'corporate') {
-            return $report->report_type === 'inspection';
+            return in_array($report->report_type, ['inspection', 'photo'], true);
         }
 
         if ($user->role === 'vessel') {

@@ -23,11 +23,6 @@ export interface ReportChapterSidebarProps {
     summaryChapterNo: string | number;
     summaryChapterTitle: string;
     findings: FindingData[];
-    photoSchema: {
-        enabled?: boolean;
-        title?: string;
-        description?: string;
-    };
 }
 
 export function ReportChapterSidebar({
@@ -42,7 +37,6 @@ export function ReportChapterSidebar({
     summaryChapterNo,
     summaryChapterTitle,
     findings,
-    photoSchema,
 }: ReportChapterSidebarProps) {
     return (
         <aside className="w-80 shrink-0 border-r bg-muted/20 overflow-y-auto p-4 space-y-1.5">
@@ -223,26 +217,6 @@ export function ReportChapterSidebar({
                                     'Executive Summary & Assessment'
                                 )}
                             </div>
-                        </button>
-                    )}
-
-                    {/* Dedicated Photo Chapter (Schema-Driven, Phase 5) */}
-                    {photoSchema.enabled !== false && (
-                        <button
-                            type="button"
-                            onClick={() => onChapterSwitch(-888)}
-                            className={`w-full text-left rounded-lg p-2.5 transition-all flex items-center justify-between gap-1.5 ${
-                                activeChapterId === -888
-                                    ? 'bg-card border-2 border-primary shadow-xs ring-1 ring-primary/20'
-                                    : 'border border-transparent hover:bg-card/70'
-                            }`}
-                        >
-                            <span className="font-semibold text-xs text-foreground truncate flex-1">
-                                {photoChapterTitle}
-                            </span>
-                            <Badge variant="secondary" className="text-[10px] shrink-0 font-mono">
-                                {photos.length}
-                            </Badge>
                         </button>
                     )}
                 </>

@@ -24,7 +24,7 @@ class ReportSnapshot
     public function createReport(Form $form, array $attributes): Report
     {
         return DB::transaction(function () use ($form, $attributes) {
-            $reportType = $attributes['report_type'] ?? ($form->code === 'D-062' ? 'inspection' : 'audit');
+            $reportType = $attributes['report_type'] ?? ($form->form_type === 'photo' ? 'photo' : ($form->code === 'D-062' ? 'inspection' : 'audit'));
             $vesselTypeId = isset($attributes['vessel_type_id']) ? (int) $attributes['vessel_type_id'] : null;
             $vesselTypeIds = $vesselTypeId !== null ? [$vesselTypeId] : [];
             $iceClass = (bool) ($attributes['vessel_ice_class'] ?? false);

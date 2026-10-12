@@ -2,13 +2,10 @@ import {
     Camera,
     CheckCircle2,
     Image as ImageIcon,
-    Link2,
     Loader2,
     Maximize2,
     Plus,
-    RefreshCw,
     Trash2,
-    Unlink,
     UploadCloud,
     X,
 } from 'lucide-react';
@@ -17,15 +14,6 @@ import { compressImage } from '@/lib/image-compressor';
 import { Badge } from '@/components/ui/badge';
 import { Button } from '@/components/ui/button';
 import { Card, CardContent, CardHeader, CardTitle } from '@/components/ui/card';
-import {
-    Dialog,
-    DialogContent,
-    DialogDescription,
-    DialogFooter,
-    DialogHeader,
-    DialogTitle,
-} from '@/components/ui/dialog';
-import type { AvailablePhotoReport } from '@/types';
 
 export interface PhotoRecord {
     id: number;
@@ -102,7 +90,6 @@ interface PhotoChapterSectionProps {
     description?: string;
     isPhotoForm?: boolean;
     isEditable?: boolean;
-    photoFormCode?: string;
     photos: PhotoRecord[];
     schemaItems?: Array<{ id?: string; title: string; description?: string }>;
     categories?: PhotoCategoryItem[];
@@ -110,16 +97,6 @@ interface PhotoChapterSectionProps {
     questions?: QuestionOptionItem[];
     findings?: FindingOptionItem[];
     onPhotosChange?: (updatedPhotos: PhotoRecord[]) => void;
-    linkedReport?: {
-        id: number;
-        reference_number: string;
-        vessel_name: string;
-        report_date?: string | null;
-        status?: string;
-        form?: { code?: string; name?: string; form_type?: string } | null;
-    } | null;
-    availableReports?: AvailablePhotoReport[];
-    onLinkedReportChange?: (linkedReport: any) => void;
 }
 
 export function PhotoChapterSection({
@@ -128,130 +105,14 @@ export function PhotoChapterSection({
     description = 'Photographic evidence and vessel condition records.',
     isPhotoForm = false,
     isEditable = true,
-    photoFormCode = 'P-001',
     photos = [],
     schemaItems = [],
     onPhotosChange,
-    linkedReport = null,
-    availableReports = [],
-    onLinkedReportChange,
 }: PhotoChapterSectionProps) {
     const [photoList, setPhotoList] = useState<PhotoRecord[]>(photos);
     const [isUploading, setIsUploading] = useState(false);
     const [uploadingSlot, setUploadingSlot] = useState<number | null>(null);
     const [uploadProgress, setUploadProgress] = useState<string | null>(null);
-
-    const [currentLinkedReport, setCurrentLinkedReport] = useState(linkedReport || null);
-    React.useEffect(() => {
-        setCurrentLinkedReport(linkedReport || null);
-    }, [linkedReport]);
-
-    const [isImportDialogOpen, setIsImportDialogOpen] = useState(false);
-    const [isUnlinkDialogOpen, setIsUnlinkDialogOpen] = useState(false);
-    const [isLinking, setIsLinking] = useState(false);
-    const [availableReportsList, setAvailableReportsList] = useState<AvailablePhotoReport[]>(availableReports || []);
-    const [isLoadingReports, setIsLoadingReports] = useState(false);
-    const [dismissedSetupPrompt, setDismissedSetupPrompt] = useState(false);
-
-    React.useEffect(() => {
-        if (availableReports && availableReports.length > 0) {
-            setAvailableReportsList(availableReports);
-        }
-    }, [availableReports]);
-
-    const handleOpenImportDialog = async () => {
-        setIsImportDialogOpen(true);
-        if (availableReportsList.length === 0) {
-            setIsLoadingReports(true);
-            try {
-                const res = await fetch(`/reports/${reportId}/available-photo-reports`, {
-                    headers: { Accept: 'application/json' },
-                });
-                if (res.ok) {
-                    const data = await res.json();
-                    if (data.reports) {
-                        setAvailableReportsList(data.reports);
-                    }
-                }
-            } catch (err) {
-                console.error('Fetch available reports error:', err);
-            } finally {
-                setIsLoadingReports(false);
-            }
-        }
-    };
-
-    const handleLinkReport = async (sourceReportId: number) => {
-        setIsLinking(true);
-        try {
-            const csrfToken = (document.querySelector('meta[name="csrf-token"]') as HTMLMetaElement)?.content || '';
-            const response = await fetch(`/reports/${reportId}/link-photo-report`, {
-                method: 'POST',
-                headers: {
-                    'Content-Type': 'application/json',
-                    'X-CSRF-TOKEN': csrfToken,
-                    Accept: 'application/json',
-                },
-                body: JSON.stringify({ source_report_id: sourceReportId }),
-            });
-
-            if (!response.ok) {
-                const errData = await response.json().catch(() => null);
-                throw new Error(errData?.message || `Failed to link report (${response.status})`);
-            }
-
-            const data = await response.json();
-            if (data.photos) {
-                setPhotoList(data.photos);
-                onPhotosChange?.(data.photos);
-            }
-            if (data.linked_photo_report) {
-                setCurrentLinkedReport(data.linked_photo_report);
-                onLinkedReportChange?.(data.linked_photo_report);
-            }
-            setIsImportDialogOpen(false);
-        } catch (err: any) {
-            console.error('Link report error:', err);
-            alert(err?.message || 'Failed to link photo report.');
-        } finally {
-            setIsLinking(false);
-        }
-    };
-
-    const handleUnlinkReport = async (removePhotos: boolean) => {
-        setIsLinking(true);
-        try {
-            const csrfToken = (document.querySelector('meta[name="csrf-token"]') as HTMLMetaElement)?.content || '';
-            const response = await fetch(`/reports/${reportId}/unlink-photo-report`, {
-                method: 'POST',
-                headers: {
-                    'Content-Type': 'application/json',
-                    'X-CSRF-TOKEN': csrfToken,
-                    Accept: 'application/json',
-                },
-                body: JSON.stringify({ remove_photos: removePhotos }),
-            });
-
-            if (!response.ok) {
-                const errData = await response.json().catch(() => null);
-                throw new Error(errData?.message || `Failed to unlink report (${response.status})`);
-            }
-
-            const data = await response.json();
-            if (data.photos) {
-                setPhotoList(data.photos);
-                onPhotosChange?.(data.photos);
-            }
-            setCurrentLinkedReport(null);
-            onLinkedReportChange?.(null);
-            setIsUnlinkDialogOpen(false);
-        } catch (err: any) {
-            console.error('Unlink report error:', err);
-            alert(err?.message || 'Failed to unlink photo report.');
-        } finally {
-            setIsLinking(false);
-        }
-    };
 
     // Keep photoList in sync with props
     React.useEffect(() => {
@@ -447,15 +308,6 @@ export function PhotoChapterSection({
                             <p className="text-xs text-muted-foreground mt-1">{description}</p>
                         )}
                     </div>
-
-                    {!isPhotoForm && (
-                        <div className="flex items-center gap-1.5 self-start sm:self-center">
-                            <span className="text-xs text-muted-foreground font-medium">Template:</span>
-                            <Badge variant="outline" className="font-mono text-xs font-semibold px-2 py-0.5">
-                                {photoFormCode || 'P-001'}
-                            </Badge>
-                        </div>
-                    )}
                 </div>
             </CardHeader>
 
@@ -464,98 +316,6 @@ export function PhotoChapterSection({
                     <div className="mb-6 p-4 rounded-lg bg-primary/10 border border-primary/20 flex items-center justify-center gap-3">
                         <Loader2 className="size-5 animate-spin text-primary shrink-0" />
                         <span className="text-xs sm:text-sm font-medium text-foreground">{uploadProgress}</span>
-                    </div>
-                )}
-
-                {/* Banner when a photo report is linked */}
-                {currentLinkedReport && (
-                    <div className="mb-6 rounded-xl border border-emerald-500/30 bg-emerald-500/10 p-3.5 sm:p-4 flex flex-col sm:flex-row sm:items-center justify-between gap-3">
-                        <div className="flex items-center gap-2.5 min-w-0">
-                            <div className="p-2 rounded-full bg-emerald-500/20 text-emerald-600 dark:text-emerald-400 shrink-0">
-                                <Link2 className="size-4" />
-                            </div>
-                            <div className="space-y-0.5 min-w-0">
-                                <div className="flex items-center gap-2 flex-wrap">
-                                    <span className="text-xs font-bold text-foreground">
-                                        Linked Photo Form:
-                                    </span>
-                                    <Badge variant="outline" className="font-mono text-xs border-emerald-500/40 text-emerald-700 dark:text-emerald-300 bg-background">
-                                        {currentLinkedReport.form?.code || 'PHOTO'} • {currentLinkedReport.reference_number}
-                                    </Badge>
-                                    {currentLinkedReport.report_date && (
-                                        <span className="text-[11px] text-muted-foreground">
-                                            ({currentLinkedReport.report_date})
-                                        </span>
-                                    )}
-                                </div>
-                                <p className="text-[11px] text-muted-foreground truncate">
-                                    Photographic records are linked to this source form.
-                                </p>
-                            </div>
-                        </div>
-                        {isEditable && (
-                            <div className="flex items-center gap-2 shrink-0 self-end sm:self-center">
-                                <Button
-                                    type="button"
-                                    variant="outline"
-                                    size="sm"
-                                    onClick={handleOpenImportDialog}
-                                    disabled={isLinking}
-                                    className="h-7 px-2.5 text-xs bg-background gap-1"
-                                >
-                                    <RefreshCw className="size-3 text-muted-foreground" />
-                                    <span>Change Form</span>
-                                </Button>
-                                <Button
-                                    type="button"
-                                    variant="ghost"
-                                    size="sm"
-                                    onClick={() => setIsUnlinkDialogOpen(true)}
-                                    disabled={isLinking}
-                                    className="h-7 px-2.5 text-xs text-destructive hover:text-destructive hover:bg-destructive/10 gap-1"
-                                >
-                                    <Unlink className="size-3" />
-                                    <span>Unlink</span>
-                                </Button>
-                            </div>
-                        )}
-                    </div>
-                )}
-
-                {/* Initial Setup Choice: Prompt user when arriving at empty photo chapter in normal form */}
-                {!isPhotoForm && !currentLinkedReport && photoList.length === 0 && !dismissedSetupPrompt && isEditable && (
-                    <div className="mb-6 rounded-xl border-2 border-dashed border-primary/40 bg-primary/5 p-4 sm:p-5 flex flex-col md:flex-row md:items-center justify-between gap-4 shadow-2xs">
-                        <div className="space-y-1">
-                            <div className="flex items-center gap-2">
-                                <Link2 className="size-4 text-primary" />
-                                <h4 className="text-sm font-bold text-foreground">Set Up Photographic Evidence</h4>
-                            </div>
-                            <p className="text-xs text-muted-foreground max-w-xl">
-                                Would you like to use and link photos from an existing photo report for this vessel (e.g. {photoFormCode || 'P-001'}), or start clean and upload photos directly?
-                            </p>
-                        </div>
-                        <div className="flex items-center gap-2 shrink-0 flex-wrap">
-                            <Button
-                                type="button"
-                                variant="default"
-                                size="sm"
-                                onClick={handleOpenImportDialog}
-                                className="h-8 gap-1.5 text-xs font-semibold shadow-xs"
-                            >
-                                <Link2 className="size-3.5" />
-                                <span>Use Photos from Existing Form</span>
-                            </Button>
-                            <Button
-                                type="button"
-                                variant="outline"
-                                size="sm"
-                                onClick={() => setDismissedSetupPrompt(true)}
-                                className="h-8 gap-1.5 text-xs bg-background"
-                            >
-                                <Plus className="size-3.5 text-muted-foreground" />
-                                <span>Start Clean</span>
-                            </Button>
-                        </div>
                     </div>
                 )}
 
@@ -908,239 +668,6 @@ export function PhotoChapterSection({
                     </div>
                 </div>
             )}
-            {/* Import / Link Photos Dialog */}
-            <Dialog open={isImportDialogOpen} onOpenChange={setIsImportDialogOpen}>
-                <DialogContent className="sm:max-w-2xl max-h-[85vh] flex flex-col p-0 overflow-hidden">
-                    <DialogHeader className="p-5 pb-3 border-b bg-muted/20">
-                        <div className="flex items-center gap-2">
-                            <Link2 className="size-5 text-primary" />
-                            <DialogTitle className="text-base font-bold">Use Photos from Existing Form</DialogTitle>
-                        </div>
-                        <DialogDescription className="text-xs">
-                            Select an existing photo report for this vessel to link and import its photographic records.
-                        </DialogDescription>
-                    </DialogHeader>
-
-                    <div className="flex-1 overflow-y-auto p-5 space-y-3">
-                        {isLoadingReports ? (
-                            <div className="py-12 flex flex-col items-center justify-center gap-2 text-muted-foreground">
-                                <Loader2 className="size-6 animate-spin text-primary" />
-                                <span className="text-xs">Finding photo reports for this vessel...</span>
-                            </div>
-                        ) : availableReportsList.length === 0 ? (
-                            <div className="py-10 text-center space-y-3">
-                                <div className="size-12 rounded-full bg-muted/60 text-muted-foreground flex items-center justify-center mx-auto">
-                                    <ImageIcon className="size-6" />
-                                </div>
-                                <div className="space-y-1">
-                                    <p className="text-sm font-semibold text-foreground">No Photo Reports Found</p>
-                                    <p className="text-xs text-muted-foreground max-w-sm mx-auto">
-                                        There are no reports with photos available to import yet.
-                                    </p>
-                                </div>
-                                <Button
-                                    type="button"
-                                    variant="outline"
-                                    size="sm"
-                                    onClick={() => setIsImportDialogOpen(false)}
-                                    className="text-xs"
-                                >
-                                    Close
-                                </Button>
-                            </div>
-                        ) : (
-                            <div className="space-y-3">
-                                <p className="text-xs font-medium text-muted-foreground">
-                                    Available Reports ({availableReportsList.length}):
-                                </p>
-                                {availableReportsList.map((r) => {
-                                    const isCurrent = currentLinkedReport?.id === r.id;
-                                    return (
-                                        <div
-                                            key={r.id}
-                                            className={`rounded-xl border p-4 transition-all flex flex-col gap-3 ${
-                                                isCurrent
-                                                    ? 'border-emerald-500/50 bg-emerald-500/5 ring-1 ring-emerald-500/30'
-                                                    : 'border-border/80 hover:border-primary/50 hover:bg-muted/10'
-                                            }`}
-                                        >
-                                            <div className="flex flex-col sm:flex-row sm:items-center justify-between gap-2">
-                                                <div className="space-y-1 min-w-0">
-                                                    <div className="flex items-center gap-2 flex-wrap">
-                                                        <Badge variant="outline" className="font-mono text-xs font-bold text-foreground">
-                                                            {r.form_code || 'PHOTO'}
-                                                        </Badge>
-                                                        <span className="font-bold text-sm text-foreground">
-                                                            {r.reference_number}
-                                                        </span>
-                                                        <Badge variant="secondary" className="text-[11px] font-mono">
-                                                            {r.photos_count} photo{r.photos_count !== 1 ? 's' : ''}
-                                                        </Badge>
-                                                        <Badge variant="secondary" className="text-[11px] font-medium">
-                                                            {r.vessel_name}
-                                                        </Badge>
-                                                        {r.is_same_vessel && (
-                                                            <Badge variant="outline" className="text-emerald-600 border-emerald-500/40 text-[10px] font-semibold">
-                                                                This Vessel
-                                                            </Badge>
-                                                        )}
-                                                        {isCurrent && (
-                                                            <Badge variant="outline" className="text-emerald-600 border-emerald-500/40 text-[10px] font-semibold">
-                                                                Currently Linked
-                                                            </Badge>
-                                                        )}
-                                                    </div>
-                                                    <div className="flex items-center gap-2 text-xs text-muted-foreground flex-wrap">
-                                                        <span>{r.form_name}</span>
-                                                        {r.report_date && (
-                                                            <>
-                                                                <span>•</span>
-                                                                <span>{r.report_date}</span>
-                                                            </>
-                                                        )}
-                                                        <span>•</span>
-                                                        <span className="capitalize">{r.status.replace('_', ' ')}</span>
-                                                    </div>
-                                                </div>
-
-                                                <Button
-                                                    type="button"
-                                                    size="sm"
-                                                    variant={isCurrent ? 'outline' : 'default'}
-                                                    disabled={isLinking || isCurrent}
-                                                    onClick={() => handleLinkReport(r.id)}
-                                                    className="shrink-0 gap-1.5 text-xs font-semibold"
-                                                >
-                                                    {isLinking ? (
-                                                        <Loader2 className="size-3.5 animate-spin" />
-                                                    ) : (
-                                                        <Link2 className="size-3.5" />
-                                                    )}
-                                                    <span>{isCurrent ? 'Already Linked' : 'Link & Use Photos'}</span>
-                                                </Button>
-                                            </div>
-
-                                            {/* Preview thumbnails strip */}
-                                            {r.preview_photos && r.preview_photos.length > 0 && (
-                                                <div className="flex items-center gap-2 pt-2 border-t border-border/50 overflow-x-auto">
-                                                    {r.preview_photos.map((p) => (
-                                                        <div
-                                                            key={p.id}
-                                                            className="size-14 rounded-md overflow-hidden border bg-muted/30 shrink-0"
-                                                        >
-                                                            {p.thumbnail_url ? (
-                                                                <img
-                                                                    src={p.thumbnail_url}
-                                                                    alt={p.title || 'Preview'}
-                                                                    className="size-full object-cover"
-                                                                />
-                                                            ) : (
-                                                                <div className="size-full flex items-center justify-center text-muted-foreground">
-                                                                    <ImageIcon className="size-4" />
-                                                                </div>
-                                                            )}
-                                                        </div>
-                                                    ))}
-                                                    {r.photos_count > r.preview_photos.length && (
-                                                        <span className="text-[11px] text-muted-foreground pl-1 font-mono shrink-0">
-                                                            +{r.photos_count - r.preview_photos.length} more
-                                                        </span>
-                                                    )}
-                                                </div>
-                                            )}
-                                        </div>
-                                    );
-                                })}
-                            </div>
-                        )}
-                    </div>
-
-                    <DialogFooter className="p-4 border-t bg-muted/10 flex items-center justify-between sm:justify-between">
-                        <Button
-                            type="button"
-                            variant="ghost"
-                            size="sm"
-                            onClick={() => {
-                                setIsImportDialogOpen(false);
-                                setDismissedSetupPrompt(true);
-                            }}
-                            className="text-xs text-muted-foreground"
-                        >
-                            Start Clean Instead
-                        </Button>
-                        <Button
-                            type="button"
-                            variant="outline"
-                            size="sm"
-                            onClick={() => setIsImportDialogOpen(false)}
-                            className="text-xs"
-                        >
-                            Close
-                        </Button>
-                    </DialogFooter>
-                </DialogContent>
-            </Dialog>
-
-            {/* Unlink Confirmation Dialog */}
-            <Dialog open={isUnlinkDialogOpen} onOpenChange={setIsUnlinkDialogOpen}>
-                <DialogContent className="sm:max-w-md">
-                    <DialogHeader>
-                        <DialogTitle className="text-base font-bold">Unlink Photo Form</DialogTitle>
-                        <DialogDescription className="text-xs">
-                            Are you sure you want to unlink from{' '}
-                            <span className="font-semibold text-foreground">
-                                {currentLinkedReport?.reference_number}
-                            </span>
-                            ?
-                        </DialogDescription>
-                    </DialogHeader>
-                    <div className="py-2 text-xs text-muted-foreground space-y-2">
-                        <p>You can choose what to do with the photos currently in this report:</p>
-                        <ul className="list-disc pl-5 space-y-1">
-                            <li>
-                                <strong>Keep Photos</strong>: Retain photos in this report as independent copies.
-                            </li>
-                            <li>
-                                <strong>Remove Imported Photos</strong>: Clear the imported photos from this report.
-                            </li>
-                        </ul>
-                    </div>
-                    <DialogFooter className="flex-col sm:flex-row gap-2">
-                        <Button
-                            type="button"
-                            variant="outline"
-                            size="sm"
-                            onClick={() => setIsUnlinkDialogOpen(false)}
-                            disabled={isLinking}
-                            className="text-xs"
-                        >
-                            Cancel
-                        </Button>
-                        <Button
-                            type="button"
-                            variant="destructive"
-                            size="sm"
-                            onClick={() => handleUnlinkReport(true)}
-                            disabled={isLinking}
-                            className="text-xs gap-1.5"
-                        >
-                            <Trash2 className="size-3.5" />
-                            <span>Remove & Unlink</span>
-                        </Button>
-                        <Button
-                            type="button"
-                            variant="default"
-                            size="sm"
-                            onClick={() => handleUnlinkReport(false)}
-                            disabled={isLinking}
-                            className="text-xs gap-1.5"
-                        >
-                            <Unlink className="size-3.5" />
-                            <span>Keep Photos & Unlink</span>
-                        </Button>
-                    </DialogFooter>
-                </DialogContent>
-            </Dialog>
         </Card>
     );
 }

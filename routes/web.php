@@ -40,9 +40,6 @@ Route::middleware(['auth', 'verified'])->group(function () {
     Route::put('reports/{report}/photos/{photo}', [PhotoController::class, 'update'])->name('reports.photos.update');
     Route::delete('reports/{report}/photos/{photo}', [PhotoController::class, 'destroy'])->name('reports.photos.destroy');
     Route::post('reports/{report}/photos/reorder', [PhotoController::class, 'reorder'])->name('reports.photos.reorder');
-    Route::get('reports/{report}/available-photo-reports', [PhotoController::class, 'availablePhotoReports'])->name('reports.photos.available');
-    Route::post('reports/{report}/link-photo-report', [PhotoController::class, 'linkPhotoReport'])->name('reports.photos.link');
-    Route::post('reports/{report}/unlink-photo-report', [PhotoController::class, 'unlinkPhotoReport'])->name('reports.photos.unlink');
 
     Route::middleware('can:manage-forms')->prefix('admin')->name('admin.')->group(function () {
         Route::get('forms', [FormController::class, 'index'])->name('forms.index');
@@ -50,6 +47,7 @@ Route::middleware(['auth', 'verified'])->group(function () {
         Route::get('forms/{form}', [FormController::class, 'show'])->name('forms.show');
         Route::put('forms/{form}/summary-schema', [FormController::class, 'updateSummarySchema'])->name('forms.summary-schema.update');
         Route::put('forms/{form}/photo-schema', [FormController::class, 'updatePhotoSchema'])->name('forms.photo-schema.update');
+        Route::put('forms/{form}/layout-schema', [FormController::class, 'updateLayoutSchema'])->name('forms.layout-schema.update');
 
         // Groups (Task 2.1, 2.3, 2.4, 2.6)
         Route::post('forms/{form}/groups', [FormGroupController::class, 'store'])->name('groups.store');

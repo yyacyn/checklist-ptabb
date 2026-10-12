@@ -1,12 +1,11 @@
 import React from 'react';
 import { Badge } from '@/components/ui/badge';
-import type { FormGroupData, PhotoSchema, SummarySchema } from './types';
+import type { FormGroupData, SummarySchema } from './types';
 
 export interface FormChapterSidebarProps {
     chapters: FormGroupData[];
     isPhotoForm: boolean;
     summaryFormState: SummarySchema;
-    photoFormState: PhotoSchema;
     activeNavChapterId: number | 'summary' | 'photo';
     onSelectTab: (tabId: number | 'summary' | 'photo') => void;
     getAllGroupQuestionIds: (group: FormGroupData) => number[];
@@ -16,7 +15,6 @@ export function FormChapterSidebar({
     chapters,
     isPhotoForm,
     summaryFormState,
-    photoFormState,
     activeNavChapterId,
     onSelectTab,
     getAllGroupQuestionIds,
@@ -24,7 +22,7 @@ export function FormChapterSidebar({
     const totalChaptersCount =
         chapters.length +
         (!isPhotoForm && summaryFormState.enabled ? 1 : 0) +
-        (photoFormState.enabled || isPhotoForm ? 1 : 0);
+        (isPhotoForm ? 1 : 0);
 
     return (
         <aside className="w-full lg:w-72 lg:shrink-0 lg:sticky lg:top-6 max-h-[calc(100vh-8rem)] overflow-y-auto rounded-xl border bg-muted/20 p-3 space-y-2">
@@ -101,7 +99,7 @@ export function FormChapterSidebar({
                 )}
 
                 {/* Photo Chapter / Form in Table of Chapters */}
-                {(photoFormState.enabled || isPhotoForm) && (
+                {isPhotoForm && (
                     <button
                         type="button"
                         onClick={() => onSelectTab('photo')}
@@ -112,8 +110,7 @@ export function FormChapterSidebar({
                         }`}
                     >
                         <span className="font-semibold text-xs text-foreground truncate flex-1">
-                            {photoFormState.title ||
-                                (isPhotoForm ? 'Photo Form Settings' : 'Photographic Records')}
+                            Photographic Records
                         </span>
                     </button>
                 )}

@@ -1,11 +1,9 @@
 import {
     ArrowDown,
     ArrowUp,
-    Camera,
     ChevronDown,
     ChevronLeft,
     ChevronRight,
-    ExternalLink,
     Eye,
     EyeOff,
     Plus,
@@ -23,21 +21,13 @@ import {
 import { Checkbox } from '@/components/ui/checkbox';
 import { Input } from '@/components/ui/input';
 import { Label } from '@/components/ui/label';
-import {
-    Select,
-    SelectContent,
-    SelectItem,
-    SelectTrigger,
-    SelectValue,
-} from '@/components/ui/select';
-import type { PhotoFormOption, PhotoSchema } from './types';
+import type { PhotoSchema } from './types';
 
 export interface PhotoSchemaEditorProps {
     isPhotoForm: boolean;
     formName: string;
     photoFormState: PhotoSchema;
     setPhotoFormState: React.Dispatch<React.SetStateAction<PhotoSchema>>;
-    availablePhotoForms?: PhotoFormOption[];
     isSavingPhoto: boolean;
     onSavePhotoSchema: () => void;
     onRemovePhotoChapter?: () => void;
@@ -53,7 +43,6 @@ export function PhotoSchemaEditor({
     formName,
     photoFormState,
     setPhotoFormState,
-    availablePhotoForms = [],
     isSavingPhoto,
     onSavePhotoSchema,
     onRemovePhotoChapter,
@@ -112,11 +101,6 @@ export function PhotoSchemaEditor({
             return { ...prev, items: current };
         });
     };
-
-    const attachedPhotoForm = availablePhotoForms.find(
-        (pf) => pf.id === photoFormState.attached_form_id
-    );
-    const attachedItems = attachedPhotoForm?.photo_schema?.items || [];
 
     return (
         <Card
@@ -223,7 +207,7 @@ export function PhotoSchemaEditor({
                     {photoFormState.enabled && (
                         <>
                             <div className="space-y-4 pt-2 border-t">
-                                <div className="grid grid-cols-1 md:grid-cols-2 gap-4">
+                                <div className="space-y-4">
                                     <div className="space-y-1.5">
                                         <Label htmlFor="photo_title">Section Title</Label>
                                         <Input
@@ -235,175 +219,30 @@ export function PhotoSchemaEditor({
                                                     title: e.target.value,
                                                 }))
                                             }
-                                            placeholder="e.g. Chapter 16 - Photographic Records"
+                                            placeholder="e.g. Photographic Records"
                                         />
                                     </div>
 
                                     <div className="space-y-1.5">
-                                        <Label htmlFor="photo_attach_form">
-                                            Attach Photo Form Template
+                                        <Label htmlFor="photo_description">
+                                            Instructions / Notes (Optional)
                                         </Label>
-                                        <Select
-                                            value={
-                                                photoFormState.attached_form_id
-                                                    ? String(photoFormState.attached_form_id)
-                                                    : 'custom'
-                                            }
-                                            onValueChange={(val) =>
+                                        <textarea
+                                            id="photo_description"
+                                            value={photoFormState.description || ''}
+                                            onChange={(e) =>
                                                 setPhotoFormState((prev) => ({
                                                     ...prev,
-                                                    attached_form_id: val === 'custom' ? null : Number(val),
+                                                    description: e.target.value,
                                                 }))
                                             }
-                                        >
-                                            <SelectTrigger id="photo_attach_form">
-                                                <SelectValue placeholder="Select a photo form..." />
-                                            </SelectTrigger>
-                                            <SelectContent>
-                                                <SelectItem value="custom">
-                                                    Custom Photo List (Custom to this form)
-                                                </SelectItem>
-                                                {availablePhotoForms.map((pf) => (
-                                                    <SelectItem key={pf.id} value={String(pf.id)}>
-                                                        {pf.code} - {pf.name}
-                                                    </SelectItem>
-                                                ))}
-                                            </SelectContent>
-                                        </Select>
+                                            rows={2}
+                                            className="w-full rounded-md border border-input bg-transparent px-3 py-2 text-sm shadow-xs placeholder:text-muted-foreground focus-visible:outline-none focus-visible:ring-1 focus-visible:ring-ring"
+                                            placeholder="Instructions for uploading photos..."
+                                        />
                                     </div>
                                 </div>
 
-                                <div className="space-y-1.5">
-                                    <Label htmlFor="photo_description">
-                                        Instructions / Notes (Optional)
-                                    </Label>
-                                    <textarea
-                                        id="photo_description"
-                                        value={photoFormState.description || ''}
-                                        onChange={(e) =>
-                                            setPhotoFormState((prev) => ({
-                                                ...prev,
-                                                description: e.target.value,
-                                            }))
-                                        }
-                                        rows={2}
-                                        className="w-full rounded-md border border-input bg-transparent px-3 py-2 text-sm shadow-xs placeholder:text-muted-foreground focus-visible:outline-none focus-visible:ring-1 focus-visible:ring-ring"
-                                        placeholder="Instructions for uploading photos..."
-                                    />
-                                </div>
-                            </div>
-
-                            {photoFormState.attached_form_id ? (
-                                <div className="space-y-4 pt-3 border-t">
-                                    {/* Attached Template Summary Card */}
-                                    <div className="rounded-lg border border-primary/20 bg-primary/5 p-4">
-                                        <div className="flex flex-col sm:flex-row sm:items-center justify-between gap-3">
-                                            <div className="space-y-1">
-                                                <div className="flex items-center gap-2 flex-wrap">
-                                                    <Badge
-                                                        variant="outline"
-                                                        className="font-bold text-xs bg-background"
-                                                    >
-                                                        {attachedPhotoForm?.code || 'PHOTO'}
-                                                    </Badge>
-                                                    <span className="font-semibold text-sm text-foreground">
-                                                        {attachedPhotoForm?.name || 'Photo Form Template'}
-                                                    </span>
-                                                    {attachedPhotoForm?.form_version && (
-                                                        <Badge variant="secondary" className="text-[10px]">
-                                                            v{attachedPhotoForm.form_version}
-                                                        </Badge>
-                                                    )}
-                                                </div>
-                                                <p className="text-xs text-muted-foreground">
-                                                    {attachedItems.length} photo slot
-                                                    {attachedItems.length !== 1 ? 's' : ''} configured in this
-                                                    template.
-                                                </p>
-                                            </div>
-
-                                            {attachedPhotoForm && (
-                                                <a
-                                                    href={`/admin/forms/${attachedPhotoForm.id}`}
-                                                    target="_blank"
-                                                    rel="noopener noreferrer"
-                                                    className="inline-flex items-center gap-1.5 text-xs text-primary hover:underline font-medium shrink-0 bg-background/80 hover:bg-background border rounded-md px-2.5 py-1.5 shadow-2xs transition-colors"
-                                                >
-                                                    <span>Edit Master Template</span>
-                                                    <ExternalLink className="size-3.5" />
-                                                </a>
-                                            )}
-                                        </div>
-                                    </div>
-
-                                    {/* Live Visual Preview of Photo Form Template */}
-                                    <div className="space-y-3">
-                                        <div className="flex items-center justify-between">
-                                            <div className="flex items-center gap-2">
-                                                <Camera className="size-4 text-primary" />
-                                                <h4 className="text-xs font-semibold uppercase tracking-wider text-muted-foreground">
-                                                    Preview: Photo Slots in Reports
-                                                </h4>
-                                            </div>
-                                            <Badge variant="outline" className="text-xs">
-                                                {attachedItems.length} Photo Field
-                                                {attachedItems.length !== 1 ? 's' : ''}
-                                            </Badge>
-                                        </div>
-
-                                        {attachedItems.length === 0 ? (
-                                            <div className="text-center py-8 border-2 border-dashed rounded-lg bg-card/50">
-                                                <Camera className="size-8 mx-auto text-muted-foreground/40 mb-2" />
-                                                <p className="text-sm font-medium text-muted-foreground">
-                                                    No photo slots configured yet in this template
-                                                </p>
-                                                <p className="text-xs text-muted-foreground mt-1">
-                                                    Click "Edit Master Template" above to add photo slots to{' '}
-                                                    {attachedPhotoForm?.code || 'this template'}.
-                                                </p>
-                                            </div>
-                                        ) : (
-                                            <div className="grid grid-cols-1 md:grid-cols-2 lg:grid-cols-3 gap-3">
-                                                {attachedItems.map((item, idx) => (
-                                                    <div
-                                                        key={item.id || idx}
-                                                        className="rounded-lg border bg-card p-3 flex flex-col justify-between gap-3 shadow-2xs transition-all hover:border-primary/40"
-                                                    >
-                                                        <div className="space-y-1.5">
-                                                            <div className="flex items-center justify-between gap-2">
-                                                                <Badge
-                                                                    variant="secondary"
-                                                                    className="text-[10px] font-mono shrink-0"
-                                                                >
-                                                                    #{idx + 1}
-                                                                </Badge>
-                                                                <span className="text-[10px] text-muted-foreground font-medium">
-                                                                    Photo Slot
-                                                                </span>
-                                                            </div>
-                                                            <p className="text-xs font-semibold text-foreground line-clamp-2">
-                                                                {item.title}
-                                                            </p>
-                                                            {item.description && (
-                                                                <p className="text-[11px] text-muted-foreground line-clamp-2">
-                                                                    {item.description}
-                                                                </p>
-                                                            )}
-                                                        </div>
-
-                                                        <div className="rounded border border-dashed bg-muted/30 p-3 flex flex-col items-center justify-center text-center gap-1 min-h-[75px]">
-                                                            <Camera className="size-4 text-muted-foreground/60" />
-                                                            <span className="text-[10px] text-muted-foreground">
-                                                                Inspector Photo Upload
-                                                            </span>
-                                                        </div>
-                                                    </div>
-                                                ))}
-                                            </div>
-                                        )}
-                                    </div>
-                                </div>
-                            ) : (
                                 <div className="space-y-3 pt-3 border-t">
                                     <div className="flex items-center justify-between">
                                         <Label className="text-sm font-semibold">Photo Fields</Label>
@@ -480,7 +319,7 @@ export function PhotoSchemaEditor({
                                         )}
                                     </div>
                                 </div>
-                            )}
+                            </div>
                         </>
                     )}
 

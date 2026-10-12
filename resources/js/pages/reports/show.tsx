@@ -11,7 +11,6 @@ import {
     PhotoChapterSection,
     type PhotoCategoryItem,
     type PhotoRecord,
-    type QuestionOptionItem,
 } from '@/components/photo-chapter-section';
 import { Badge } from '@/components/ui/badge';
 import { Button } from '@/components/ui/button';
@@ -45,7 +44,6 @@ import {
 } from '@/components/reports';
 import type {
     AnswerData,
-    AvailablePhotoReport,
     ConflictData,
     FindingData,
     LockData,
@@ -83,7 +81,6 @@ interface Props {
     initial_lock?: LockData | null;
     can_delete?: boolean;
     photo_categories?: PhotoCategoryItem[];
-    available_photo_reports?: AvailablePhotoReport[];
 }
 
 export default function ReportDataEntry({
@@ -93,9 +90,7 @@ export default function ReportDataEntry({
     initial_lock = null,
     can_delete = false,
     photo_categories = [],
-    available_photo_reports = [],
 }: Props) {
-    const [linkedPhotoReport, setLinkedPhotoReport] = useState(report.linked_photo_report || null);
     const [reportStatus, setReportStatus] = useState<string>(report.status);
     const canSubmit = Boolean(
         (reportStatus === 'draft' || reportStatus === 'in_progress') && (can_submit ?? is_editable)
@@ -356,40 +351,17 @@ export default function ReportDataEntry({
     const summaryChapterTitle = summarySchema.title || 'Summary & Observations';
 
     const photoSchema = useMemo(() => {
-        if (report.form.photo_schema) {
+        if (isPhotoForm && report.form.photo_schema) {
             return report.form.photo_schema;
         }
         return {
-            enabled: isPhotoForm || report.form.code === 'D-062',
-            title: isPhotoForm
-                ? report.form.name
-                : report.form.code === 'D-062'
-                ? 'Chapter 16 - Photographic Records'
-                : 'Photographic Records',
-            description: isPhotoForm
-                ? 'Dedicated photographic records for vessel condition and walkaround.'
-                : 'Photographic evidence and vessel condition records.',
-            allowed_categories: photo_categories.map((c) => c.code),
+            enabled: false,
+            title: 'Photographic Records',
+            description: '',
         };
-    }, [report.form.photo_schema, isPhotoForm, report.form.name, report.form.code, photo_categories]);
+    }, [report.form.photo_schema, isPhotoForm]);
 
-    const photoChapterNo = String(otherChapters.length + (!isPhotoForm && summarySchema.enabled !== false ? 3 : 2));
-    const photoChapterTitle = photoSchema.title || (isPhotoForm ? 'Photographic Records' : 'Photographic Records');
-
-    const allQuestionsForLink: QuestionOptionItem[] = useMemo(() => {
-        const list: QuestionOptionItem[] = [];
-        report.groups.forEach((g) => {
-            (g.questions || []).forEach((q) => {
-                list.push({ id: q.id, item_number: String(q.sort_order), question_text: q.question_text });
-            });
-            (g.subgroups || []).forEach((sg) => {
-                (sg.questions || []).forEach((q) => {
-                    list.push({ id: q.id, item_number: String(q.sort_order), question_text: q.question_text });
-                });
-            });
-        });
-        return list;
-    }, [report.groups]);
+    const photoChapterTitle = photoSchema.title || 'Photographic Records';
 
     const navChapters = useMemo(() => {
         if (isPhotoForm) {
@@ -415,14 +387,6 @@ export default function ReportDataEntry({
                 sort_order: list.length + 1,
             });
         }
-        if (photoSchema.enabled !== false) {
-            list.push({
-                id: -888,
-                title: photoChapterTitle,
-                chapter_no: photoChapterNo,
-                sort_order: list.length + 1,
-            });
-        }
         return list;
     }, [
         isPhotoForm,
@@ -430,9 +394,7 @@ export default function ReportDataEntry({
         summarySchema,
         summaryChapterTitle,
         summaryChapterNo,
-        photoSchema,
         photoChapterTitle,
-        photoChapterNo,
     ]);
 
     const currentChapterIdx = navChapters.findIndex((c) => c.id === activeChapterId);
@@ -870,25 +832,11 @@ export default function ReportDataEntry({
                 totalAnswered = photos.length;
             }
         } else {
-            // Standard Form: progress is based on question answers
+            // Standard Form: progress is based solely on question answers
             Object.values(chapterStats).forEach((s) => {
                 totalApplicable += s.applicable;
                 totalAnswered += s.answered;
             });
-
-            // If the standard form also has configured photo slots in its photo chapter
-            if (photoSchema.enabled && photoSchema.items && photoSchema.items.length > 0) {
-                const slots = photoSchema.items;
-                totalApplicable += slots.length;
-                totalAnswered += slots.filter((slot, idx) => {
-                    const slotNo = idx + 1;
-                    return photos.some(
-                        (p) =>
-                            p.item_no === slotNo ||
-                            (p.title && p.title.toLowerCase() === slot.title.toLowerCase())
-                    );
-                }).length;
-            }
         }
 
         const percent = totalApplicable > 0 ? Math.round((totalAnswered / totalApplicable) * 100) : 0;
@@ -938,7 +886,6 @@ export default function ReportDataEntry({
                         summaryChapterNo={summaryChapterNo}
                         summaryChapterTitle={summaryChapterTitle}
                         findings={findings}
-                        photoSchema={photoSchema}
                     />
 
                     {/* Right Main Content Area: General Information, Groups, Observations, or Photos */}
@@ -951,21 +898,11 @@ export default function ReportDataEntry({
                                     description={photoSchema.description}
                                     isPhotoForm={isPhotoForm}
                                     isEditable={is_editable}
-                                    photoFormCode={photoSchema.attached_form_code || 'P-001'}
                                     photos={photos}
                                     schemaItems={photoSchema.items || []}
                                     categories={photo_categories}
                                     allowedCategoryCodes={photoSchema.allowed_categories}
-                                    questions={allQuestionsForLink}
-                                    findings={findings.map((f) => ({
-                                        id: f.id,
-                                        finding_no: f.viq_paragraph || String(f.id),
-                                        description: f.description,
-                                    }))}
                                     onPhotosChange={setPhotos}
-                                    linkedReport={linkedPhotoReport}
-                                    availableReports={available_photo_reports}
-                                    onLinkedReportChange={setLinkedPhotoReport}
                                 />
                                 {prevChapter && (
                                     <div className="flex justify-between pt-2 pb-4">
