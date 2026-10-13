@@ -440,7 +440,7 @@ class FormSeeder extends Seeder
                 ],
                 [
                     'type' => 'checklist_chapters',
-                    'column_labels' => ['No.', 'Item', 'Yes', 'No', 'NS', 'NA', 'Remarks'],
+                    'column_labels' => ['No.', 'Item', 'Yes', 'No', 'NS', 'NA'],
                 ],
                 ['type' => 'best_practices', 'chapter_no' => '14', 'title' => 'Chapter 14 - Best Practices'],
                 [
@@ -489,7 +489,7 @@ class FormSeeder extends Seeder
                 ],
                 [
                     'type' => 'checklist_chapters',
-                    'column_labels' => ['No.', 'Item', 'Yes', 'No', 'N/S', 'Remarks'],
+                    'column_labels' => ['No.', 'Item', 'Yes', 'No', 'N/S'],
                 ],
                 [
                     'type' => 'audit_summary',

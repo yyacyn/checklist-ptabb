@@ -118,7 +118,7 @@ HTML;
             'sections' => [
                 ['type' => 'cover', 'title_key' => 'inspection_report'],
                 ['type' => 'general_info', 'title' => 'Chapter 1 - General Information', 'components' => ['vessel_particulars', 'operations_grid', 'psc_drydock', 'open_items_table', 'internal_circulation']],
-                ['type' => 'checklist_chapters', 'column_labels' => ['No.', 'Item', 'Yes', 'No', 'NS', 'NA', 'Remarks']],
+                ['type' => 'checklist_chapters', 'column_labels' => ['No.', 'Item', 'Yes', 'No', 'NS', 'NA']],
                 ['type' => 'best_practices', 'chapter_no' => '14'],
                 ['type' => 'summary_of_observations', 'chapter_no' => '15'],
                 ['type' => 'report_summary', 'position' => 'after_chapter_15'],
@@ -141,7 +141,7 @@ HTML;
             'sections' => [
                 ['type' => 'cover', 'title_key' => 'audit_report'],
                 ['type' => 'audit_header', 'components' => ['audit_details', 'operations', 'followup']],
-                ['type' => 'checklist_chapters', 'column_labels' => ['No.', 'Item', 'Yes', 'No', 'N/S', 'Remarks']],
+                ['type' => 'checklist_chapters', 'column_labels' => ['No.', 'Item', 'Yes', 'No', 'N/S']],
                 ['type' => 'audit_summary'],
                 ['type' => 'comparison_blocks'],
                 ['type' => 'circulation'],
@@ -1052,7 +1052,6 @@ HTML;
                 'template_version' => 'T'.((int) ($report->template_version ?? 1)),
                 'report_number' => $this->escape($report->reference_number ?? ''),
                 'generation_date' => now()->format('Y-m-d H:i').' UTC',
-                'page_number' => '{PAGE}',
                 default => '',
             };
         }
@@ -1111,7 +1110,6 @@ HTML;
     protected function documentStyles(array $schema): string
     {
         return <<<'CSS'
-@page { size: A4; margin: 15mm 12mm 15mm 12mm; }
 body { font-family: "DejaVu Sans", "Helvetica Neue", Arial, sans-serif; font-size: 8.5pt; color: #111; margin: 0; padding: 0; }
 tr { page-break-inside: avoid; }
 .cover { text-align: center; padding: 100px 40px 0; }
@@ -1122,21 +1120,23 @@ tr { page-break-inside: avoid; }
 .section { padding: 16px 20px; }
 .page-break-before { page-break-before: always; }
 .page-break-after { page-break-after: always; }
-.chapter { margin-bottom: 16pt; }
+.chapter { page-break-before: always; margin-bottom: 16pt; }
 .chapter-title { font-size: 13pt; font-weight: bold; margin-bottom: 10pt; border-bottom: 1.5pt solid #000; padding-bottom: 4pt; }
 .chapter-header { font-size: 11pt; font-weight: bold; margin-bottom: 8pt; border-bottom: 1pt solid #ccc; padding-bottom: 3pt; }
 .subsection-title { font-size: 9.5pt; font-weight: bold; margin: 14pt 0 6pt; }
-.checklist-table { width: 100%; border-collapse: collapse; margin-bottom: 8pt; }
+.checklist-table { width: 100%; border-collapse: collapse; margin-bottom: 8pt; table-layout: fixed; }
 .checklist-table th, .checklist-table td { border: 1pt solid #000; padding: 3pt 4pt; font-size: 8pt; vertical-align: top; }
 .checklist-table th { background-color: #eee; font-weight: bold; }
-.no-col { width: 24px; text-align: center; }
-.q-col { width: 45%; }
-.ans-col { width: 4%; text-align: center; }
-.remarks-cell { width: 25%; }
+.no-col { width: 5%; text-align: center; }
+.q-col { width: 71%; }
+.ans-col { width: 6%; text-align: center; }
+.remarks-cell { width: 20%; }
 .text-center { text-align: center; }
-.subgroup-header { font-weight: bold; background-color: #f7f7f7; padding: 4pt; border: 1pt solid #000; }
+tr.subgroup-row { page-break-inside: avoid; page-break-after: avoid; }
+.subgroup-header { font-weight: bold; background-color: #f1f5f9; padding: 4pt 6pt; border: 1pt solid #000; font-size: 8.5pt; }
 .guidance { font-size: 7.5pt; color: #555; margin-top: 2pt; font-style: italic; }
 .extra-value { font-size: 7.5pt; color: #111; margin-top: 2pt; font-family: monospace; }
+.q-note { font-size: 7.5pt; color: #333; margin-top: 3pt; padding: 2pt 4pt; background-color: #f8f8f8; border-left: 2pt solid #666; }
 .na-reason { font-size: 7.5pt; color: #c00; font-weight: normal; margin-left: 6pt; }
 .chapter-comments { margin-top: 6pt; padding: 6pt 8pt; border: 1pt solid #ccc; background-color: #fafafa; font-size: 8pt; page-break-inside: avoid; }
 .particulars-table { width: 100%; border-collapse: collapse; margin-bottom: 12pt; }
@@ -1145,6 +1145,7 @@ tr { page-break-inside: avoid; }
 .field-value { width: 60%; }
 .ops-table { width: 60%; border-collapse: collapse; margin-bottom: 12pt; }
 .ops-table td { border: 1pt solid #ccc; padding: 3pt 6pt; font-size: 8pt; }
+.ops-table td.text-center { width: 35px; text-align: center; }
 .findings-table { width: 100%; border-collapse: collapse; margin-bottom: 12pt; }
 .findings-table th, .findings-table td { border: 1pt solid #000; padding: 3pt 4pt; font-size: 8pt; }
 .findings-table th { background-color: #eee; font-weight: bold; }
@@ -1163,11 +1164,6 @@ tr { page-break-inside: avoid; }
 .sig-label { display: inline-block; width: 130px; font-weight: bold; }
 .na-banner { background-color: #ffeeee; border: 1pt dashed #cc0000; padding: 6pt; margin-bottom: 8pt; font-size: 8pt; }
 .split-note { background-color: #eef2ff; border: 1pt dashed #4338ca; padding: 8pt; margin-bottom: 10pt; font-size: 8.5pt; }
-.watermark {
-    position: fixed; top: 40%; left: 0; width: 100%; text-align: center;
-    font-size: 60pt; color: #ddd; transform: rotate(-30deg); z-index: 9999;
-}
-.footer { position: fixed; bottom: 8px; width: 100%; text-align: center; font-size: 7.5pt; color: #666; }
 .photo-item { page-break-inside: avoid; margin-bottom: 14pt; border: 1pt solid #e5e5e5; padding: 6pt; border-radius: 4pt; }
 .photo-img { max-width: 100%; max-height: 480px; height: auto; display: block; margin: 0 auto; }
 .photo-meta { padding: 6pt 2pt 2pt; font-size: 8pt; }
@@ -1190,11 +1186,16 @@ CSS;
      */
     public function renderToPdf(Report $report, array $options = []): string
     {
+        $schema = $this->resolveLayoutSchema($report);
+        $footerFields = $schema['footer']['fields'] ?? [];
+        $footerText = $this->buildFooterText($report, $footerFields);
+
         $html = $this->render($report);
         $isDraft = in_array($report->status, ['draft', 'in_progress', 'reopened'], true);
 
         $mergedOptions = array_merge([
-            'watermark' => $isDraft ? 'DRAFT' : null,
+            'watermark' => $isDraft ? ($schema['watermark']['draft_label'] ?? 'DRAFT') : null,
+            'footer_text' => $footerText,
         ], $options);
 
         return $this->pdfWriter->write($html, $mergedOptions);

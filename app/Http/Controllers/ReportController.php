@@ -733,7 +733,8 @@ class ReportController extends Controller
     {
         Gate::authorize('view', $report);
 
-        $path = $renderer->generatePdfFile($report);
+        $isClosed = $report->status === ReportStatus::Closed->value;
+        $path = $renderer->generatePdfFile($report, force: ! $isClosed);
         $fullPath = Storage::disk('public')->path($path);
 
         return response()->file($fullPath, [
@@ -749,7 +750,8 @@ class ReportController extends Controller
     {
         Gate::authorize('view', $report);
 
-        $path = $renderer->generatePdfFile($report);
+        $isClosed = $report->status === ReportStatus::Closed->value;
+        $path = $renderer->generatePdfFile($report, force: ! $isClosed);
         $fullPath = Storage::disk('public')->path($path);
 
         return response()->download($fullPath, 'report-'.$report->reference_number.'.pdf', [

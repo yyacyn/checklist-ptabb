@@ -10,7 +10,7 @@
     $formVersion = str_starts_with($rawVersion, 'v') ? $rawVersion : 'v' . $rawVersion;
 @endphp
 
-<div class="page-break-after">
+<div class="cover-wrapper">
   <div class="cover">
     <h1 class="cover-title">{{ $title }}</h1>
     <table class="cover-table">

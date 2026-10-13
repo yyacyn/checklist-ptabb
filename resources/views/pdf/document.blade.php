@@ -8,12 +8,6 @@
     </style>
 </head>
 <body>
-    @if(!empty($doc['meta']['watermark']))
-        <div class="watermark">{{ $doc['meta']['watermark'] }}</div>
-    @endif
-
     {!! $sections !!}
-
-    <div class="footer">{{ $footerText }}</div>
 </body>
 </html>

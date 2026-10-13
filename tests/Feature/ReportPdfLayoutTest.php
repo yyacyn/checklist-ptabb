@@ -98,7 +98,7 @@ class ReportPdfLayoutTest extends TestCase
 
         // D-062 answer columns: Yes, No, NS, NA
         $checklistSection = $this->findSectionByType($schema['sections'], 'checklist_chapters');
-        $this->assertSame(['No.', 'Item', 'Yes', 'No', 'NS', 'NA', 'Remarks'], $checklistSection['column_labels']);
+        $this->assertSame(['No.', 'Item', 'Yes', 'No', 'NS', 'NA'], $checklistSection['column_labels']);
 
         // Watermark (REP-4)
         $this->assertSame('DRAFT', $schema['watermark']['draft_label']);
@@ -132,7 +132,7 @@ class ReportPdfLayoutTest extends TestCase
 
         // B-008 answer columns: Yes, No, N/S (no NA per SRS FM-5)
         $checklistSection = $this->findSectionByType($schema['sections'], 'checklist_chapters');
-        $this->assertSame(['No.', 'Item', 'Yes', 'No', 'N/S', 'Remarks'], $checklistSection['column_labels']);
+        $this->assertSame(['No.', 'Item', 'Yes', 'No', 'N/S'], $checklistSection['column_labels']);
     }
 
     /**
@@ -418,10 +418,50 @@ class ReportPdfLayoutTest extends TestCase
         $renderer = new ReportPdfRenderer;
         $html = $renderer->render($report);
 
-        $this->assertStringContainsString('<th class="no-col">No.</th>', $html);
-        $this->assertStringContainsString('<th class="q-col">Item</th>', $html);
-        $this->assertStringContainsString('<th class="ans-col text-center">Yes</th>', $html);
-        $this->assertStringContainsString('<th class="remarks-cell">Remarks</th>', $html);
+        $this->assertStringContainsString('class="no-col text-center"', $html);
+        $this->assertStringContainsString('class="q-col"', $html);
+        $this->assertStringContainsString('class="ans-col text-center"', $html);
+        $this->assertStringNotContainsString('class="remarks-cell"', $html);
+    }
+
+    public function test_table_headers_support_optional_remarks_column(): void
+    {
+        $report = $this->createInspectionReport();
+        $report->form->forceFill([
+            'layout_schema' => [
+                'sections' => [
+                    ['type' => 'checklist_chapters', 'column_labels' => ['No.', 'Item', 'Yes', 'No', 'NS', 'NA', 'Remarks']],
+                ],
+            ],
+        ])->saveQuietly();
+
+        $renderer = new ReportPdfRenderer;
+        $html = $renderer->render($report);
+
+        $this->assertStringContainsString('class="remarks-cell"', $html);
+    }
+
+    /**
+     * Non-applicable chapters and questions must not appear in the PDF checklist tables.
+     */
+    public function test_inapplicable_chapters_and_questions_are_omitted_from_pdf(): void
+    {
+        $report = $this->createInspectionReport();
+
+        // Mark a top-level group as not applicable
+        $inapplicableGroup = $report->groups()->whereNull('parent_id')->where('chapter_no', '!=', '1')->first();
+        if ($inapplicableGroup) {
+            $inapplicableGroup->update([
+                'is_applicable' => false,
+                'na_reason' => 'Vessel type not applicable',
+            ]);
+
+            $renderer = new ReportPdfRenderer;
+            $html = $renderer->render($report);
+
+            $this->assertStringNotContainsString("id=\"chapter-{$inapplicableGroup->chapter_no}\"", $html);
+            $this->assertStringNotContainsString('NOT APPLICABLE: Vessel type not applicable', $html);
+        }
     }
 
     /**

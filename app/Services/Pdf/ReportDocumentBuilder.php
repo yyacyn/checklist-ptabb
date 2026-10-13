@@ -72,10 +72,12 @@ class ReportDocumentBuilder
                     $nsCount++;
                 }
 
+                $cleanQuestionText = preg_replace('/^\s*(\d+(\.\d+)*)[\.\)]\s*/u', '', (string) $q->question_text);
+
                 $formattedQuestions[] = [
                     'id' => $q->id,
                     'display_no' => $q->display_no ?: (string) ($q->sort_order + 1),
-                    'question_text' => $q->question_text,
+                    'question_text' => $cleanQuestionText,
                     'guidance' => $q->guidance,
                     'input_type' => $q->input_type,
                     'is_applicable' => (bool) $q->is_applicable,
@@ -99,10 +101,12 @@ class ReportDocumentBuilder
                         $nsCount++;
                     }
 
+                    $cleanSgQuestionText = preg_replace('/^\s*(\d+(\.\d+)*)[\.\)]\s*/u', '', (string) $q->question_text);
+
                     $formattedSgQuestions[] = [
                         'id' => $q->id,
                         'display_no' => $q->display_no ?: (string) ($q->sort_order + 1),
-                        'question_text' => $q->question_text,
+                        'question_text' => $cleanSgQuestionText,
                         'guidance' => $q->guidance,
                         'input_type' => $q->input_type,
                         'is_applicable' => (bool) $q->is_applicable,
@@ -221,6 +225,7 @@ class ReportDocumentBuilder
             $ratingsRows[] = [
                 'no' => $ch['display_no'],
                 'title' => $ch['title'],
+                'is_applicable' => (bool) ($ch['is_applicable'] ?? true),
                 'rating' => $ratingVal,
                 'no_count' => $ch['no_count'],
                 'ns_count' => $ch['ns_count'],

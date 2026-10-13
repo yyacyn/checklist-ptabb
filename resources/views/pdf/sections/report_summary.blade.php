@@ -43,14 +43,19 @@
     </thead>
     <tbody>
       @forelse($ratings as $row)
+        @php $isApplicable = $row['is_applicable'] ?? true; @endphp
         <tr>
           <td class="text-center">{{ $row['no'] }}</td>
-          <td>{{ $row['title'] }}</td>
-          @foreach($ratingOptions as $opt)
-            <td class="text-center">{{ ($row['rating'] === $opt['value']) ? '●' : '' }}</td>
-          @endforeach
-          <td class="text-center">{{ $row['no_count'] }}</td>
-          <td class="text-center">{{ $row['ns_count'] }}</td>
+          <td>{{ $row['title'] }} {{ !$isApplicable ? '(N/A)' : '' }}</td>
+          @if(!$isApplicable)
+            <td colspan="{{ count($ratingOptions) }}" class="text-center" style="color: #777; font-style: italic;">N/A</td>
+          @else
+            @foreach($ratingOptions as $opt)
+              <td class="text-center">{{ ($row['rating'] === $opt['value']) ? '●' : '' }}</td>
+            @endforeach
+          @endif
+          <td class="text-center">{{ $isApplicable ? $row['no_count'] : '-' }}</td>
+          <td class="text-center">{{ $isApplicable ? $row['ns_count'] : '-' }}</td>
         </tr>
       @empty
         <tr><td colspan="{{ 4 + count($ratingOptions) }}" class="empty-row text-center">No checklist chapters available.</td></tr>
