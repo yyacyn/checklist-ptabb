@@ -546,6 +546,38 @@ class ReportController extends Controller
     }
 
     /**
+     * Save comment/remarks for a photo section/slot in photo reports.
+     */
+    public function savePhotoSectionComment(Request $request, Report $report): JsonResponse
+    {
+        Gate::authorize('update', $report);
+
+        $validated = $request->validate([
+            'section_key' => ['required', 'string', 'max:100'],
+            'comment' => ['nullable', 'string', 'max:5000'],
+        ]);
+
+        $summaryData = $report->summary_data ?? [];
+        $comments = $summaryData['photo_section_comments'] ?? [];
+
+        if (empty($validated['comment']) && $validated['comment'] !== '0') {
+            unset($comments[$validated['section_key']]);
+        } else {
+            $comments[$validated['section_key']] = $validated['comment'];
+        }
+
+        $summaryData['photo_section_comments'] = $comments;
+        $report->update(['summary_data' => $summaryData]);
+
+        return response()->json([
+            'status' => 'saved',
+            'section_key' => $validated['section_key'],
+            'comment' => $validated['comment'] ?? '',
+            'photo_section_comments' => $comments,
+        ]);
+    }
+
+    /**
      * Update report General Information particulars (Task 3.1, Form D-062 Chapter 1).
      */
     public function updateGeneralInfo(Request $request, Report $report): JsonResponse

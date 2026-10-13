@@ -125,8 +125,13 @@
       </tbody>
     </table>
 
-    @if(!empty($chapter['comments']))
-      <div class="chapter-comments"><strong>COMMENTS / REMARKS:</strong> {!! nl2br(e($chapter['comments'])) !!}</div>
-    @endif
+    <div class="chapter-comments">
+      <strong>COMMENTS / REMARKS:</strong>
+      @if(!empty($chapter['comments']))
+        <div class="comments-body">{!! nl2br(e($chapter['comments'])) !!}</div>
+      @else
+        <span class="no-comment-text" style="color: #666; font-style: italic; margin-left: 6px;">No comment</span>
+      @endif
+    </div>
   </div>
 @endforeach

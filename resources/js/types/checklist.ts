@@ -208,5 +208,5 @@ export interface ReportData {
     summary_safety_meetings?: string | null;
     summary_participants?: string | null;
     summary_concept_understanding?: string | null;
-    summary_data?: Record<string, string> | null;
+    summary_data?: (Record<string, any> & { photo_section_comments?: Record<string, string> }) | null;
 }

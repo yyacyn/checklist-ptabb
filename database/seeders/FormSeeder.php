@@ -97,6 +97,18 @@ class FormSeeder extends Seeder
                             ['id' => '5', 'title' => 'Safety Equipment'],
                         ],
                     ],
+                    'layout_schema' => [
+                        'sections' => [
+                            ['type' => 'cover', 'title_key' => 'photo_report'],
+                            ['type' => 'photo_chapter', 'title' => 'Photographic Records'],
+                            ['type' => 'signature_lines'],
+                        ],
+                        'footer' => [
+                            'fields' => ['form_code', 'form_version', 'template_version', 'report_number', 'generation_date', 'page_number'],
+                        ],
+                        'watermark' => ['draft_label' => 'DRAFT'],
+                        'photo_appendix_threshold' => 100,
+                    ],
                 ]
             );
             $summary['forms']++;

@@ -158,6 +158,36 @@ class ReportPdfLayoutTest extends TestCase
     }
 
     /**
+     * The renderer produces a clean, focused layout for photo form reports without D-062 checklist sections.
+     */
+    public function test_renderer_uses_photo_layout_for_photo_form(): void
+    {
+        $photoForm = Form::where('code', 'P-001')->firstOrFail();
+        $report = Report::create([
+            'report_type' => 'inspection',
+            'form_id' => $photoForm->id,
+            'template_version' => 1,
+            'reference_number' => 'P001-20261013-99',
+            'status' => 'draft',
+            'vessel_name' => 'MV Photo Carrier',
+            'report_date' => now()->toDateString(),
+            'created_by' => User::factory()->create()->id,
+        ]);
+
+        $renderer = new ReportPdfRenderer;
+        $html = $renderer->render($report);
+
+        $this->assertStringContainsString('PHOTOGRAPHIC RECORD REPORT', $html);
+        $this->assertStringContainsString('Photographic Records', $html);
+        $this->assertStringNotContainsString('REPORT SUMMARY', $html);
+        $this->assertStringNotContainsString('Summary of Observations', $html);
+        $this->assertStringNotContainsString('Chapter 1 - General Information', $html);
+        $this->assertStringNotContainsString('Internal Circulation', $html);
+        $this->assertStringNotContainsString('Port State Control', $html);
+        $this->assertStringNotContainsString('Open Items from Previous', $html);
+    }
+
+    /**
      * The renderer produces HTML with all expected top-level sections for a D-062 report.
      */
     public function test_renderer_produces_html_with_expected_sections(): void

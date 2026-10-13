@@ -1,9 +1,11 @@
 import {
     Camera,
+    Check,
     CheckCircle2,
     Image as ImageIcon,
     Loader2,
     Maximize2,
+    MessageSquare,
     Plus,
     Trash2,
     UploadCloud,
@@ -92,6 +94,7 @@ interface PhotoChapterSectionProps {
     isEditable?: boolean;
     photos: PhotoRecord[];
     schemaItems?: Array<{ id?: string; title: string; description?: string }>;
+    initialComments?: Record<string, string>;
     categories?: PhotoCategoryItem[];
     allowedCategoryCodes?: string[];
     questions?: QuestionOptionItem[];
@@ -107,6 +110,7 @@ export function PhotoChapterSection({
     isEditable = true,
     photos = [],
     schemaItems = [],
+    initialComments = {},
     onPhotosChange,
 }: PhotoChapterSectionProps) {
     const [photoList, setPhotoList] = useState<PhotoRecord[]>(photos);
@@ -124,6 +128,74 @@ export function PhotoChapterSection({
 
     const fileInputRefs = useRef<Record<number, HTMLInputElement | null>>({});
     const freeformFileInputRef = useRef<HTMLInputElement | null>(null);
+
+    const [sectionComments, setSectionComments] = useState<Record<string, string>>(initialComments || {});
+    const [savingStatus, setSavingStatus] = useState<Record<string, 'saving' | 'saved' | 'error'>>({});
+    const debounceTimers = useRef<Record<string, ReturnType<typeof setTimeout>>>({});
+    const lastSavedComments = useRef<Record<string, string>>(initialComments || {});
+
+    React.useEffect(() => {
+        if (initialComments) {
+            setSectionComments(initialComments);
+            lastSavedComments.current = initialComments;
+        }
+    }, [initialComments]);
+
+    const saveSectionComment = async (sectionKey: string, comment: string) => {
+        if (!isEditable) return;
+        setSavingStatus((prev) => ({ ...prev, [sectionKey]: 'saving' }));
+        try {
+            const csrfToken = (document.querySelector('meta[name="csrf-token"]') as HTMLMetaElement)?.content || '';
+            const res = await fetch(`/reports/${reportId}/photo-section-comment`, {
+                method: 'POST',
+                headers: {
+                    'Content-Type': 'application/json',
+                    Accept: 'application/json',
+                    'X-CSRF-TOKEN': csrfToken,
+                    'X-Requested-With': 'XMLHttpRequest',
+                },
+                body: JSON.stringify({ section_key: sectionKey, comment }),
+            });
+            if (res.ok) {
+                setSavingStatus((prev) => ({ ...prev, [sectionKey]: 'saved' }));
+                setTimeout(() => {
+                    setSavingStatus((prev) => {
+                        const next = { ...prev };
+                        delete next[sectionKey];
+                        return next;
+                    });
+                }, 2000);
+            } else {
+                setSavingStatus((prev) => ({ ...prev, [sectionKey]: 'error' }));
+            }
+        } catch {
+            setSavingStatus((prev) => ({ ...prev, [sectionKey]: 'error' }));
+        }
+    };
+
+    const handleCommentChange = (sectionKey: string, text: string) => {
+        setSectionComments((prev) => ({ ...prev, [sectionKey]: text }));
+        if (debounceTimers.current[sectionKey]) {
+            clearTimeout(debounceTimers.current[sectionKey]);
+        }
+        debounceTimers.current[sectionKey] = setTimeout(() => {
+            if (text !== (lastSavedComments.current[sectionKey] ?? '')) {
+                lastSavedComments.current[sectionKey] = text;
+                saveSectionComment(sectionKey, text);
+            }
+        }, 1200);
+    };
+
+    const handleCommentBlur = (sectionKey: string) => {
+        const text = sectionComments[sectionKey] ?? '';
+        if (debounceTimers.current[sectionKey]) {
+            clearTimeout(debounceTimers.current[sectionKey]);
+        }
+        if (text !== (lastSavedComments.current[sectionKey] ?? '')) {
+            lastSavedComments.current[sectionKey] = text;
+            saveSectionComment(sectionKey, text);
+        }
+    };
 
     const handleUploadForSlot = async (slotNo: number, slotTitle: string, files: FileList | File[]) => {
         const fileArr = Array.from(files);
@@ -324,6 +396,7 @@ export function PhotoChapterSection({
                     <div className="space-y-4">
                         {schemaItems.map((slot, idx) => {
                             const slotNo = idx + 1;
+                            const slotKey = slot.id || String(slotNo);
                             const matchedPhotos = photoList.filter(
                                 (p) => p.item_no === slotNo || (p.title && p.title.toLowerCase() === slot.title.toLowerCase())
                             );
@@ -470,6 +543,38 @@ export function PhotoChapterSection({
                                                 No photo uploaded for this item.
                                             </div>
                                         )}
+                                    </div>
+
+                                    {/* Row 3: Section Comments / Remarks */}
+                                    <div className="p-3.5 sm:p-4 border-t bg-muted/10 space-y-2">
+                                        <div className="flex items-center justify-between">
+                                            <label className="text-xs font-semibold text-foreground flex items-center gap-1.5">
+                                                <MessageSquare className="size-3.5 text-muted-foreground" />
+                                                <span>Comments / Remarks</span>
+                                            </label>
+                                            {savingStatus[slotKey] === 'saving' && (
+                                                <span className="text-[11px] text-muted-foreground flex items-center gap-1">
+                                                    <Loader2 className="size-3 animate-spin" /> Saving...
+                                                </span>
+                                            )}
+                                            {savingStatus[slotKey] === 'saved' && (
+                                                <span className="text-[11px] text-emerald-600 flex items-center gap-1">
+                                                    <Check className="size-3" /> Saved
+                                                </span>
+                                            )}
+                                            {savingStatus[slotKey] === 'error' && (
+                                                <span className="text-[11px] text-destructive">Failed to save</span>
+                                            )}
+                                        </div>
+                                        <textarea
+                                            rows={2}
+                                            value={sectionComments[slotKey] ?? ''}
+                                            disabled={!isEditable}
+                                            onChange={(e) => handleCommentChange(slotKey, e.target.value)}
+                                            onBlur={() => handleCommentBlur(slotKey)}
+                                            placeholder={`Enter observations, notes, or remarks for ${slot.title}...`}
+                                            className="w-full rounded-md border border-input bg-background px-3 py-2 text-xs sm:text-sm shadow-2xs placeholder:text-muted-foreground focus-visible:outline-none focus-visible:ring-1 focus-visible:ring-ring disabled:cursor-not-allowed disabled:opacity-60 resize-y min-h-[56px]"
+                                        />
                                     </div>
                                 </div>
                             );

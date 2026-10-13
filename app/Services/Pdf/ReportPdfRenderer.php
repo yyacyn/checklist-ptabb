@@ -92,10 +92,14 @@ HTML;
      */
     protected function resolveLayoutSchema(Report $report): array
     {
-        $schema = $report->relationLoaded('form') ? $report->form->layout_schema : null;
+        $form = $report->relationLoaded('form') ? $report->form : $report->form()->first();
+        $schema = $form?->layout_schema;
 
         if (empty($schema)) {
-            $schema = $this->defaultLayoutForForm($report->form->code ?? 'D-062');
+            $schema = $this->defaultLayoutForForm(
+                $form?->code ?? 'D-062',
+                $form?->form_type ?? 'standard'
+            );
         }
 
         return $schema;
@@ -105,11 +109,31 @@ HTML;
      * Default layout schema per form code. Used when the form has no layout_schema
      * column or it is empty (e.g. a fresh install before the seeder runs).
      */
-    protected function defaultLayoutForForm(string $formCode): array
+    protected function defaultLayoutForForm(string $formCode, string $formType = 'standard'): array
     {
+        if ($formType === 'photo' || $formCode === 'P-001') {
+            return $this->defaultPhotoLayout();
+        }
+
         return $formCode === 'B-008'
             ? $this->defaultB008Layout()
             : $this->defaultD062Layout();
+    }
+
+    protected function defaultPhotoLayout(): array
+    {
+        return [
+            'sections' => [
+                ['type' => 'cover', 'title_key' => 'photo_report'],
+                ['type' => 'photo_chapter', 'title' => 'Photographic Records'],
+                ['type' => 'signature_lines'],
+            ],
+            'footer' => [
+                'fields' => ['form_code', 'form_version', 'template_version', 'report_number', 'generation_date', 'page_number'],
+            ],
+            'watermark' => ['draft_label' => 'DRAFT'],
+            'photo_appendix_threshold' => 100,
+        ];
     }
 
     protected function defaultD062Layout(): array
@@ -168,6 +192,18 @@ HTML;
     {
         $doc = $doc ?? $this->documentBuilder->build($report);
         $type = $sectionDef['type'] ?? '';
+        $formType = $doc['meta']['form_type'] ?? 'standard';
+
+        // 1. Photo Form isolation: ONLY allow cover, photo_chapter, and signature_lines
+        if ($formType === 'photo' && ! in_array($type, ['cover', 'photo_chapter', 'signature_lines'], true)) {
+            return '';
+        }
+
+        // 2. Checklist chapters: omit if report has no checklist chapters
+        if ($type === 'checklist_chapters' && empty($doc['chapters'])) {
+            return '';
+        }
+
         $viewName = "pdf.sections.{$type}";
 
         if (view()->exists($viewName)) {
@@ -380,10 +416,10 @@ HTML;
             $headerThs .= "<th class=\"{$thClass}\">".$this->escape($label).'</th>';
         }
 
-        $commentsHtml = '';
-        if (! empty($group->comments)) {
-            $commentsHtml = '<div class="chapter-comments"><strong>COMMENTS / REMARKS:</strong> '.$this->formatMultiline($group->comments).'</div>';
-        }
+        $commentsContent = ! empty($group->comments)
+            ? '<div class="comments-body">'.$this->formatMultiline($group->comments).'</div>'
+            : '<span class="no-comment-text" style="color: #666; font-style: italic; margin-left: 6px;">No comment</span>';
+        $commentsHtml = '<div class="chapter-comments"><strong>COMMENTS / REMARKS:</strong> '.$commentsContent.'</div>';
 
         return <<<HTML
 <div class="chapter" id="chapter-{$chapterNo}">
@@ -868,14 +904,19 @@ HTML;
 
         return <<<HTML
 <div class="photo-item">
-  <div class="photo-number">#{$itemNo}</div>
-  {$imgTag}
   <div class="photo-meta">
-    <div class="photo-title">{$title}</div>
+    <div class="photo-title-line">
+      <span class="photo-number">#{$itemNo}</span>
+      <span class="photo-title">{$title}</span>
+    </div>
+    <div class="photo-subline">
+      Category: {$category} • Location: {$location}
+    </div>
     <div class="photo-caption">{$caption}</div>
     <div class="photo-description">{$description}</div>
-    <div class="photo-category">Category: {$category}</div>
-    <div class="photo-location">Location: {$location}</div>
+  </div>
+  <div class="photo-img-box">
+    {$imgTag}
   </div>
 </div>
 HTML;
@@ -1138,8 +1179,9 @@ tr.subgroup-row { page-break-inside: avoid; page-break-after: avoid; }
 .extra-value { font-size: 7.5pt; color: #111; margin-top: 2pt; font-family: monospace; }
 .q-note { font-size: 7.5pt; color: #333; margin-top: 3pt; padding: 2pt 4pt; background-color: #f8f8f8; border-left: 2pt solid #666; }
 .na-reason { font-size: 7.5pt; color: #c00; font-weight: normal; margin-left: 6pt; }
-.chapter-comments { margin-top: 6pt; padding: 6pt 8pt; border: 1pt solid #ccc; background-color: #fafafa; font-size: 8pt; page-break-inside: avoid; }
-.particulars-table { width: 100%; border-collapse: collapse; margin-bottom: 12pt; }
+.chapter-comments { margin-top: 6pt; padding: 5pt 7pt; border: 1pt solid #bbb; background-color: #fafafa; font-size: 8pt; page-break-inside: avoid; }
+.comments-body { margin-top: 3pt; font-size: 8pt; line-height: 1.35; color: #2d3748; }
+.empty-comments-box { height: 25pt; }
 .particulars-table td { border: 1pt solid #ccc; padding: 4pt 6pt; font-size: 8pt; }
 .field-label { width: 40%; font-weight: bold; background-color: #fcfcfc; }
 .field-value { width: 60%; }
@@ -1164,15 +1206,30 @@ tr.subgroup-row { page-break-inside: avoid; page-break-after: avoid; }
 .sig-label { display: inline-block; width: 130px; font-weight: bold; }
 .na-banner { background-color: #ffeeee; border: 1pt dashed #cc0000; padding: 6pt; margin-bottom: 8pt; font-size: 8pt; }
 .split-note { background-color: #eef2ff; border: 1pt dashed #4338ca; padding: 8pt; margin-bottom: 10pt; font-size: 8.5pt; }
-.photo-item { page-break-inside: avoid; margin-bottom: 14pt; border: 1pt solid #e5e5e5; padding: 6pt; border-radius: 4pt; }
-.photo-img { max-width: 100%; max-height: 480px; height: auto; display: block; margin: 0 auto; }
-.photo-meta { padding: 6pt 2pt 2pt; font-size: 8pt; }
-.photo-number { font-weight: bold; font-size: 9.5pt; margin-bottom: 3pt; color: #111; }
-.photo-title { font-weight: bold; font-size: 9pt; }
-.photo-caption { color: #333; margin-top: 2pt; }
-.photo-description { color: #555; margin-top: 2pt; }
-.photo-category, .photo-location { font-size: 7.5pt; color: #777; margin-top: 2pt; }
-.photo-placeholder { border: 1pt dashed #ccc; padding: 40px; text-align: center; color: #999; }
+.photo-item { page-break-inside: avoid; margin-bottom: 12pt; border: 1pt solid #d1d5db; padding: 6pt; border-radius: 3pt; background-color: #fafafa; }
+.photo-section-block { margin-bottom: 14pt; page-break-inside: avoid; }
+.photo-section-header { background-color: #f1f5f9; border-left: 3pt solid #1a365d; padding: 5pt 8pt; margin-bottom: 6pt; }
+.photo-section-header-title { font-size: 9.5pt; font-weight: bold; color: #1a365d; }
+.photo-section-header-desc { font-size: 7.5pt; color: #64748b; margin-top: 2pt; }
+.photo-section-comment-box { margin-bottom: 7pt; border: 0.75pt solid #cbd5e1; background-color: #f8fafc; border-radius: 2pt; padding: 5pt 7pt; page-break-inside: avoid; }
+.photo-section-comment-label { font-size: 6.5pt; font-weight: bold; color: #475569; text-transform: uppercase; letter-spacing: 0.5px; margin-bottom: 2pt; }
+.photo-section-comment-text { font-size: 7.5pt; color: #1e293b; line-height: 1.3; }
+.photo-section-comment-empty { font-size: 7.5pt; color: #94a3b8; font-style: italic; }
+.photo-grid-table { width: 100%; border-collapse: separate; border-spacing: 8pt; margin-bottom: 6pt; }
+.photo-grid-row { page-break-inside: avoid; }
+.photo-grid-cell { width: 50%; vertical-align: top; border: 1pt solid #d1d5db; background-color: #fafafa; padding: 6pt; page-break-inside: avoid; border-radius: 3pt; }
+.photo-card { width: 100%; }
+.photo-meta { padding: 0 0 4pt; font-size: 8pt; }
+.photo-title-line { margin-bottom: 2pt; font-size: 8.5pt; font-weight: bold; color: #1a365d; border-bottom: 0.5pt solid #e2e8f0; padding-bottom: 2pt; }
+.photo-number { display: inline-block; background-color: #1a365d; color: #ffffff; padding: 1pt 4pt; border-radius: 2pt; font-size: 7.5pt; margin-right: 4pt; vertical-align: middle; }
+.photo-title { vertical-align: middle; color: #1a365d; }
+.photo-subline { font-size: 7.5pt; color: #4b5563; margin-top: 2pt; margin-bottom: 2pt; }
+.photo-sep { margin: 0 3pt; color: #9ca3af; }
+.photo-caption { font-size: 7.5pt; color: #1f2937; font-weight: 500; font-style: italic; margin-top: 2pt; }
+.photo-description { font-size: 7pt; color: #4b5563; line-height: 1.25; margin-top: 2pt; }
+.photo-img-box { text-align: center; background-color: #ffffff; border: 0.5pt solid #e5e7eb; padding: 3pt; margin-top: 4pt; }
+.photo-img { max-width: 100%; max-height: 185px; height: auto; display: block; margin: 0 auto; }
+.photo-placeholder { border: 1pt dashed #cbd5e1; padding: 30px 10px; text-align: center; color: #94a3b8; font-size: 7.5pt; font-style: italic; }
 .best-practices { padding: 6pt; border: 1pt solid #e5e5e5; background-color: #fafafa; font-size: 8.5pt; }
 CSS;
     }

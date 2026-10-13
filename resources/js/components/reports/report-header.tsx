@@ -194,12 +194,12 @@ export function ReportHeader({
                             size="sm"
                             variant="outline"
                             asChild
-                            className="h-7 text-xs px-2.5 flex items-center gap-1.5 whitespace-nowrap"
+                            className="h-7 text-xs px-2.5 flex items-center gap-1.5 whitespace-nowrap bg-white text-neutral-900 hover:bg-neutral-100 hover:text-neutral-900 border-neutral-300 shadow-xs dark:bg-white dark:text-neutral-900 dark:hover:bg-neutral-100 dark:border-neutral-200"
                             title="Preview or print report PDF"
                         >
                             <a href={`/reports/${report.id}/pdf`} target="_blank" rel="noopener noreferrer">
-                                <FileDown className="size-3 text-primary" />
-                                <span className="hidden sm:inline">PDF</span>
+                                <FileDown className="size-3 text-neutral-700 dark:text-neutral-700" />
+                                <span className="hidden sm:inline font-medium">PDF</span>
                             </a>
                         </Button>
 

@@ -1,8 +1,11 @@
 @php
+    $formType = $doc['meta']['form_type'] ?? 'standard';
     $isB008 = ($doc['meta']['form_code'] ?? '') === 'B-008';
-    $roles = $isB008
-        ? ['Lead Auditor', 'Auditor(s)', 'Master / Chief Officer']
-        : ['Inspector', 'Master', 'Chief Engineer', 'Chief Officer', 'Superintendent'];
+    $roles = match(true) {
+        $formType === 'photo' => ['Inspector / Surveyor', 'Master'],
+        $isB008 => ['Lead Auditor', 'Auditor(s)', 'Master / Chief Officer'],
+        default => ['Inspector', 'Master', 'Chief Engineer', 'Chief Officer', 'Superintendent'],
+    };
 @endphp
 
 <div class="section page-break-before">

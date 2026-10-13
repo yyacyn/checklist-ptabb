@@ -1,8 +1,14 @@
 @php
-    $titleKey = $config['title_key'] ?? ($doc['meta']['report_type'] === 'audit' ? 'audit_report' : 'inspection_report');
+    $defaultTitleKey = match(true) {
+        ($doc['meta']['form_type'] ?? '') === 'photo' => 'photo_report',
+        ($doc['meta']['report_type'] ?? '') === 'audit' => 'audit_report',
+        default => 'inspection_report',
+    };
+    $titleKey = $config['title_key'] ?? $defaultTitleKey;
     $titles = [
         'inspection_report' => 'VESSEL INSPECTION REPORT',
         'audit_report' => 'VESSEL INTERNAL AUDIT CHECKLIST',
+        'photo_report' => 'PHOTOGRAPHIC RECORD REPORT',
     ];
     $title = $titles[$titleKey] ?? $titles['inspection_report'];
 

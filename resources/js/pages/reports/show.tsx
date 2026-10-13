@@ -900,6 +900,7 @@ export default function ReportDataEntry({
                                     isEditable={is_editable}
                                     photos={photos}
                                     schemaItems={photoSchema.items || []}
+                                    initialComments={report.summary_data?.photo_section_comments || {}}
                                     categories={photo_categories}
                                     allowedCategoryCodes={photoSchema.allowed_categories}
                                     onPhotosChange={setPhotos}

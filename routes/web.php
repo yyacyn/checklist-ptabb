@@ -24,6 +24,7 @@ Route::middleware(['auth', 'verified'])->group(function () {
     Route::put('reports/{report}/general-info', [ReportController::class, 'updateGeneralInfo'])->name('reports.general-info.update');
     Route::put('reports/{report}/summary', [ReportController::class, 'updateSummary'])->name('reports.summary.update');
     Route::post('reports/{report}/groups/{group}/comments', [ReportController::class, 'saveGroupComments'])->name('reports.groups.comments');
+    Route::post('reports/{report}/photo-section-comment', [ReportController::class, 'savePhotoSectionComment'])->name('reports.photo-section-comment');
     Route::post('reports/{report}/lock', [ReportController::class, 'acquireLock'])->name('reports.lock.acquire');
     Route::delete('reports/{report}/lock', [ReportController::class, 'releaseLock'])->name('reports.lock.release');
     Route::post('reports/{report}/submit', [ReportController::class, 'submit'])->name('reports.submit');

@@ -204,6 +204,51 @@ class ReportDocumentBuilder
             ];
         }
 
+        $photoSchema = $report->form->photo_schema ?? [];
+        $photoSchemaItems = $photoSchema['items'] ?? [];
+        $photoSectionComments = $report->summary_data['photo_section_comments'] ?? [];
+
+        $photoSections = [];
+        $additionalPhotos = [];
+
+        if (! empty($photoSchemaItems) && is_array($photoSchemaItems)) {
+            $matchedPhotoIds = [];
+            foreach ($photoSchemaItems as $idx => $slot) {
+                $slotNo = $idx + 1;
+                $slotId = (string) ($slot['id'] ?? $slotNo);
+                $slotTitle = (string) ($slot['title'] ?? '');
+                $slotDescription = $slot['description'] ?? null;
+                $comment = $photoSectionComments[$slotId] ?? $photoSectionComments[(string) $slotNo] ?? null;
+
+                $matchedPhotos = [];
+                foreach ($photosData as $pData) {
+                    $matches = ($pData['item_no'] === $slotNo) ||
+                        (! empty($pData['title']) && strtolower(trim((string) $pData['title'])) === strtolower(trim($slotTitle)));
+                    if ($matches) {
+                        $matchedPhotos[] = $pData;
+                        $matchedPhotoIds[$pData['id']] = true;
+                    }
+                }
+
+                $photoSections[] = [
+                    'slot_no' => $slotNo,
+                    'id' => $slotId,
+                    'title' => $slotTitle,
+                    'description' => $slotDescription,
+                    'comment' => $comment,
+                    'photos' => $matchedPhotos,
+                ];
+            }
+
+            foreach ($photosData as $pData) {
+                if (! isset($matchedPhotoIds[$pData['id']])) {
+                    $additionalPhotos[] = $pData;
+                }
+            }
+        } else {
+            $additionalPhotos = $photosData;
+        }
+
         // 6. Summary ratings matrix
         $summarySchema = $report->form->summary_schema ?? [];
         $ratingOptions = $summarySchema['rating_options'] ?? [
@@ -243,6 +288,7 @@ class ReportDocumentBuilder
                 'form_id' => $report->form_id,
                 'form_code' => $report->form->code ?? '',
                 'form_name' => $report->form->name ?? '',
+                'form_type' => $report->form->form_type ?? 'standard',
                 'form_version' => $report->form->form_version ?? '',
                 'template_version' => $report->template_version ?? 1,
                 'report_type' => $report->report_type,
@@ -302,6 +348,8 @@ class ReportDocumentBuilder
             ],
             'findings' => $findingsData,
             'photos' => $photosData,
+            'photo_sections' => $photoSections,
+            'additional_photos' => $additionalPhotos,
         ];
     }
 
