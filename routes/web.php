@@ -25,6 +25,7 @@ Route::middleware(['auth', 'verified'])->group(function () {
     Route::put('reports/{report}/summary', [ReportController::class, 'updateSummary'])->name('reports.summary.update');
     Route::post('reports/{report}/groups/{group}/comments', [ReportController::class, 'saveGroupComments'])->name('reports.groups.comments');
     Route::post('reports/{report}/lock', [ReportController::class, 'acquireLock'])->name('reports.lock.acquire');
+    Route::delete('reports/{report}/lock', [ReportController::class, 'releaseLock'])->name('reports.lock.release');
     Route::post('reports/{report}/submit', [ReportController::class, 'submit'])->name('reports.submit');
     Route::get('reports/{report}/pdf', [ReportController::class, 'viewPdf'])->name('reports.pdf.view');
     Route::get('reports/{report}/pdf/download', [ReportController::class, 'downloadPdf'])->name('reports.pdf.download');

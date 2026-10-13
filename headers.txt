@@ -1,0 +1,9 @@
+HTTP/1.1 419 unknown status
+Host: 127.0.0.1:8001
+Connection: close
+X-Powered-By: PHP/8.3.33
+Cache-Control: no-cache, private
+date: Tue, 13 Oct 2026 03:07:19 GMT
+Content-Type: text/html; charset=utf-8
+Set-Cookie: checklist-session=eyJpdiI6Ik54MWp3akpMZjRhMUdpeEVpYlVNVnc9PSIsInZhbHVlIjoibGcvZlZ2MWlBbzEwNkFEVDdvRFQ1eVJIYzNuS3hkQjFuWDhtTTFXaVFJeTNIUGtmWGxvR2U0UHVwcnYybGh3bkZhVWp4a3IzZy9Dem1QT2NOVXp1a1FYZHJ0SzZkTUpoNHArelBwL0ZlMFA2UUFkYlN1SVZVMGdncCtMKzVEbXoiLCJtYWMiOiI3OWMzYWJkN2Y3NjQ1MjE0MjA3YjM2MGY4ZGJhYzFlYTc2NTkyNDc1MTdmNWFlNjY1OTc0ZjliOWI5ZjM3NWEyIiwidGFnIjoiIn0%3D; expires=Tue, 13 Oct 2026 05:07:19 GMT; Max-Age=7200; path=/; httponly; samesite=lax
+

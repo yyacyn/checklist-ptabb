@@ -11,7 +11,6 @@ use App\Models\ReportQuestion;
 use App\Services\ImageOptimizer;
 use App\Services\VesselName;
 use Illuminate\Http\JsonResponse;
-use Illuminate\Http\RedirectResponse;
 use Illuminate\Http\Request;
 use Illuminate\Support\Facades\Gate;
 use Inertia\Inertia;
@@ -52,7 +51,7 @@ class PhotoController extends Controller
         }
 
         if ($request->filled('search')) {
-            $search = '%' . $request->input('search') . '%';
+            $search = '%'.$request->input('search').'%';
             $query->where(function ($q) use ($search) {
                 $q->where('title', 'like', $search)
                     ->orWhere('caption', 'like', $search)
@@ -74,8 +73,8 @@ class PhotoController extends Controller
             'category_id' => $photo->photo_category_id,
             'category_name' => $photo->category?->name,
             'category_code' => $photo->category?->code,
-            'file_url' => asset('storage/' . $photo->file_path),
-            'thumbnail_url' => $photo->thumbnail_path ? asset('storage/' . $photo->thumbnail_path) : asset('storage/' . $photo->file_path),
+            'file_url' => asset('storage/'.$photo->file_path),
+            'thumbnail_url' => $photo->thumbnail_path ? asset('storage/'.$photo->thumbnail_path) : asset('storage/'.$photo->file_path),
             'original_filename' => $photo->original_filename,
             'file_size' => $photo->file_size,
             'created_at' => $photo->created_at->toIso8601String(),
@@ -136,16 +135,16 @@ class PhotoController extends Controller
             abort(422, 'At least one image file is required.');
         }
 
-        if (!empty($validated['report_question_id'])) {
+        if (! empty($validated['report_question_id'])) {
             $belongs = ReportQuestion::where('id', $validated['report_question_id'])->where('report_id', $report->id)->exists();
-            if (!$belongs) {
+            if (! $belongs) {
                 abort(422, 'The specified question does not belong to this report.');
             }
         }
 
-        if (!empty($validated['finding_id'])) {
+        if (! empty($validated['finding_id'])) {
             $belongs = Finding::where('id', $validated['finding_id'])->where('report_id', $report->id)->exists();
-            if (!$belongs) {
+            if (! $belongs) {
                 abort(422, 'The specified finding does not belong to this report.');
             }
         }
@@ -201,8 +200,8 @@ class PhotoController extends Controller
                 'location' => $photo->location,
                 'category_id' => $photo->photo_category_id,
                 'category' => $photo->category,
-                'file_url' => asset('storage/' . $photo->file_path),
-                'thumbnail_url' => $photo->thumbnail_path ? asset('storage/' . $photo->thumbnail_path) : asset('storage/' . $photo->file_path),
+                'file_url' => asset('storage/'.$photo->file_path),
+                'thumbnail_url' => $photo->thumbnail_path ? asset('storage/'.$photo->thumbnail_path) : asset('storage/'.$photo->file_path),
                 'file_size' => $photo->file_size,
                 'sort_order' => $photo->sort_order,
                 'report_question_id' => $photo->report_question_id,
@@ -246,16 +245,16 @@ class PhotoController extends Controller
             'sort_order' => ['nullable', 'integer'],
         ]);
 
-        if (!empty($validated['report_question_id'])) {
+        if (! empty($validated['report_question_id'])) {
             $belongs = ReportQuestion::where('id', $validated['report_question_id'])->where('report_id', $report->id)->exists();
-            if (!$belongs) {
+            if (! $belongs) {
                 abort(422, 'The specified question does not belong to this report.');
             }
         }
 
-        if (!empty($validated['finding_id'])) {
+        if (! empty($validated['finding_id'])) {
             $belongs = Finding::where('id', $validated['finding_id'])->where('report_id', $report->id)->exists();
-            if (!$belongs) {
+            if (! $belongs) {
                 abort(422, 'The specified finding does not belong to this report.');
             }
         }
@@ -275,8 +274,8 @@ class PhotoController extends Controller
                 'location' => $photo->location,
                 'category_id' => $photo->photo_category_id,
                 'category' => $photo->category,
-                'file_url' => asset('storage/' . $photo->file_path),
-                'thumbnail_url' => $photo->thumbnail_path ? asset('storage/' . $photo->thumbnail_path) : asset('storage/' . $photo->file_path),
+                'file_url' => asset('storage/'.$photo->file_path),
+                'thumbnail_url' => $photo->thumbnail_path ? asset('storage/'.$photo->thumbnail_path) : asset('storage/'.$photo->file_path),
                 'file_size' => $photo->file_size,
                 'sort_order' => $photo->sort_order,
                 'report_question_id' => $photo->report_question_id,
@@ -341,4 +340,3 @@ class PhotoController extends Controller
         ]);
     }
 }
-

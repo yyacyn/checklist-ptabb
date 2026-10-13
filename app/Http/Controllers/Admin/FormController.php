@@ -10,6 +10,7 @@ use App\Models\ReportGroup;
 use App\Models\ReportQuestion;
 use App\Models\VesselType;
 use Illuminate\Http\Request;
+use Illuminate\Support\Facades\Validator;
 use Inertia\Inertia;
 use Inertia\Response;
 
@@ -62,9 +63,9 @@ class FormController extends Controller
             'code' => strtoupper(trim($validated['code'])),
             'name' => trim($validated['name']),
             'form_type' => $validated['form_type'],
-            'form_version' => !empty($validated['form_version']) ? trim($validated['form_version']) : '1.0',
+            'form_version' => ! empty($validated['form_version']) ? trim($validated['form_version']) : '1.0',
             'template_version' => 1,
-            'answer_set' => !empty($validated['answer_set']) ? trim($validated['answer_set']) : ($isPhoto ? 'none' : 'ynnsna'),
+            'answer_set' => ! empty($validated['answer_set']) ? trim($validated['answer_set']) : ($isPhoto ? 'none' : 'ynnsna'),
             'photo_schema' => $isPhoto ? [
                 'enabled' => true,
                 'title' => trim($validated['name']),
@@ -223,7 +224,7 @@ class FormController extends Controller
             ? $request->input('summary_schema')
             : $request->all();
 
-        $validated = \Illuminate\Support\Facades\Validator::make($payload, [
+        $validated = Validator::make($payload, [
             'enabled' => ['required', 'boolean'],
             'title' => ['required', 'string', 'max:255'],
             'has_ratings_matrix' => ['nullable', 'boolean'],
@@ -267,7 +268,7 @@ class FormController extends Controller
             ? $request->input('photo_schema')
             : $request->all();
 
-        $validated = \Illuminate\Support\Facades\Validator::make($payload, [
+        $validated = Validator::make($payload, [
             'enabled' => ['required', 'boolean'],
             'title' => ['required', 'string', 'max:255'],
             'description' => ['nullable', 'string'],
@@ -280,7 +281,7 @@ class FormController extends Controller
         ])->validate();
 
         $form->update([
-            'name' => ($form->form_type === 'photo' && !empty($validated['title'])) ? $validated['title'] : $form->name,
+            'name' => ($form->form_type === 'photo' && ! empty($validated['title'])) ? $validated['title'] : $form->name,
             'photo_schema' => $validated,
         ]);
 
@@ -310,7 +311,7 @@ class FormController extends Controller
             ? $request->input('layout_schema')
             : $request->all();
 
-        $validated = \Illuminate\Support\Facades\Validator::make($payload, [
+        $validated = Validator::make($payload, [
             'sections' => ['required', 'array', 'min:1'],
             'sections.*.type' => ['required', 'string', 'max:50'],
             'sections.*.title' => ['nullable', 'string', 'max:255'],

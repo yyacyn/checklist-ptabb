@@ -91,17 +91,17 @@ class Photo extends Model
 
     public function getFileUrlAttribute(): ?string
     {
-        if (!$this->file_path) {
+        if (! $this->file_path) {
             return null;
         }
 
-        return asset('storage/' . $this->file_path);
+        return asset('storage/'.$this->file_path);
     }
 
     public function getThumbnailUrlAttribute(): ?string
     {
         if ($this->thumbnail_path) {
-            return asset('storage/' . $this->thumbnail_path);
+            return asset('storage/'.$this->thumbnail_path);
         }
 
         return $this->file_url;

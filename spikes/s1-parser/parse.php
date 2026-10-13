@@ -357,22 +357,22 @@ function parseForm(string $path, string $formCode): array
         // 1. General Particulars & Operations
         $sg1 = 'General Particulars & Operations';
         $particulars = [
-            ['Ship Name', 'text', null, basename($path) . ':9'],
-            ['Built', 'text', null, basename($path) . ':11'],
-            ['Type', 'text', null, basename($path) . ':12'],
-            ['Inspected by', 'text', null, basename($path) . ':13'],
-            ['Date of Inspection', 'date', null, basename($path) . ':14'],
-            ['Port', 'text', null, basename($path) . ':15'],
-            ['Report Reference Number', 'text', null, basename($path) . ':16'],
-            ['Sailing with vessel (If Yes, from / to)', 'text', null, basename($path) . ':17'],
-            ['Master', 'text', null, basename($path) . ':18'],
-            ['Chief Engineer', 'text', null, basename($path) . ':19'],
-            ['Chief Officer', 'text', null, basename($path) . ':20'],
-            ['Operations at the time of inspection (Loading, Discharging, Bunkering, Deballasting, Ballasting, River transit, IGS, Major repairs, COW, Repairs underway, STS, Idle, At anchor, At sea, Other)', 'text', null, basename($path) . ':23'],
-            ['Port of last PSC inspection (If the vessel was detained or if deficiencies were identified check/verify close out)', 'text', null, basename($path) . ':29'],
-            ['Date of last Dry Dock', 'date', null, basename($path) . ':30'],
-            ['Next Dry Dock', 'date', null, basename($path) . ':30'],
-            ['Open items, memoranda, Conditions of Class, recommendations, notations, etc.', 'text', 'Where class records address structural issues of concern i.e. bottom pitting, etc. record details as to extent and measures taken. If records indicate that measures have been taken to address or restore loss of longitudinal or transverse strength, record details & repairs undertaken', basename($path) . ':33'],
+            ['Ship Name', 'text', null, basename($path).':9'],
+            ['Built', 'text', null, basename($path).':11'],
+            ['Type', 'text', null, basename($path).':12'],
+            ['Inspected by', 'text', null, basename($path).':13'],
+            ['Date of Inspection', 'date', null, basename($path).':14'],
+            ['Port', 'text', null, basename($path).':15'],
+            ['Report Reference Number', 'text', null, basename($path).':16'],
+            ['Sailing with vessel (If Yes, from / to)', 'text', null, basename($path).':17'],
+            ['Master', 'text', null, basename($path).':18'],
+            ['Chief Engineer', 'text', null, basename($path).':19'],
+            ['Chief Officer', 'text', null, basename($path).':20'],
+            ['Operations at the time of inspection (Loading, Discharging, Bunkering, Deballasting, Ballasting, River transit, IGS, Major repairs, COW, Repairs underway, STS, Idle, At anchor, At sea, Other)', 'text', null, basename($path).':23'],
+            ['Port of last PSC inspection (If the vessel was detained or if deficiencies were identified check/verify close out)', 'text', null, basename($path).':29'],
+            ['Date of last Dry Dock', 'date', null, basename($path).':30'],
+            ['Next Dry Dock', 'date', null, basename($path).':30'],
+            ['Open items, memoranda, Conditions of Class, recommendations, notations, etc.', 'text', 'Where class records address structural issues of concern i.e. bottom pitting, etc. record details as to extent and measures taken. If records indicate that measures have been taken to address or restore loss of longitudinal or transverse strength, record details & repairs undertaken', basename($path).':33'],
         ];
 
         foreach ($particulars as $p) {
@@ -397,7 +397,7 @@ function parseForm(string $path, string $formCode): array
         $sg2 = 'Other Attendance-Related Activities';
         for ($i = 161; $i < 213; $i++) {
             $trimmed = trim($lines[$i] ?? '');
-            if (!str_starts_with($trimmed, '|')) {
+            if (! str_starts_with($trimmed, '|')) {
                 continue;
             }
             $parts = preg_split('/(?<!\\\\)\|/', trim(preg_replace('/^\||\|$/', '', $trimmed)));
@@ -418,7 +418,7 @@ function parseForm(string $path, string $formCode): array
                     'input_hint' => $hint,
                     'suggested_applicability' => 'All vessel types',
                     'warnings' => '',
-                    'source_ref' => basename($path) . ':' . ($i + 1),
+                    'source_ref' => basename($path).':'.($i + 1),
                     'source_key' => sourceKey('D-062', '1', $qTextClean),
                 ];
             }
@@ -480,7 +480,7 @@ function parseForm(string $path, string $formCode): array
             }
 
             // Continuing table in D-062 with questions but without label header (e.g. Chapter 11 lines 1112-1116)
-            if (! $tableIsChecklist && $formCode === 'D-062' && (int)$chapter['no'] >= 2 && $boxes >= 2) {
+            if (! $tableIsChecklist && $formCode === 'D-062' && (int) $chapter['no'] >= 2 && $boxes >= 2) {
                 $tableIsChecklist = true;
             }
 
@@ -489,7 +489,7 @@ function parseForm(string $path, string $formCode): array
             }
 
             // In D-062, skip chapter 1 tables here as they were parsed above
-            if ($formCode === 'D-062' && (int)$chapter['no'] < 2) {
+            if ($formCode === 'D-062' && (int) $chapter['no'] < 2) {
                 continue;
             }
 
@@ -551,7 +551,7 @@ function parseForm(string $path, string $formCode): array
 
                 if ($formCode === 'D-062') {
                     $effectiveGroup = $chapter['title'];
-                    $effectiveSubgroup = $subgroup !== '' ? $subgroup : ($chapter['title'] . ' - General');
+                    $effectiveSubgroup = $subgroup !== '' ? $subgroup : ($chapter['title'].' - General');
                 } else {
                     $effectiveGroup = $group !== '' ? $group : ($chapter['title'] ?: '(chapter '.$chapter['no'].')');
                     $effectiveSubgroup = $subgroup;
@@ -711,7 +711,7 @@ function summarise(array $result, string $dupNote): array
         $byChapter[$ch] = ($byChapter[$ch] ?? 0) + 1;
 
         $g = $row['chapter_no'] !== ''
-            ? 'Ch. ' . $row['chapter_no'] . ' ' . $row['chapter'] . ' > ' . $row['subgroup']
+            ? 'Ch. '.$row['chapter_no'].' '.$row['chapter'].' > '.$row['subgroup']
             : $row['group'];
         $byGroup[$g] = ($byGroup[$g] ?? 0) + 1;
 

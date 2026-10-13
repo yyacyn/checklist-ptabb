@@ -2,7 +2,6 @@ import {
     AlertCircle,
     AlertTriangle,
     Calendar,
-    Camera,
     Check,
     CloudOff,
     File,
@@ -16,7 +15,6 @@ import {
     X,
 } from 'lucide-react';
 import React, { useCallback, useEffect, useRef, useState } from 'react';
-import { PhotoEvidenceDialog, PhotoEvidenceStrip } from '@/components/photo-evidence-dialog';
 import { Badge } from '@/components/ui/badge';
 import { Button } from '@/components/ui/button';
 import { Input } from '@/components/ui/input';
@@ -30,8 +28,6 @@ import {
 import type {
     AnswerData,
     ConflictData,
-    PhotoCategoryItem,
-    PhotoRecord,
     QuestionData,
 } from '@/types';
 
@@ -50,9 +46,6 @@ export interface QuestionAnswerCardProps {
     conflict?: ConflictData;
     onAcceptServerAnswer?: (serverAnswer: ConflictData['server_answer']) => void;
     onOverwriteAnswer?: (serverRowVersion: number) => void;
-    reportPhotos?: PhotoRecord[];
-    onPhotosUpdated?: (photos: PhotoRecord[]) => void;
-    photoCategories?: PhotoCategoryItem[];
 }
 
 export function QuestionAnswerCard({
@@ -69,9 +62,6 @@ export function QuestionAnswerCard({
     conflict,
     onAcceptServerAnswer,
     onOverwriteAnswer,
-    reportPhotos,
-    onPhotosUpdated,
-    photoCategories,
 }: QuestionAnswerCardProps) {
     const selectedAnswer = currentAnswer?.answer;
     const isLockedNA = !question.is_applicable;
@@ -79,33 +69,6 @@ export function QuestionAnswerCard({
     const extraCount = (flags.hasDate ? 1 : 0) + (flags.hasFile ? 1 : 0) + (flags.hasText ? 1 : 0);
     const hasAnyExtra = extraCount > 0;
     const inputMeta = getQuestionInputMeta(question);
-
-    const [evidenceModalOpen, setEvidenceModalOpen] = useState(false);
-    const attachedPhotos = (reportPhotos || []).filter((p) => p.report_question_id === question.id);
-
-    const handleDetachPhoto = async (photo: PhotoRecord) => {
-        try {
-            const csrfToken =
-                (document.querySelector('meta[name="csrf-token"]') as HTMLMetaElement)?.content || '';
-            const res = await fetch(`/reports/${reportId}/photos/${photo.id}`, {
-                method: 'PUT',
-                headers: {
-                    'Content-Type': 'application/json',
-                    'X-CSRF-TOKEN': csrfToken,
-                    Accept: 'application/json',
-                },
-                body: JSON.stringify({ report_question_id: null }),
-            });
-            if (res.ok) {
-                const data = await res.json();
-                onPhotosUpdated?.(
-                    (reportPhotos || []).map((p) => (p.id === photo.id ? data.photo : p))
-                );
-            }
-        } catch (err) {
-            console.error('Failed to detach photo:', err);
-        }
-    };
 
     // Internal buffered inputs for extra values with debounced autosave (NFR-1)
     const [extraBuffer, setExtraBuffer] = useState(currentAnswer?.extra_value || '');
@@ -556,39 +519,6 @@ export function QuestionAnswerCard({
                         </Button>
                     </div>
                 </div>
-            )}
-
-            {/* Attached Photographic Evidence (only visible when photos are attached) */}
-            {attachedPhotos.length > 0 && (
-                <div className="mt-3 pt-2.5 border-t border-border/40 flex items-center justify-between gap-3 flex-wrap">
-                    <div className="space-y-1">
-                        <span className="text-[11px] font-semibold text-muted-foreground uppercase tracking-wider flex items-center gap-1.5">
-                            <Camera className="size-3 text-primary" />
-                            <span>Attached Evidence ({attachedPhotos.length}):</span>
-                        </span>
-                        <PhotoEvidenceStrip
-                            photos={attachedPhotos}
-                            isEditable={isEditable && !isLockedNA}
-                            onAttachClick={() => setEvidenceModalOpen(true)}
-                            onDetachPhoto={handleDetachPhoto}
-                        />
-                    </div>
-                </div>
-            )}
-
-            {/* Photo Evidence Modal (only if opened) */}
-            {evidenceModalOpen && (
-                <PhotoEvidenceDialog
-                    open={evidenceModalOpen}
-                    onOpenChange={setEvidenceModalOpen}
-                    reportId={reportId}
-                    targetType="question"
-                    targetId={question.id}
-                    targetTitle={question.question_text}
-                    reportPhotos={reportPhotos || []}
-                    categories={photoCategories || []}
-                    onPhotosUpdated={(updated) => onPhotosUpdated?.(updated)}
-                />
             )}
         </div>
     );

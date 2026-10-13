@@ -1,0 +1,25 @@
+HTTP/1.1 302 Found
+Host: 127.0.0.1:8001
+Connection: close
+X-Powered-By: PHP/8.3.33
+Cache-Control: no-cache, private
+Date: Tue, 13 Oct 2026 03:10:14 GMT
+Location: http://127.0.0.1:8001/reports/1
+Content-Type: text/html; charset=utf-8
+Vary: X-Inertia
+X-Inertia-Devtools-Id: 01M4SKTGC96412PQAP1V2JKD8Z
+X-Inertia-Devtools-Parent-Out: 01M4SKTGC96412PQAP1V2JKD8Z
+X-RateLimit-Limit: 5
+X-RateLimit-Remaining: 4
+Set-Cookie: XSRF-TOKEN=eyJpdiI6Im5RMFF3ckJiaEZJMVRJbnV0YkxpMkE9PSIsInZhbHVlIjoiZlQzVXpqVktNcEhXU05mc01kL3cxNGl4MndvU3JjeFh1WVdGT1o3TzhGQ3ZCZklqOCtlN3lsbEpEeldxTUU5Szd2OTBtakRwbWhxMzl3OGVDblcrTzhkSXBnUk5mbDNrRlAzMTVxdzhYSk1kQUFySWZrTFJDUm84RlovR0tMeVkiLCJtYWMiOiI5MTBmMTA5NDZmMzE3ZjlkZjQ0MmFiZTIzOTYxZDNjMjI5MDljZmM4MmYxMmFmODg5OTYwNTBiNDgzYTU3M2RmIiwidGFnIjoiIn0%3D; expires=Tue, 13 Oct 2026 05:10:14 GMT; Max-Age=7200; path=/; samesite=lax
+Set-Cookie: checklist-session=eyJpdiI6IjNmVGg5TXR5VS9sNG5GeXVIdFhWTkE9PSIsInZhbHVlIjoibU5zbnlqdGpFdTg1a1BoNWdJTmZkNTlxcWF5Wmg0eHZ1T1gyczI5bHRaT2hlQnY3QnVTdS9GNmtscWQ5eUpMZG9MazJsbVQ5SWZsUTN2SXRyU3c3aTRrbWZTZ2JxUWJYWFhUVXg2b3NWVkRKNlpoVE9OUk9mV21yNXF3Qy9jRngiLCJtYWMiOiJlOGQ3YjYxNGYxY2Q1OGNlY2Y3OTAxNGM0MzdhYjQyYWM5OTk3YTM0ZmNmMDMyZmM5ZGYxOWRkYzllYjllYTIwIiwidGFnIjoiIn0%3D; expires=Tue, 13 Oct 2026 05:10:14 GMT; Max-Age=7200; path=/; httponly; samesite=lax
+
+HTTP/1.1 405 Method Not Allowed
+Host: 127.0.0.1:8001
+Connection: close
+X-Powered-By: PHP/8.3.33
+allow: GET, HEAD, DELETE
+Cache-Control: no-cache, private
+date: Tue, 13 Oct 2026 03:10:20 GMT
+Content-Type: text/html; charset=utf-8
+

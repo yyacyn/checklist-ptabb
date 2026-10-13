@@ -1,6 +1,5 @@
 import {
     AlertTriangle,
-    Camera,
     Check,
     CheckCircle2,
     ChevronLeft,
@@ -18,7 +17,6 @@ import {
     Users,
 } from 'lucide-react';
 import React, { useCallback, useEffect, useRef, useState } from 'react';
-import { PhotoEvidenceDialog, PhotoEvidenceStrip } from '@/components/photo-evidence-dialog';
 import { Badge } from '@/components/ui/badge';
 import { Button } from '@/components/ui/button';
 import { Card, CardContent, CardDescription, CardHeader, CardTitle } from '@/components/ui/card';
@@ -36,8 +34,6 @@ import { csrfHeaders } from '@/lib/autosave-queue';
 import type {
     ChapterData,
     FindingData,
-    PhotoCategoryItem,
-    PhotoRecord,
     ReportData,
     SummarySchema,
     SummarySchemaTextField,
@@ -71,9 +67,6 @@ export interface ObservationsSectionProps {
     prevChapter?: { id: number; title: string; chapter_no?: string | null } | null;
     nextChapter?: { id: number; title: string; chapter_no?: string | null } | null;
     onChapterSwitch: (chapterId: number) => void;
-    reportPhotos?: PhotoRecord[];
-    onPhotosUpdated?: (photos: PhotoRecord[]) => void;
-    photoCategories?: PhotoCategoryItem[];
 }
 
 export function ObservationsSection({
@@ -87,9 +80,6 @@ export function ObservationsSection({
     prevChapter,
     nextChapter,
     onChapterSwitch,
-    reportPhotos,
-    onPhotosUpdated,
-    photoCategories,
 }: ObservationsSectionProps) {
     const isB008 = report.form.code === 'B-008';
     const isD062 = report.form.code === 'D-062';
@@ -283,9 +273,6 @@ export function ObservationsSection({
     });
     const [isSavingFinding, setIsSavingFinding] = useState(false);
 
-    // Finding Photo Attachment Dialog State
-    const [evidenceModalFinding, setEvidenceModalFinding] = useState<FindingData | null>(null);
-
     const handleOpenAddFinding = () => {
         setEditingFinding(null);
         setFindingFormData({
@@ -328,75 +315,6 @@ export function ObservationsSection({
             setFindingModalOpen(false);
         } finally {
             setIsSavingFinding(false);
-        }
-    };
-
-    const handleDetachPhotoFromFinding = async (photo: PhotoRecord) => {
-        try {
-            const csrfToken =
-                (document.querySelector('meta[name="csrf-token"]') as HTMLMetaElement)?.content || '';
-            const res = await fetch(`/reports/${report.id}/photos/${photo.id}`, {
-                method: 'PUT',
-                headers: {
-                    'Content-Type': 'application/json',
-                    'X-CSRF-TOKEN': csrfToken,
-                    Accept: 'application/json',
-                },
-                body: JSON.stringify({ finding_id: null }),
-            });
-            if (res.ok) {
-                const data = await res.json();
-                onPhotosUpdated?.(
-                    (reportPhotos || []).map((p) => (p.id === photo.id ? data.photo : p))
-                );
-            }
-        } catch (err) {
-            console.error('Failed to detach photo from finding:', err);
-        }
-    };
-
-    const [uploadingFindingId, setUploadingFindingId] = useState<number | null>(null);
-
-    const handleDirectUploadFindingPhotos = async (findingId: number, files: FileList | File[]) => {
-        const fileArr = Array.from(files);
-        if (fileArr.length === 0) return;
-
-        setUploadingFindingId(findingId);
-        try {
-            const formData = new FormData();
-            for (let i = 0; i < fileArr.length; i++) {
-                formData.append('files[]', fileArr[i]);
-            }
-            formData.append('finding_id', String(findingId));
-            formData.append('title', `Obs #${findingId} Evidence`);
-            formData.append('caption', `Obs #${findingId} Evidence`);
-
-            const csrfToken =
-                (document.querySelector('meta[name="csrf-token"]') as HTMLMetaElement)?.content || '';
-            const res = await fetch(`/reports/${report.id}/photos`, {
-                method: 'POST',
-                headers: {
-                    'X-CSRF-TOKEN': csrfToken,
-                    Accept: 'application/json',
-                },
-                body: formData,
-            });
-
-            if (res.ok) {
-                const data = await res.json();
-                const newPhotos: PhotoRecord[] = data.photos || (data.photo ? [data.photo] : []);
-                if (newPhotos.length > 0) {
-                    onPhotosUpdated?.([...(reportPhotos || []), ...newPhotos]);
-                }
-            } else {
-                const errData = await res.json().catch(() => null);
-                alert(errData?.message || 'Failed to upload photos to finding.');
-            }
-        } catch (err) {
-            console.error('Failed to upload photos:', err);
-            alert('Failed to upload photos to finding.');
-        } finally {
-            setUploadingFindingId(null);
         }
     };
 
@@ -613,10 +531,6 @@ export function ObservationsSection({
                     ) : (
                         <div className="space-y-3">
                             {findings.map((f, index) => {
-                                const attachedPhotos = (reportPhotos || []).filter(
-                                    (p) => p.finding_id === f.id
-                                );
-
                                 return (
                                     <Card
                                         key={f.id}
@@ -723,26 +637,6 @@ export function ObservationsSection({
                                                     </span>
                                                 </div>
                                             </div>
-
-                                            {/* Photographic Evidence Strip */}
-                                            <div className="pt-2 border-t border-border/40 flex items-center justify-between gap-3 flex-wrap">
-                                                <div className="space-y-1">
-                                                    <span className="text-[11px] font-semibold text-muted-foreground uppercase tracking-wider flex items-center gap-1.5">
-                                                        <Camera className="size-3 text-primary" />
-                                                        <span>Photographic Evidence:</span>
-                                                    </span>
-                                                    <PhotoEvidenceStrip
-                                                        photos={attachedPhotos}
-                                                        isEditable={isEditable}
-                                                        onAttachClick={() => setEvidenceModalFinding(f)}
-                                                        onDetachPhoto={(photo) => {
-                                                            void handleDetachPhotoFromFinding(photo);
-                                                        }}
-                                                        onUploadPhotos={(files) => handleDirectUploadFindingPhotos(f.id, files)}
-                                                        isUploading={uploadingFindingId === f.id}
-                                                    />
-                                                </div>
-                                            </div>
                                         </CardContent>
                                     </Card>
                                 );
@@ -750,21 +644,6 @@ export function ObservationsSection({
                         </div>
                     )}
                 </div>
-            )}
-
-            {/* Finding Photo Evidence Modal */}
-            {evidenceModalFinding && (
-                <PhotoEvidenceDialog
-                    open={Boolean(evidenceModalFinding)}
-                    onOpenChange={(open) => !open && setEvidenceModalFinding(null)}
-                    reportId={report.id}
-                    targetType="finding"
-                    targetId={evidenceModalFinding.id}
-                    targetTitle={`Finding #${evidenceModalFinding.viq_paragraph || evidenceModalFinding.id}: ${evidenceModalFinding.description.slice(0, 50)}...`}
-                    reportPhotos={reportPhotos || []}
-                    categories={photoCategories || []}
-                    onPhotosUpdated={(updated) => onPhotosUpdated?.(updated)}
-                />
             )}
 
             {/* Modal: Add / Edit Finding Dialog */}

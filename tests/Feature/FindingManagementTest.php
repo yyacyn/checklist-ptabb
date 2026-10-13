@@ -2,13 +2,13 @@
 
 namespace Tests\Feature;
 
-use App\Models\ActivityLog;
 use App\Models\Finding;
 use App\Models\Form;
 use App\Models\User;
 use App\Services\ReportSnapshot;
 use Database\Seeders\FormSeeder;
 use Illuminate\Foundation\Testing\RefreshDatabase;
+use Inertia\Testing\AssertableInertia;
 use Tests\TestCase;
 
 class FindingManagementTest extends TestCase
@@ -251,7 +251,7 @@ class FindingManagementTest extends TestCase
         $response = $this->actingAs($corporate)->get(route('findings.index'));
 
         $response->assertOk();
-        $response->assertInertia(fn (\Inertia\Testing\AssertableInertia $page) => $page
+        $response->assertInertia(fn (AssertableInertia $page) => $page
             ->component('findings/index')
             ->has('findings.data', 2)
             ->where('stats.total', 2)
@@ -303,7 +303,7 @@ class FindingManagementTest extends TestCase
         $response = $this->actingAs($vesselUser)->get(route('findings.index'));
 
         $response->assertOk();
-        $response->assertInertia(fn (\Inertia\Testing\AssertableInertia $page) => $page
+        $response->assertInertia(fn (AssertableInertia $page) => $page
             ->component('findings/index')
             ->has('findings.data', 1)
             ->where('findings.data.0.vessel_name', 'MV OCEANIC STAR')
@@ -315,7 +315,7 @@ class FindingManagementTest extends TestCase
         // Attempting to query another vessel by query parameter should still be scoped
         $responseAttempt = $this->actingAs($vesselUser)->get(route('findings.index', ['vessel_name' => 'MT Pacific Pioneer']));
         $responseAttempt->assertOk();
-        $responseAttempt->assertInertia(fn (\Inertia\Testing\AssertableInertia $page) => $page
+        $responseAttempt->assertInertia(fn (AssertableInertia $page) => $page
             ->component('findings/index')
             ->has('findings.data', 1)
             ->where('findings.data.0.vessel_name', 'MV OCEANIC STAR')
@@ -358,7 +358,7 @@ class FindingManagementTest extends TestCase
         // Filter by risk=high
         $resRisk = $this->actingAs($corporate)->get(route('findings.index', ['risk' => 'high']));
         $resRisk->assertOk();
-        $resRisk->assertInertia(fn (\Inertia\Testing\AssertableInertia $page) => $page
+        $resRisk->assertInertia(fn (AssertableInertia $page) => $page
             ->has('findings.data', 1)
             ->where('findings.data.0.risk', 'high')
         );
@@ -366,7 +366,7 @@ class FindingManagementTest extends TestCase
         // Filter by search='Emergency generator'
         $resSearch = $this->actingAs($corporate)->get(route('findings.index', ['search' => 'Emergency generator']));
         $resSearch->assertOk();
-        $resSearch->assertInertia(fn (\Inertia\Testing\AssertableInertia $page) => $page
+        $resSearch->assertInertia(fn (AssertableInertia $page) => $page
             ->has('findings.data', 1)
             ->where('findings.data.0.job_order_no', 'JO-991')
         );
@@ -374,7 +374,7 @@ class FindingManagementTest extends TestCase
         // Filter by status=closed
         $resStatus = $this->actingAs($corporate)->get(route('findings.index', ['finding_status' => 'closed']));
         $resStatus->assertOk();
-        $resStatus->assertInertia(fn (\Inertia\Testing\AssertableInertia $page) => $page
+        $resStatus->assertInertia(fn (AssertableInertia $page) => $page
             ->has('findings.data', 1)
             ->where('findings.data.0.risk', 'low')
         );

@@ -949,9 +949,6 @@ export default function ReportDataEntry({
                                 onAcceptServerAnswer={handleAcceptServerAnswer}
                                 onOverwriteAnswer={handleOverwriteAnswer}
                                 filterQuestion={filterQuestion}
-                                reportPhotos={photos}
-                                onPhotosUpdated={setPhotos}
-                                photoCategories={photo_categories}
                             />
                         ) : activeChapterId === -999 || activeChapterId === -15 ? (
                             <ObservationsSection
@@ -965,9 +962,6 @@ export default function ReportDataEntry({
                                 prevChapter={prevChapter}
                                 nextChapter={nextChapter}
                                 onChapterSwitch={handleChapterSwitch}
-                                reportPhotos={photos}
-                                onPhotosUpdated={setPhotos}
-                                photoCategories={photo_categories}
                             />
                         ) : activeChapter ? (
                             <div className="max-w-4xl mx-auto space-y-6">
@@ -1031,9 +1025,6 @@ export default function ReportDataEntry({
                                                 conflict={conflicts[q.id]}
                                                 onAcceptServerAnswer={(srv) => handleAcceptServerAnswer(q.id, srv)}
                                                 onOverwriteAnswer={(srvVer) => handleOverwriteAnswer(q.id, srvVer)}
-                                                reportPhotos={photos}
-                                                onPhotosUpdated={setPhotos}
-                                                photoCategories={photo_categories}
                                             />
                                         ))}
                                     </div>
@@ -1092,9 +1083,6 @@ export default function ReportDataEntry({
                                                                 onOverwriteAnswer={(srvVer) =>
                                                                     handleOverwriteAnswer(q.id, srvVer)
                                                                 }
-                                                                reportPhotos={photos}
-                                                                onPhotosUpdated={setPhotos}
-                                                                photoCategories={photo_categories}
                                                             />
                                                         ))}
                                                     </div>

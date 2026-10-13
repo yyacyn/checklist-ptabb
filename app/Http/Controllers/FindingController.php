@@ -154,6 +154,7 @@ class FindingController extends Controller
             'user_role' => $user->role,
         ]);
     }
+
     /**
      * Store a new observation/finding for the report (Task 4.1, Form D-062 Chapter 15).
      */

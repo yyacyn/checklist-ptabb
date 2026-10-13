@@ -422,7 +422,7 @@ class FormSeeder extends Seeder
      * the D-062 Vessel Inspection Report. The checklist_chapters section dynamically
      * pulls chapters from the report snapshot; the other sections are static structure.
      *
-     * @param array $summarySchema The summary schema for this form (for title/position references)
+     * @param  array  $summarySchema  The summary schema for this form (for title/position references)
      */
     private function d062LayoutSchema(array $summarySchema): array
     {
@@ -434,8 +434,8 @@ class FormSeeder extends Seeder
                     'title' => 'Chapter 1 - General Information',
                     'components' => ['vessel_particulars', 'operations_grid', 'psc_drydock', 'voyage_info', 'open_items_table', 'internal_circulation'],
                     'static_texts' => [
-                        'fill_in_instructions' => "This report form is to be completed by the corporate surveyor. All findings must be clearly described and referenced to the appropriate chapter.",
-                        'add_remove_lines' => "Add or remove lines respectively",
+                        'fill_in_instructions' => 'This report form is to be completed by the corporate surveyor. All findings must be clearly described and referenced to the appropriate chapter.',
+                        'add_remove_lines' => 'Add or remove lines respectively',
                     ],
                 ],
                 [

@@ -365,4 +365,3 @@ class ReportLifecycleAndPolicyTest extends TestCase
         $this->assertNotSoftDeleted('reports', ['id' => $report->id]);
     }
 }
-

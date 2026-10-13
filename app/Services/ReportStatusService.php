@@ -114,22 +114,22 @@ class ReportStatusService
 
             if ($isPhotoForm) {
                 $schemaItems = $report->form->photo_schema['items'] ?? [];
-                if (!empty($schemaItems)) {
+                if (! empty($schemaItems)) {
                     $uploadedItemNos = $report->photos()->pluck('item_no')->unique()->toArray();
                     $missingSlots = [];
                     foreach ($schemaItems as $idx => $slot) {
                         $slotNo = $idx + 1;
-                        if (!in_array($slotNo, $uploadedItemNos)) {
-                            $missingSlots[] = "#{$slotNo} " . ($slot['title'] ?? 'Item');
+                        if (! in_array($slotNo, $uploadedItemNos)) {
+                            $missingSlots[] = "#{$slotNo} ".($slot['title'] ?? 'Item');
                         }
                     }
-                    if (!empty($missingSlots)) {
+                    if (! empty($missingSlots)) {
                         throw ValidationException::withMessages([
                             'status' => [
                                 sprintf(
                                     'Cannot submit photo report: %d required photo item(s) are missing (%s).',
                                     count($missingSlots),
-                                    implode(', ', array_slice($missingSlots, 0, 3)) . (count($missingSlots) > 3 ? '...' : '')
+                                    implode(', ', array_slice($missingSlots, 0, 3)).(count($missingSlots) > 3 ? '...' : '')
                                 ),
                             ],
                         ]);

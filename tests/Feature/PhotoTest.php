@@ -7,8 +7,8 @@ use App\Models\Form;
 use App\Models\Photo;
 use App\Models\PhotoCategory;
 use App\Models\Report;
-use App\Models\ReportQuestion;
 use App\Models\User;
+use App\Models\VesselType;
 use Database\Seeders\FormSeeder;
 use Database\Seeders\PhotoCategorySeeder;
 use Illuminate\Foundation\Testing\RefreshDatabase;
@@ -21,10 +21,15 @@ class PhotoTest extends TestCase
     use RefreshDatabase;
 
     protected User $superadmin;
+
     protected User $inspector;
+
     protected User $vesselUser;
+
     protected Report $report;
+
     protected Form $formD062;
+
     protected Form $formP001;
 
     protected function setUp(): void
@@ -281,7 +286,7 @@ class PhotoTest extends TestCase
 
     public function test_standalone_photo_report_can_be_created_and_filled(): void
     {
-        $vesselType = \App\Models\VesselType::first();
+        $vesselType = VesselType::first();
         $response = $this->actingAs($this->inspector)->post('/reports', [
             'form_id' => $this->formP001->id,
             'vessel_name' => 'MV Oceanic Star',
@@ -493,7 +498,6 @@ class PhotoTest extends TestCase
         $response->assertStatus(422);
     }
 
-
     public function test_uploading_photo_transitions_draft_report_to_in_progress(): void
     {
         $this->assertEquals('draft', $this->report->status);
@@ -625,5 +629,3 @@ class PhotoTest extends TestCase
             ->assertStatus(403);
     }
 }
-
-

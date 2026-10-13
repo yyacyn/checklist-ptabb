@@ -722,6 +722,3 @@ class ReportDataEntryTest extends TestCase
         $this->assertEquals($payload['summary_data'], $report->summary_data);
     }
 }
-
-
-

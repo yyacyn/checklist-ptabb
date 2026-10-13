@@ -1,11 +1,14 @@
 <?php
 
+use App\Models\Form;
+use Illuminate\Contracts\Console\Kernel;
+
 require 'vendor/autoload.php';
 $app = require_once 'bootstrap/app.php';
-$kernel = $app->make(Illuminate\Contracts\Console\Kernel::class);
+$kernel = $app->make(Kernel::class);
 $kernel->bootstrap();
 
-$form = App\Models\Form::where('code', 'D-062')->first();
+$form = Form::where('code', 'D-062')->first();
 $chapters = $form->groups()->whereNull('parent_id')->orderBy('sort_order')->with('subgroups')->get();
 
 foreach ($chapters as $ch) {

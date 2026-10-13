@@ -6,8 +6,6 @@ use App\Models\Finding;
 use App\Models\Form;
 use App\Models\Photo;
 use App\Models\PhotoCategory;
-use App\Models\Report;
-use App\Models\ReportQuestion;
 use App\Models\User;
 use App\Services\ReportSnapshot;
 use Database\Seeders\FormSeeder;

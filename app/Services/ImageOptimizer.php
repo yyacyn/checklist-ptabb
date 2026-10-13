@@ -20,8 +20,8 @@ class ImageOptimizer
         if (in_array($extension, ['heic', 'heif'])) {
             $extension = 'jpg';
         }
-        $filename = Str::uuid() . '.' . ($extension === 'png' ? 'png' : ($extension === 'webp' ? 'webp' : 'jpg'));
-        $thumbFilename = 'thumb_' . $filename;
+        $filename = Str::uuid().'.'.($extension === 'png' ? 'png' : ($extension === 'webp' ? 'webp' : 'jpg'));
+        $thumbFilename = 'thumb_'.$filename;
 
         $directory = "photos/{$reportId}";
         Storage::disk('public')->makeDirectory($directory);
@@ -97,23 +97,24 @@ class ImageOptimizer
     /**
      * Correct orientation based on EXIF orientation flag.
      *
-     * @param \GdImage|resource $image
+     * @param  \GdImage|resource  $image
      * @return \GdImage|resource
      */
     protected function autoOrient($image, UploadedFile $file)
     {
-        if (!function_exists('exif_read_data')) {
+        if (! function_exists('exif_read_data')) {
             return $image;
         }
 
         try {
             $exif = @exif_read_data($file->getRealPath());
-            if (!empty($exif['Orientation'])) {
+            if (! empty($exif['Orientation'])) {
                 switch ($exif['Orientation']) {
                     case 3:
                         $rotated = imagerotate($image, 180, 0);
                         if ($rotated !== false) {
                             imagedestroy($image);
+
                             return $rotated;
                         }
                         break;
@@ -121,6 +122,7 @@ class ImageOptimizer
                         $rotated = imagerotate($image, -90, 0);
                         if ($rotated !== false) {
                             imagedestroy($image);
+
                             return $rotated;
                         }
                         break;
@@ -128,6 +130,7 @@ class ImageOptimizer
                         $rotated = imagerotate($image, 90, 0);
                         if ($rotated !== false) {
                             imagedestroy($image);
+
                             return $rotated;
                         }
                         break;
@@ -143,7 +146,7 @@ class ImageOptimizer
     /**
      * Resize image if width or height exceeds max edge, preserving aspect ratio.
      *
-     * @param \GdImage|resource $image
+     * @param  \GdImage|resource  $image
      * @return \GdImage|resource
      */
     protected function resizeIfLarger($image, int $maxEdge)
