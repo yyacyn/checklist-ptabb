@@ -142,22 +142,19 @@ This is the phase users feel. Budget it properly.
 
 ---
 
-## Phase 6 — PDF (8 to 10 days)
+## Phase 6 — PDF (Adopted Review & Fix Plan, 10 to 13 days)
 
-| # | Task | Ref |
-| --- | --- | --- |
-| 6.1 | Layout definition per form, one shared engine | REP-1g |
-| 6.2 | D-062: Chapter 1 header, operations grid, PSC and dry dock, open items table, INTERNAL CIRCULATION | REP-1 |
-| 6.3 | D-062: chapters 2–13 with each chapter's own column set, repeating table headers | REP-1 |
-| 6.4 | Chapter 14 best practices, Chapter 15 Summary of Observations, **then the moved Report Summary** | REP-1b, REP-1c |
-| 6.5 | Chapter 16 photographic records, grouped by category with captions, appendix split if large | REP-3, REP-8 |
-| 6.6 | The two comparison blocks at the end | INS-19 |
-| 6.7 | Generated index with real page numbers; footer with form code, version, report number, page x of y | REP-1a, REP-1e |
-| 6.8 | Static text blocks: FILL IN INSTRUCTIONS, the notes under each table, "add or remove lines" | REP-1f |
-| 6.9 | Queued generation, cached per `current_version`, progress state, invalidated on edit | REP-6 |
-| 6.10 | DRAFT watermark; blank signature lines | REP-4, REP-2 |
-| 6.11 | Print stylesheet fallback | REP-7 |
-| 6.12 | B-008 layout from its own document | REP-1 |
+*Adopted from `ReportPdfRenderer_Review_and_Fix_Plan.md` against SRS v0.6 and codebase reality.*
+
+| Sub-Phase | Focus & Tasks | Ref | Status |
+| --- | --- | --- | --- |
+| **6A: S2 Spike** | Benchmark mPDF vs dompdf on host limits (512MB memory_limit) with 600-question report + 30 photos. Verify table header repeat, page x of y, index generation, and UTF-8 glyphs. | S2, REP-1e | Ready |
+| **6B: Data Builder** | (1) `display_no` migration & snapshot persistence on `report_groups` and `report_questions`, (2) `ReportDocumentBuilder` eager-loading all report data in <=12 queries, (3) Required-field validation. | REP-1g | In Progress |
+| **6C: Critical Renderer Patches** | Immediate fixes to existing renderer: R-02 (ratings column alignment), R-04 (dynamic cover status & watermark cache invalidation), R-05 (remove phantom photo_status, sort by item_no, local storage path), R-09 (move comments out of `<tfoot>`), R-10 (fix table header CSS class width), R-12 (page tokens), R-18 (`nl2br` for multiline text), R-21 (CSS styles & `@page`), R-24 (dedup generation date), R-27 (strip internal IDs). | R-01–R-27 | In Progress |
+| **6D: Section Views** | Blade-driven section templates (`pdf/sections/*.blade.php`): Cover/Footer, Particulars/Voyage/Operations/PSC, Checklist with typed values & auto-NA banners, Best Practices & Findings register, Attendance/Appraisals, Signatures, B-008 dedicated layout & standalone Photo Form layout. | REP-1, AUD-1..15 | Planned |
+| **6E: Photos & Appendix** | Ordered grid photo layout, local disk copy (1000px @ 150KB), real REP-8 appendix split generating separate appendix PDF when threshold exceeded. | REP-3, REP-8, PHO-6 | Planned |
+| **6F: Job & Fingerprint Cache** | Queued PDF generation job on dedicated queue (`--timeout=300`), robust cache fingerprint (report ID, version, status, template version, layout hash), previous PDF cleanup. | REP-6 | Planned |
+| **6G: Verification Suite** | Golden fixture test, query count assertion (<=12), XSS escaping test, status transition watermark test, PDF text extraction verification. | REP-1 | Planned |
 
 ---
 

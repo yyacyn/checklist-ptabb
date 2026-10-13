@@ -6,9 +6,7 @@ use App\Enums\ReportStatus;
 use App\Models\Report;
 use App\Models\ReportGroup;
 use App\Models\ReportQuestion;
-use App\Services\VesselName;
 use Illuminate\Support\Facades\Storage;
-use Illuminate\Support\HtmlString;
 
 /**
  * The shared PDF rendering engine (SRS REP-1g, REP-6, PLAN 6.1).
@@ -71,7 +69,7 @@ class ReportPdfRenderer
 <body>
 <div class="watermark">{$watermark}</div>
 {$sections}
-<div class="footer">{$footerText} · Generated: {$generationDate}</div>
+<div class="footer">{$footerText}</div>
 </body>
 </html>
 HTML;
@@ -152,12 +150,12 @@ HTML;
      *   "checklist_chapters" -> renderChecklistChaptersSection()
      *   "general_info"       -> renderGeneralInfoSection()
      *
-     * @param array{type: string} $sectionDef
+     * @param  array{type: string}  $sectionDef
      */
     protected function renderSection(Report $report, array $sectionDef): string
     {
         $type = $sectionDef['type'] ?? '';
-        $method = 'render' . str_replace('_', '', ucwords($type, '_')) . 'Section';
+        $method = 'render'.str_replace('_', '', ucwords($type, '_')).'Section';
 
         if (! method_exists($this, $method)) {
             return "<!-- Unsupported section type: {$type} -->\n";
@@ -186,12 +184,14 @@ HTML;
         ];
         $title = $titles[$titleKey] ?? $titles['inspection_report'];
 
-        $formCode = $report->form->code ?? '';
-        $formVersion = $report->form->form_version ?? '';
-        $templateVersion = $report->template_version ?? 1;
-        $reportRef = $report->reference_number ?? '';
-        $vesselName = $report->vessel_name ?? '';
+        $formCode = $this->escape($report->form->code ?? '');
+        $rawFormVersion = (string) ($report->form->form_version ?? '');
+        $formVersion = $this->escape(str_starts_with($rawFormVersion, 'v') ? $rawFormVersion : 'v'.$rawFormVersion);
+        $templateVersion = (int) ($report->template_version ?? 1);
+        $reportRef = $this->escape($report->reference_number ?? '');
+        $vesselName = $this->escape($report->vessel_name ?? '');
         $reportDate = $report->report_date?->format('d F Y') ?? now()->format('d F Y');
+        $statusLabel = strtoupper(str_replace('_', ' ', (string) $report->status));
 
         return <<<HTML
 <div class="page-break-after">
@@ -199,10 +199,10 @@ HTML;
     <h1 class="cover-title">{$title}</h1>
     <table class="cover-table">
       <tr><td class="cover-label">Report No.</td><td class="cover-value">{$reportRef}</td></tr>
-      <tr><td class="cover-label">Form</td><td class="cover-value">{$formCode} (v{$formVersion}, template v{$templateVersion})</td></tr>
+      <tr><td class="cover-label">Form</td><td class="cover-value">{$formCode} ({$formVersion}, template v{$templateVersion})</td></tr>
       <tr><td class="cover-label">Vessel</td><td class="cover-value">{$vesselName}</td></tr>
       <tr><td class="cover-label">Date</td><td class="cover-value">{$reportDate}</td></tr>
-      <tr><td class="cover-label">Status</td><td class="cover-value">DRAFT</td></tr>
+      <tr><td class="cover-label">Status</td><td class="cover-value">{$statusLabel}</td></tr>
     </table>
   </div>
 </div>
@@ -212,7 +212,7 @@ HTML;
     /**
      * D-062 Chapter 1: General Information (INS-1, INS-2, INS-3, INS-4, REP-1).
      *
-     * @param array{title?: string, components?: string[], static_texts?: array} $config
+     * @param  array{title?: string, components?: string[], static_texts?: array}  $config
      */
     protected function renderGeneralInfoSection(Report $report, array $config): string
     {
@@ -283,7 +283,7 @@ HTML;
      * Renders all top-level report groups as chapter tables. The column labels
      * come from the layout schema so D-062 gets Yes/No/NS/NA and B-008 gets Yes/No/N/S.
      *
-     * @param array{column_labels?: string[], start_chapter?: string, end_chapter?: string} $config
+     * @param  array{column_labels?: string[], start_chapter?: string, end_chapter?: string}  $config
      */
     protected function renderChecklistChaptersSection(Report $report, array $config): string
     {
@@ -313,40 +313,54 @@ HTML;
      */
     protected function renderChecklistChapter(Report $report, ReportGroup $group, array $columnLabels, array $answerColumns): string
     {
-        $chapterNo = $group->chapter_no ?? $group->sort_order;
-        $title = $group->title;
+        $chapterNo = $this->escape((string) ($group->chapter_no ?? $group->sort_order));
+        $title = $this->escape($group->title);
         $isApplicable = $group->is_applicable;
-        $naReason = $group->na_reason;
+        $naReason = $this->escape($group->na_reason ?? '');
 
         $rows = '';
-        $sortOrder = 0;
+        $questionIndex = 0;
 
         // Direct questions
         $questions = $group->questions()->orderBy('sort_order')->get();
         foreach ($questions as $question) {
-            $rows .= $this->renderQuestionRow($report, $question, $sortOrder++, $answerColumns);
+            $questionIndex++;
+            $rows .= $this->renderQuestionRow($report, $question, $questionIndex, $answerColumns);
         }
 
         // Subgroups
         $subgroups = $group->subgroups()->orderBy('sort_order')->get();
         foreach ($subgroups as $subgroup) {
-            if (! $subgroup->is_applicable) {
-                $rows .= $this->renderSubgroupHeader($subgroup->title, $subgroup->na_reason ?? '', $sortOrder++);
-            } else {
-                $rows .= $this->renderSubgroupHeader($subgroup->title, '', $sortOrder++);
-            }
+            $rows .= $this->renderSubgroupHeader($subgroup->title, $subgroup->na_reason ?? '');
 
             $subQuestions = $subgroup->questions()->orderBy('sort_order')->get();
             foreach ($subQuestions as $question) {
-                $rows .= $this->renderQuestionRow($report, $question, $sortOrder++, $answerColumns);
+                $questionIndex++;
+                $rows .= $this->renderQuestionRow($report, $question, $questionIndex, $answerColumns);
             }
         }
 
         $applicabilityNote = $isApplicable
             ? ''
-            : '<div class="na-banner">NOT APPLICABLE: ' . ($naReason ?? 'N/A') . '</div>';
+            : '<div class="na-banner">NOT APPLICABLE: '.($naReason ?: 'N/A').'</div>';
 
-        $labelHtml = implode('</th><th class="q-col">', $columnLabels);
+        // Properly map each column label to its CSS class
+        $headerThs = '';
+        foreach ($columnLabels as $idx => $label) {
+            $norm = strtolower(trim($label));
+            $thClass = match ($norm) {
+                'no.' => 'no-col',
+                'item' => 'q-col',
+                'remarks' => 'remarks-cell',
+                default => 'ans-col text-center',
+            };
+            $headerThs .= "<th class=\"{$thClass}\">".$this->escape($label).'</th>';
+        }
+
+        $commentsHtml = '';
+        if (! empty($group->comments)) {
+            $commentsHtml = '<div class="chapter-comments"><strong>COMMENTS / REMARKS:</strong> '.$this->formatMultiline($group->comments).'</div>';
+        }
 
         return <<<HTML
 <div class="chapter" id="chapter-{$chapterNo}">
@@ -354,15 +368,13 @@ HTML;
   {$applicabilityNote}
   <table class="checklist-table">
     <thead>
-      <tr><th class="no-col">{$labelHtml}</th></tr>
+      <tr>{$headerThs}</tr>
     </thead>
     <tbody>
       {$rows}
     </tbody>
-    <tfoot>
-      <tr><td colspan="100%" class="remarks-cell">COMMENTS/REMARKS: {$this->escape($group->comments ?? '')}</td></tr>
-    </tfoot>
   </table>
+  {$commentsHtml}
 </div>
 HTML;
     }
@@ -370,33 +382,33 @@ HTML;
     /**
      * Render a single question row with its answer.
      */
-    protected function renderQuestionRow(Report $report, ReportQuestion $question, int $sortOrder, array $answerColumns): string
+    protected function renderQuestionRow(Report $report, ReportQuestion $question, int $questionNumber, array $answerColumns): string
     {
-        $num = $sortOrder + 1;
+        $num = $questionNumber;
         $text = $this->escape($question->question_text);
         $guidance = $question->guidance ? $this->escape($question->guidance) : '';
-        $note = $this->escape($question->answer?->note ?? '');
+        $note = $this->formatMultiline($question->answer?->note ?? '');
         $extraValue = $this->escape($question->answer?->extra_value ?? '');
 
-        $cells = '<td class="no-col">' . $num . '</td>';
-        $cells .= '<td class="q-col">' . $text;
+        $cells = '<td class="no-col">'.$num.'</td>';
+        $cells .= '<td class="q-col">'.$text;
         if ($guidance) {
-            $cells .= '<div class="guidance">' . $guidance . '</div>';
+            $cells .= '<div class="guidance">'.$guidance.'</div>';
         }
         if ($extraValue && in_array($question->answer?->answer, ['yes', 'no', 'ns', 'na'], true)) {
-            $cells .= '<div class="extra-value">' . $extraValue . '</div>';
+            $cells .= '<div class="extra-value">'.$extraValue.'</div>';
         }
         $cells .= '</td>';
 
         foreach ($answerColumns as $colKey => $colLabel) {
             $answerVal = $question->answer?->answer;
             $checked = ($answerVal === $colKey) ? '●' : '';
-            $cells .= '<td class="ans-col text-center">' . $checked . '</td>';
+            $cells .= '<td class="ans-col text-center">'.$checked.'</td>';
         }
 
-        $cells .= '<td class="remarks-cell">' . $note . '</td>';
+        $cells .= '<td class="remarks-cell">'.$note.'</td>';
 
-        return '<tr>' . $cells . '</tr>';
+        return '<tr>'.$cells.'</tr>';
     }
 
     /**
@@ -406,7 +418,7 @@ HTML;
     {
         $chapterNo = $config['chapter_no'] ?? '14';
         $title = $config['title'] ?? "Chapter {$chapterNo} - Best Practices";
-        $text = $this->escape($report->summary_data['best_practices'] ?? $report->summary_data['best_practices_text'] ?? '');
+        $text = $this->formatMultiline($report->summary_data['best_practices'] ?? $report->summary_data['best_practices_text'] ?? '');
 
         return <<<HTML
 <div class="section page-break-before">
@@ -429,6 +441,10 @@ HTML;
         foreach ($report->findings as $finding) {
             $sortOrder++;
             $rows .= $this->renderObservationRow($finding, $sortOrder);
+        }
+
+        if ($rows === '') {
+            $rows = '<tr><td colspan="7" class="empty-row text-center">No observations recorded.</td></tr>';
         }
 
         return <<<HTML
@@ -498,11 +514,26 @@ HTML;
         $threshold = $config['photo_appendix_threshold'] ?? 100;
         $shouldSplit = $photos->count() > $threshold;
 
-        // Only show ready photos
-        $readyPhotos = $photos->filter(fn ($p) => ($p->photo_status ?? 'ready') === 'ready' || !isset($p->photo_status));
+        if ($shouldSplit) {
+            $splitNote = '<div class="split-note">This report contains '.$photos->count().' photographs. Photographic appendix is compiled as a separate volume due to size limit.</div>';
+
+            return <<<HTML
+<div class="section page-break-before">
+  <h3 class="chapter-header">{$title}</h3>
+  {$splitNote}
+</div>
+HTML;
+        }
+
+        // Deterministic sort: item_no, sort_order, then id
+        $sortedPhotos = $photos->sortBy(fn ($p) => [
+            $p->item_no ?? 999999,
+            $p->sort_order ?? 999999,
+            $p->id,
+        ]);
 
         $photoHtml = '';
-        foreach ($readyPhotos as $photo) {
+        foreach ($sortedPhotos as $photo) {
             $photoHtml .= $this->renderPhotoItem($photo);
         }
 
@@ -510,14 +541,9 @@ HTML;
             $photoHtml = '<div class="no-photos">No photographic records attached.</div>';
         }
 
-        $splitNote = $shouldSplit
-            ? '<div class="split-note">Photo appendix generated separately due to size (REP-8).</div>'
-            : '';
-
         return <<<HTML
 <div class="section page-break-before">
   <h3 class="chapter-header">{$title}</h3>
-  {$splitNote}
   {$photoHtml}
 </div>
 HTML;
@@ -533,13 +559,13 @@ HTML;
         // Comparison with last 3 reports of the same vessel
         $html .= '<div class="section page-break-before">';
         $html .= '<h3 class="chapter-header">Comparison with Previous Reports</h3>';
-        $html .= '<div class="comparison-block">Findings from the last 3 reports of this vessel (INS-19).</div>';
+        $html .= '<div class="comparison-block">Historical inspection comparison will be compiled once previous reports are completed.</div>';
         $html .= '</div>';
 
         // Comparison with last 3 reports by the same inspector
         $html .= '<div class="section page-break-before">';
         $html .= '<h3 class="chapter-header">Comparison with Previous Reports by Same Inspector</h3>';
-        $html .= '<div class="comparison-block">Findings from the last 3 reports by this inspector (INS-19).</div>';
+        $html .= '<div class="comparison-block">Historical inspector comparison will be compiled once previous reports are completed.</div>';
         $html .= '</div>';
 
         return $html;
@@ -551,9 +577,9 @@ HTML;
     protected function renderCirculationSection(Report $report, array $config): string
     {
         return '<div class="section page-break-before"><h3 class="chapter-header">Internal Circulation</h3>'
-            . '<table class="circulation-table"><tr><th>Role</th><th>Date Sent</th><th>Reviewed By</th><th>Date Reviewed</th></tr>'
-            . '<tr><td colspan="4" class="empty-row">Not yet circulated.</td></tr>'
-            . '</table></div>';
+            .'<table class="circulation-table"><tr><th>Role</th><th>Date Sent</th><th>Reviewed By</th><th>Date Reviewed</th></tr>'
+            .'<tr><td colspan="4" class="empty-row">Not yet circulated.</td></tr>'
+            .'</table></div>';
     }
 
     /**
@@ -564,9 +590,9 @@ HTML;
     protected function renderInternalCirculation(Report $report): string
     {
         return '<h4 class="subsection-title">Internal Circulation</h4>'
-            . '<table class="circulation-table"><tr><th>Role</th><th>Date Sent</th><th>Reviewed By</th><th>Date Reviewed</th></tr>'
-            . '<tr><td colspan="4" class="empty-row">Not yet circulated.</td></tr>'
-            . '</table>';
+            .'<table class="circulation-table"><tr><th>Role</th><th>Date Sent</th><th>Reviewed By</th><th>Date Reviewed</th></tr>'
+            .'<tr><td colspan="4" class="empty-row">Not yet circulated.</td></tr>'
+            .'</table>';
     }
 
     /**
@@ -659,6 +685,9 @@ HTML;
             'Year Built' => $report->vessel_built ?? '',
             'Vessel Type' => $report->vesselType?->name ?? '',
             'Ice Class Vessel' => $report->vessel_ice_class ? 'Yes' : 'No',
+            'Master' => $report->master_name ?? '',
+            'Chief Engineer' => $report->chief_engineer_name ?? '',
+            'Chief Officer' => $report->chief_officer_name ?? '',
             'Inspected By' => $report->inspected_by ?? '',
             'Port' => $report->port ?? '',
             'Report Date' => $report->report_date?->format('d F Y') ?? '',
@@ -669,7 +698,9 @@ HTML;
             $rows .= "<tr><td class=\"field-label\">{$label}</td><td class=\"field-value\">{$this->escape((string) $value)}</td></tr>";
         }
 
-        return "<table class=\"particulars-table\">{$rows}</table>";
+        $voyageHtml = $this->renderVoyageInfo($report);
+
+        return "<table class=\"particulars-table\">{$rows}</table>\n{$voyageHtml}";
     }
 
     /**
@@ -745,10 +776,10 @@ HTML;
     protected function renderOpenItemsTable(Report $report): string
     {
         return '<h4 class="subsection-title">Open Items / Memoranda / Conditions of Class / Recommendations / Notations</h4>'
-            . '<table class="findings-table">'
-            . '<thead><tr><th>Kind</th><th>Description</th><th>Due Date</th><th>Close-out Schedule</th></tr></thead>'
-            . '<tbody><tr><td colspan="4" class="empty-row">No open items recorded.</td></tr></tbody>'
-            . '</table>';
+            .'<table class="findings-table">'
+            .'<thead><tr><th>Kind</th><th>Description</th><th>Due Date</th><th>Close-out Schedule</th></tr></thead>'
+            .'<tbody><tr><td colspan="4" class="empty-row">No open items recorded.</td></tr></tbody>'
+            .'</table>';
     }
 
     /**
@@ -757,7 +788,7 @@ HTML;
     protected function renderVoyageInfo(Report $report): string
     {
         $rows = '';
-        $rows .= "<tr><td class=\"field-label\">Sailing With Vessel</td><td>" . ($report->sailing_with_vessel ? 'Yes' : 'No') . '</td></tr>';
+        $rows .= '<tr><td class="field-label">Sailing With Vessel</td><td>'.($report->sailing_with_vessel ? 'Yes' : 'No').'</td></tr>';
         if ($report->sailing_from) {
             $rows .= "<tr><td class=\"field-label\">From</td><td>{$this->escape($report->sailing_from)}</td></tr>";
         }
@@ -774,10 +805,10 @@ HTML;
     protected function renderFollowupBlock(Report $report): string
     {
         $rows = '';
-        $rows .= "<tr><td class=\"field-label\">Previous Audit Number</td><td class=\"field-value\">-</td></tr>";
-        $rows .= "<tr><td class=\"field-label\">Previous NCR Count</td><td class=\"field-value\">-</td></tr>";
-        $rows .= "<tr><td class=\"field-label\">Previous Observation Count</td><td class=\"field-value\">-</td></tr>";
-        $rows .= "<tr><td class=\"field-label\">Close-out Verification</td><td class=\"field-value\">-</td></tr>";
+        $rows .= '<tr><td class="field-label">Previous Audit Number</td><td class="field-value">-</td></tr>';
+        $rows .= '<tr><td class="field-label">Previous NCR Count</td><td class="field-value">-</td></tr>';
+        $rows .= '<tr><td class="field-label">Previous Observation Count</td><td class="field-value">-</td></tr>';
+        $rows .= '<tr><td class="field-label">Close-out Verification</td><td class="field-value">-</td></tr>';
 
         return "<h4 class=\"subsection-title\">Follow-up from Previous Audit</h4><table class=\"particulars-table\">{$rows}</table>";
     }
@@ -788,20 +819,33 @@ HTML;
     protected function renderPhotoItem($photo): string
     {
         $title = $this->escape($photo->title ?? '');
-        $caption = $this->escape($photo->caption ?? '');
-        $description = $this->escape($photo->description ?? '');
-        $category = $this->escape($photo->category?->name ?? $photo->photo_category_id ?? '');
+        $caption = $this->formatMultiline($photo->caption ?? '');
+        $description = $this->formatMultiline($photo->description ?? '');
+        $category = $this->escape($photo->category?->name ?? (string) ($photo->photo_category_id ?? ''));
         $location = $this->escape($photo->location ?? '');
-        $itemNo = $photo->item_no ?? 1;
-        $photoUrl = $photo->file_url ?? '';
+        $itemNo = (int) ($photo->item_no ?? $photo->sort_order ?? 1);
 
-        $imgTag = $photoUrl
-            ? "<img src=\"{$photoUrl}\" class=\"photo-img\" alt=\"{$title}\" />"
-            : '<div class="photo-placeholder">Photo not available</div>';
+        $localPath = null;
+        if (! empty($photo->file_path)) {
+            $candidate = storage_path('app/public/'.$photo->file_path);
+            if (file_exists($candidate)) {
+                $localPath = $candidate;
+            }
+        }
+
+        if ($localPath) {
+            $imgSrc = 'file:///'.str_replace('\\', '/', $localPath);
+        } else {
+            $imgSrc = $photo->file_url ?? '';
+        }
+
+        $imgTag = $imgSrc
+            ? "<img src=\"{$imgSrc}\" class=\"photo-img\" alt=\"{$title}\" />"
+            : '<div class="photo-placeholder">Photo file not available</div>';
 
         return <<<HTML
 <div class="photo-item">
-  <div class="photo-number">{$itemNo}</div>
+  <div class="photo-number">#{$itemNo}</div>
   {$imgTag}
   <div class="photo-meta">
     <div class="photo-title">{$title}</div>
@@ -821,20 +865,20 @@ HTML;
     {
         $chapter = $this->escape($finding->chapter_label ?? $finding->group?->title ?? '');
         $viq = $this->escape($finding->viq_paragraph ?? '');
-        $description = $this->escape($finding->description ?? '');
+        $description = $this->formatMultiline($finding->description ?? '');
         $risk = $this->escape(ucfirst($finding->risk ?? $finding->severity ?? '-'));
         $jobOrder = $this->escape($finding->job_order_no ?? '-');
         $targetDate = $finding->target_date?->format('d F Y') ?? '-';
 
-        return "<tr>"
-            . "<td class=\"no-col\">{$rowNum}</td>"
-            . "<td>{$chapter}</td>"
-            . "<td>{$viq}</td>"
-            . "<td>{$description}</td>"
-            . "<td class=\"text-center\">{$risk}</td>"
-            . "<td>{$jobOrder}</td>"
-            . "<td>{$targetDate}</td>"
-            . "</tr>";
+        return '<tr>'
+            ."<td class=\"no-col\">{$rowNum}</td>"
+            ."<td>{$chapter}</td>"
+            ."<td>{$viq}</td>"
+            ."<td>{$description}</td>"
+            ."<td class=\"text-center\">{$risk}</td>"
+            ."<td>{$jobOrder}</td>"
+            ."<td>{$targetDate}</td>"
+            .'</tr>';
     }
 
     /**
@@ -859,53 +903,65 @@ HTML;
             $chapters[] = [
                 'no' => $group->chapter_no ?? $group->sort_order,
                 'title' => $group->title,
-                'rating' => $report->summary_ratings['chapter_' . $group->sort_order] ?? null,
+                'rating' => $report->summary_ratings['chapter_'.$group->sort_order] ?? null,
             ];
         }
 
-        $headerCells = implode('</th><th>', array_map(fn ($opt) => $this->escape($opt['label']), $ratingOptions));
+        $headerCells = implode('</th><th class="ans-col text-center">', array_map(fn ($opt) => $this->escape($opt['label']), $ratingOptions));
 
         $rows = '';
         foreach ($chapters as $ch) {
-            $ratingCell = '';
-            if ($ch['rating']) {
-                foreach ($ratingOptions as $opt) {
-                    $ratingCell .= $ch['rating'] === $opt['value'] ? '● ' : '';
-                }
+            $ratingCells = '';
+            foreach ($ratingOptions as $opt) {
+                $isChosen = ($ch['rating'] === $opt['value']);
+                $ratingCells .= '<td class="ans-col text-center">'.($isChosen ? '●' : '').'</td>';
             }
             $rows .= "<tr><td class=\"no-col\">{$this->escape((string) $ch['no'])}</td><td>"
-                . $this->escape($ch['title'])
-                . "</td><td class=\"text-center\">{$ratingCell}</td></tr>";
+                .$this->escape($ch['title'])
+                ."</td>{$ratingCells}</tr>";
         }
 
         // Calculated counts of No and NS answers per chapter (INS-10)
         $countsHtml = '<div class="counts-summary">';
         foreach ($chapters as $ch) {
-            $group = $topGroups->firstWhere('chapter_no', $ch['no']) ?? $topGroups->firstWhere('sort_order', $ch['no']);
+            $group = $topGroups->firstWhere('chapter_no', (string) $ch['no']) ?? $topGroups->firstWhere('sort_order', (int) $ch['no']);
             if ($group) {
                 $noCount = 0;
                 $nsCount = 0;
-                foreach ($group->questions as $q) {
-                    // These would be loaded from the report's snapshot
+                $allQuestions = $group->relationLoaded('questions')
+                    ? $group->questions
+                    : $group->questions()->with('answer')->get();
+                foreach ($allQuestions as $q) {
+                    $ans = strtolower(trim((string) ($q->answer?->answer ?? '')));
+                    if ($ans === 'no') {
+                        $noCount++;
+                    } elseif ($ans === 'ns' || $ans === 'n/s') {
+                        $nsCount++;
+                    }
                 }
-                $countsHtml .= "<div class=\"chapter-counts\">Chapter {$this->escape($ch['no'])}: {$noCount} No, {$nsCount} NS</div>";
+                $countsHtml .= "<div class=\"chapter-counts\">Chapter {$this->escape((string) $ch['no'])}: {$noCount} No, {$nsCount} NS</div>";
             }
         }
         $countsHtml .= '</div>';
+
+        $findings = $report->findings ?? collect();
+        $highCount = $findings->where('risk', 'high')->count();
+        $medCount = $findings->where('risk', 'medium')->count();
+        $lowCount = $findings->where('risk', 'low')->count();
 
         return <<<HTML
 <div class="ratings-section">
   <table class="ratings-table">
     <thead>
-      <tr><th>No.</th><th>Item</th><th>{$headerCells}</th></tr>
+      <tr><th class="no-col">No.</th><th class="q-col">Item</th><th class="ans-col text-center">{$headerCells}</th></tr>
     </thead>
     <tbody>{$rows}</tbody>
   </table>
   {$countsHtml}
   <div class="observation-counts">
-    <div>High: 0 observations</div>
-    <div>Medium: 0 observations</div>
-    <div>Low: 0 observations</div>
+    <div>High: {$highCount} observations</div>
+    <div>Medium: {$medCount} observations</div>
+    <div>Low: {$lowCount} observations</div>
   </div>
 </div>
 HTML;
@@ -953,7 +1009,7 @@ HTML;
         return "{$labelHtml}<div class=\"static-text\">{$this->escape($text)}</div>";
     }
 
-    protected function renderSubgroupHeader(string $title, string $naReason, int $sortOrder): string
+    protected function renderSubgroupHeader(string $title, string $naReason = ''): string
     {
         $naNote = $naReason ? "<span class=\"na-reason\">[NA: {$this->escape($naReason)}]</span>" : '';
 
@@ -968,11 +1024,11 @@ HTML;
         $parts = [];
         foreach ($fields as $field) {
             $parts[] = match ($field) {
-                'form_code' => $report->form->code ?? '',
-                'form_version' => 'v' . ($report->form->form_version ?? ''),
-                'template_version' => 'T' . ($report->template_version ?? 1),
-                'report_number' => $report->reference_number ?? '',
-                'generation_date' => now()->format('Y-m-d H:i'),
+                'form_code' => $this->escape($report->form->code ?? ''),
+                'form_version' => $this->escape((string) ($report->form->form_version ?? '')),
+                'template_version' => 'T'.((int) ($report->template_version ?? 1)),
+                'report_number' => $this->escape($report->reference_number ?? ''),
+                'generation_date' => now()->format('Y-m-d H:i').' UTC',
                 'page_number' => '{PAGE}',
                 default => '',
             };
@@ -1014,51 +1070,91 @@ HTML;
     }
 
     /**
+     * Format multi-line text safely with HTML escaping and preserved line breaks (R-18).
+     */
+    protected function formatMultiline(?string $value): string
+    {
+        if ($value === null || $value === '') {
+            return '';
+        }
+
+        return nl2br($this->escape($value));
+    }
+
+    /**
      * CSS styles for the PDF document. Keep them minimal — dompdf and mPDF support
      * a limited subset of CSS (SRS 13.1, REP-1).
      */
     protected function documentStyles(array $schema): string
     {
-        return <<<CSS
-body { font-family: "Times New Roman", serif; font-size: 9pt; margin: 0; padding: 0; }
+        return <<<'CSS'
+@page { size: A4; margin: 15mm 12mm 15mm 12mm; }
+body { font-family: "DejaVu Sans", "Helvetica Neue", Arial, sans-serif; font-size: 8.5pt; color: #111; margin: 0; padding: 0; }
+tr { page-break-inside: avoid; }
 .cover { text-align: center; padding: 100px 40px 0; }
 .cover-title { font-size: 20pt; font-weight: bold; margin-bottom: 40px; }
 .cover-table { margin: 20px auto; border-collapse: collapse; }
 .cover-label { text-align: left; padding: 4px 12px 4px 0; font-weight: bold; }
 .cover-value { text-align: left; padding: 4px 0; }
-.section { padding: 20px 40px; }
+.section { padding: 16px 20px; }
 .page-break-before { page-break-before: always; }
 .page-break-after { page-break-after: always; }
-.chapter-title { font-size: 14pt; font-weight: bold; margin-bottom: 12pt; border-bottom: 1pt solid #000; padding-bottom: 4pt; }
-.subsection-title { font-size: 10pt; font-weight: bold; margin: 16pt 8pt 6pt; }
-.checklist-table { width: 100%; border-collapse: collapse; margin-bottom: 12pt; }
-.checklist-table th, .checklist-table td { border: 1pt solid #000; padding: 3pt 4pt; font-size: 8pt; }
+.chapter { margin-bottom: 16pt; }
+.chapter-title { font-size: 13pt; font-weight: bold; margin-bottom: 10pt; border-bottom: 1.5pt solid #000; padding-bottom: 4pt; }
+.chapter-header { font-size: 11pt; font-weight: bold; margin-bottom: 8pt; border-bottom: 1pt solid #ccc; padding-bottom: 3pt; }
+.subsection-title { font-size: 9.5pt; font-weight: bold; margin: 14pt 0 6pt; }
+.checklist-table { width: 100%; border-collapse: collapse; margin-bottom: 8pt; }
+.checklist-table th, .checklist-table td { border: 1pt solid #000; padding: 3pt 4pt; font-size: 8pt; vertical-align: top; }
 .checklist-table th { background-color: #eee; font-weight: bold; }
-.no-col { width: 20px; text-align: center; }
+.no-col { width: 24px; text-align: center; }
 .q-col { width: 45%; }
-.ans-col { width: 4%; }
+.ans-col { width: 4%; text-align: center; }
 .remarks-cell { width: 25%; }
+.text-center { text-align: center; }
+.subgroup-header { font-weight: bold; background-color: #f7f7f7; padding: 4pt; border: 1pt solid #000; }
+.guidance { font-size: 7.5pt; color: #555; margin-top: 2pt; font-style: italic; }
+.extra-value { font-size: 7.5pt; color: #111; margin-top: 2pt; font-family: monospace; }
+.na-reason { font-size: 7.5pt; color: #c00; font-weight: normal; margin-left: 6pt; }
+.chapter-comments { margin-top: 6pt; padding: 6pt 8pt; border: 1pt solid #ccc; background-color: #fafafa; font-size: 8pt; page-break-inside: avoid; }
 .particulars-table { width: 100%; border-collapse: collapse; margin-bottom: 12pt; }
-.particulars-table td { border: 1pt solid #ccc; padding: 4pt 6pt; }
-.field-label { width: 40%; font-weight: bold; }
+.particulars-table td { border: 1pt solid #ccc; padding: 4pt 6pt; font-size: 8pt; }
+.field-label { width: 40%; font-weight: bold; background-color: #fcfcfc; }
 .field-value { width: 60%; }
 .ops-table { width: 60%; border-collapse: collapse; margin-bottom: 12pt; }
+.ops-table td { border: 1pt solid #ccc; padding: 3pt 6pt; font-size: 8pt; }
 .findings-table { width: 100%; border-collapse: collapse; margin-bottom: 12pt; }
 .findings-table th, .findings-table td { border: 1pt solid #000; padding: 3pt 4pt; font-size: 8pt; }
+.findings-table th { background-color: #eee; font-weight: bold; }
+.ratings-table { width: 100%; border-collapse: collapse; margin-bottom: 10pt; }
+.ratings-table th, .ratings-table td { border: 1pt solid #000; padding: 3pt 4pt; font-size: 8pt; }
+.ratings-table th { background-color: #eee; font-weight: bold; }
+.counts-summary { margin-bottom: 8pt; font-size: 8pt; font-weight: bold; }
+.chapter-counts { margin-bottom: 2pt; }
+.observation-counts { margin-top: 6pt; padding: 6pt; background-color: #f0f0f0; border: 1pt solid #ccc; font-size: 8pt; font-weight: bold; }
+.empty-row { text-align: center; color: #777; font-style: italic; padding: 8pt; }
 .circulation-table { width: 100%; border-collapse: collapse; margin-bottom: 12pt; }
-.circulation-table th, .circulation-table td { border: 1pt solid #000; padding: 4pt 6pt; }
-.signature-lines { margin-top: 40px; }
-.signature-line { margin-bottom: 24pt; }
-.sig-label { display: inline-block; width: 120px; font-weight: bold; }
+.circulation-table th, .circulation-table td { border: 1pt solid #000; padding: 4pt 6pt; font-size: 8pt; }
+.circulation-table th { background-color: #eee; font-weight: bold; }
+.signature-lines { margin-top: 30px; }
+.signature-line { margin-bottom: 20pt; }
+.sig-label { display: inline-block; width: 130px; font-weight: bold; }
 .na-banner { background-color: #ffeeee; border: 1pt dashed #cc0000; padding: 6pt; margin-bottom: 8pt; font-size: 8pt; }
+.split-note { background-color: #eef2ff; border: 1pt dashed #4338ca; padding: 8pt; margin-bottom: 10pt; font-size: 8.5pt; }
 .watermark {
     position: fixed; top: 40%; left: 0; width: 100%; text-align: center;
-    font-size: 60pt; color: #ccc; transform: rotate(-30deg); z-index: 9999;
+    font-size: 60pt; color: #ddd; transform: rotate(-30deg); z-index: 9999;
 }
-.footer { position: fixed; bottom: 10px; width: 100%; text-align: center; font-size: 7pt; color: #666; }
-.photo-item { page-break-inside: avoid; margin-bottom: 12pt; }
-.photo-img { max-width: 100%; height: auto; display: block; }
+.footer { position: fixed; bottom: 8px; width: 100%; text-align: center; font-size: 7.5pt; color: #666; }
+.photo-item { page-break-inside: avoid; margin-bottom: 14pt; border: 1pt solid #e5e5e5; padding: 6pt; border-radius: 4pt; }
+.photo-img { max-width: 100%; max-height: 480px; height: auto; display: block; margin: 0 auto; }
+.photo-meta { padding: 6pt 2pt 2pt; font-size: 8pt; }
+.photo-number { font-weight: bold; font-size: 9.5pt; margin-bottom: 3pt; color: #111; }
+.photo-title { font-weight: bold; font-size: 9pt; }
+.photo-caption { color: #333; margin-top: 2pt; }
+.photo-description { color: #555; margin-top: 2pt; }
+.photo-category, .photo-location { font-size: 7.5pt; color: #777; margin-top: 2pt; }
 .photo-placeholder { border: 1pt dashed #ccc; padding: 40px; text-align: center; color: #999; }
+.best-practices { padding: 6pt; border: 1pt solid #e5e5e5; background-color: #fafafa; font-size: 8.5pt; }
 CSS;
     }
 
@@ -1068,7 +1164,7 @@ CSS;
 
     /**
      * Determine whether the cached PDF is stale and needs regeneration.
-     * REP-6: built once per report content version and cached; invalidated on edit.
+     * REP-6: built once per report content version and cached; invalidated on edit or status change.
      */
     public function isCacheStale(Report $report): bool
     {
@@ -1076,7 +1172,23 @@ CSS;
             return true;
         }
 
-        return $report->pdf_version !== $report->current_version;
+        // Stale if content version differs
+        if ((int) $report->pdf_version !== (int) $report->current_version) {
+            return true;
+        }
+
+        // Stale if status transitioned between draft/reopened and submitted/reviewed/closed
+        $path = (string) $report->pdf_path;
+        if (str_contains($path, '-draft') || str_contains($path, '-final')) {
+            $isDraftFile = str_contains($path, '-draft');
+            $isCurrentlyDraft = in_array($report->status, ['draft', 'in_progress', 'reopened'], true);
+
+            if ($isDraftFile !== $isCurrentlyDraft) {
+                return true;
+            }
+        }
+
+        return false;
     }
 
     /**
@@ -1085,7 +1197,10 @@ CSS;
     public function pdfStoragePath(Report $report): string
     {
         $dir = "reports/{$report->id}/pdf";
-        $filename = "report-{$report->reference_number}-v{$report->current_version}.pdf";
+        $statusSlug = in_array($report->status, ['draft', 'in_progress', 'reopened'], true) ? 'draft' : 'final';
+        $filename = "report-{$report->reference_number}-v{$report->current_version}-{$statusSlug}.pdf";
+
+        Storage::disk('public')->makeDirectory($dir);
 
         return "{$dir}/{$filename}";
     }
@@ -1095,9 +1210,9 @@ CSS;
      */
     public function markPdfGenerated(Report $report, string $path): void
     {
-        $report->update([
+        $report->forceFill([
             'pdf_path' => $path,
             'pdf_version' => $report->current_version,
-        ]);
+        ])->saveQuietly();
     }
 }

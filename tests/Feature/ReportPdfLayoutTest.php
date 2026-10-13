@@ -10,7 +10,6 @@ use App\Services\Pdf\ReportPdfRenderer;
 use App\Services\ReportSnapshot;
 use Database\Seeders\FormSeeder;
 use Illuminate\Foundation\Testing\RefreshDatabase;
-use Illuminate\Support\Facades\Storage;
 use Tests\TestCase;
 
 /**
@@ -351,6 +350,78 @@ class ReportPdfLayoutTest extends TestCase
             ]);
 
         $response->assertForbidden();
+    }
+
+    /**
+     * Ratings matrix renders separate cells for each rating option and marks the chosen one (R-02).
+     */
+    public function test_ratings_matrix_renders_separate_option_cells(): void
+    {
+        $report = $this->createInspectionReport();
+        $group = $report->groups()->whereNull('parent_id')->where('chapter_no', '!=', '1')->first();
+        if ($group) {
+            $report->update([
+                'summary_ratings' => ['chapter_'.$group->sort_order => 'satisfactory'],
+            ]);
+            $report->refresh();
+        }
+
+        $renderer = new ReportPdfRenderer;
+        $html = $renderer->render($report);
+
+        $this->assertStringContainsString('Very Good', $html);
+        $this->assertStringContainsString('Satisfactory', $html);
+        $this->assertStringContainsString('Unsatisfactory', $html);
+        $this->assertStringContainsString('●', $html);
+    }
+
+    /**
+     * Cover page displays dynamic status (R-04).
+     */
+    public function test_cover_page_displays_actual_report_status(): void
+    {
+        $report = $this->createInspectionReport();
+        $report->update(['status' => 'submitted']);
+        $report->refresh();
+
+        $renderer = new ReportPdfRenderer;
+        $html = $renderer->render($report);
+
+        $this->assertStringContainsString('SUBMITTED', $html);
+    }
+
+    /**
+     * Comments are rendered in a separate chapter-comments div, not in tfoot (R-09).
+     */
+    public function test_chapter_comments_rendered_outside_tfoot(): void
+    {
+        $report = $this->createInspectionReport();
+        $group = $report->groups()->whereNull('parent_id')->where('chapter_no', '!=', '1')->first();
+        if ($group) {
+            $group->update(['comments' => 'Observation on bridge wing']);
+        }
+
+        $renderer = new ReportPdfRenderer;
+        $html = $renderer->render($report);
+
+        $this->assertStringNotContainsString('<tfoot>', $html);
+        $this->assertStringContainsString('chapter-comments', $html);
+        $this->assertStringContainsString('Observation on bridge wing', $html);
+    }
+
+    /**
+     * Table header generates distinct CSS classes for columns (R-10).
+     */
+    public function test_table_headers_have_correct_classes(): void
+    {
+        $report = $this->createInspectionReport();
+        $renderer = new ReportPdfRenderer;
+        $html = $renderer->render($report);
+
+        $this->assertStringContainsString('<th class="no-col">No.</th>', $html);
+        $this->assertStringContainsString('<th class="q-col">Item</th>', $html);
+        $this->assertStringContainsString('<th class="ans-col text-center">Yes</th>', $html);
+        $this->assertStringContainsString('<th class="remarks-cell">Remarks</th>', $html);
     }
 
     /**
