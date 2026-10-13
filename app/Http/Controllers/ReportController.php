@@ -12,6 +12,7 @@ use App\Models\ReportGroup;
 use App\Models\ReportQuestion;
 use App\Models\User;
 use App\Models\VesselType;
+use App\Services\Pdf\ReportPdfRenderer;
 use App\Services\ReportSnapshot;
 use App\Services\ReportStatusService;
 use App\Services\VesselName;
@@ -20,8 +21,10 @@ use Illuminate\Http\RedirectResponse;
 use Illuminate\Http\Request;
 use Illuminate\Support\Facades\DB;
 use Illuminate\Support\Facades\Gate;
+use Illuminate\Support\Facades\Storage;
 use Inertia\Inertia;
 use Inertia\Response;
+use Symfony\Component\HttpFoundation\BinaryFileResponse;
 
 class ReportController extends Controller
 {
@@ -88,7 +91,7 @@ class ReportController extends Controller
         $query->orderBy($sortBy, $sortDir)->orderBy('id', 'desc');
 
         $perPage = (int) $request->input('per_page', 15);
-        if (!in_array($perPage, [10, 15, 25, 50, 100], true)) {
+        if (! in_array($perPage, [10, 15, 25, 50, 100], true)) {
             $perPage = 15;
         }
 
@@ -720,6 +723,37 @@ class ReportController extends Controller
             'message' => "Report {$report->reference_number} has been submitted successfully.",
             'report_status' => $report->status,
             'submitted_at' => $report->submitted_at?->toIso8601String(),
+        ]);
+    }
+
+    /**
+     * View/stream the report's PDF in browser (inline).
+     */
+    public function viewPdf(Report $report, ReportPdfRenderer $renderer): BinaryFileResponse
+    {
+        Gate::authorize('view', $report);
+
+        $path = $renderer->generatePdfFile($report);
+        $fullPath = Storage::disk('public')->path($path);
+
+        return response()->file($fullPath, [
+            'Content-Type' => 'application/pdf',
+            'Content-Disposition' => 'inline; filename="report-'.$report->reference_number.'.pdf"',
+        ]);
+    }
+
+    /**
+     * Download the report's PDF as attachment.
+     */
+    public function downloadPdf(Report $report, ReportPdfRenderer $renderer): BinaryFileResponse
+    {
+        Gate::authorize('view', $report);
+
+        $path = $renderer->generatePdfFile($report);
+        $fullPath = Storage::disk('public')->path($path);
+
+        return response()->download($fullPath, 'report-'.$report->reference_number.'.pdf', [
+            'Content-Type' => 'application/pdf',
         ]);
     }
 }

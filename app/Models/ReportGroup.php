@@ -29,6 +29,7 @@ use Illuminate\Database\Eloquent\Relations\HasMany;
     'parent_id',
     'title',
     'chapter_no',
+    'display_no',
     'sort_order',
     'is_applicable',
     'na_reason',

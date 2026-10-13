@@ -6,6 +6,8 @@ use App\Enums\ReportStatus;
 use App\Models\Report;
 use App\Models\ReportGroup;
 use App\Models\ReportQuestion;
+use App\Services\Pdf\Contracts\PdfWriter;
+use App\Services\Pdf\Writers\MpdfWriter;
 use Illuminate\Support\Facades\Storage;
 
 /**
@@ -16,55 +18,65 @@ use Illuminate\Support\Facades\Storage;
  * walks the schema and dispatches each section to a renderer method named after
  * the section type, so adding a new form layout is a matter of editing the schema,
  * not writing new PHP.
- *
- * The engine produces HTML suitable for dompdf or mPDF (SRS 13.1). The actual PDF
- * binary conversion is deferred to a queued job (Task 6.9, REP-6); this service
- * owns only the HTML assembly and the cache path management.
- *
- * REP-8: when a report's photo count exceeds the form's threshold, the photo
- * chapter is split into a separate appendix. That decision is made here.
  */
 class ReportPdfRenderer
 {
+    public function __construct(
+        protected ?ReportDocumentBuilder $documentBuilder = null,
+        protected ?PdfWriter $pdfWriter = null,
+    ) {
+        $this->documentBuilder = $documentBuilder ?? new ReportDocumentBuilder;
+        $this->pdfWriter = $pdfWriter ?? new MpdfWriter;
+    }
+
     /**
      * Render the full HTML document for a report's PDF.
      *
-     * The report must have its form, groups (with subgroups and questions),
-     * questions (with answers), findings, and photos pre-loaded.
+     * Pre-loads all report data in <= 7 queries via ReportDocumentBuilder.
      */
-    public function render(Report $report): string
+    public function render(Report $report, ?array $document = null): string
     {
+        $doc = $document ?? $this->documentBuilder->build($report);
         $schema = $this->resolveLayoutSchema($report);
 
         $sectionsHtml = '';
         foreach ($schema['sections'] as $sectionDef) {
-            $sectionsHtml .= $this->renderSection($report, $sectionDef);
+            $sectionsHtml .= $this->renderSection($report, $sectionDef, $doc);
         }
 
-        return $this->wrapDocument($report, $sectionsHtml, $schema);
+        return $this->wrapDocument($report, $sectionsHtml, $schema, $doc);
     }
 
     /**
      * Build the complete HTML document with header, footer, watermark.
      */
-    protected function wrapDocument(Report $report, string $sections, array $schema): string
+    protected function wrapDocument(Report $report, string $sections, array $schema, ?array $doc = null): string
     {
-        $isDraft = in_array($report->status, ['draft', 'in_progress', 'reopened'], true);
-        $watermark = $isDraft ? ($schema['watermark']['draft_label'] ?? 'DRAFT') : '';
-        $isClosed = $report->status === ReportStatus::Closed->value;
-
+        $doc = $doc ?? $this->documentBuilder->build($report);
         $footerFields = $schema['footer']['fields'] ?? [];
         $footerText = $this->buildFooterText($report, $footerFields);
-        $generationDate = now()->format('Y-m-d H:i');
+        $styles = $this->documentStyles($schema);
 
-        $style = $this->documentStyles($schema);
+        if (view()->exists('pdf.document')) {
+            return view('pdf.document', [
+                'report' => $report,
+                'doc' => $doc,
+                'schema' => $schema,
+                'sections' => $sections,
+                'styles' => $styles,
+                'footerText' => $footerText,
+            ])->render();
+        }
+
+        $isDraft = in_array($report->status, ['draft', 'in_progress', 'reopened'], true);
+        $watermark = $isDraft ? ($schema['watermark']['draft_label'] ?? 'DRAFT') : '';
 
         return <<<HTML
 <!DOCTYPE html>
 <html>
 <head>
 <meta charset="utf-8">
-<style>{$style}</style>
+<style>{$styles}</style>
 </head>
 <body>
 <div class="watermark">{$watermark}</div>
@@ -144,7 +156,7 @@ HTML;
     }
 
     /**
-     * Dispatch a section definition to its renderer method.
+     * Dispatch a section definition to its renderer method or Blade partial.
      *
      * The method name is derived from the section type:
      *   "checklist_chapters" -> renderChecklistChaptersSection()
@@ -152,9 +164,20 @@ HTML;
      *
      * @param  array{type: string}  $sectionDef
      */
-    protected function renderSection(Report $report, array $sectionDef): string
+    protected function renderSection(Report $report, array $sectionDef, ?array $doc = null): string
     {
+        $doc = $doc ?? $this->documentBuilder->build($report);
         $type = $sectionDef['type'] ?? '';
+        $viewName = "pdf.sections.{$type}";
+
+        if (view()->exists($viewName)) {
+            return view($viewName, [
+                'report' => $report,
+                'doc' => $doc,
+                'config' => $sectionDef,
+            ])->render();
+        }
+
         $method = 'render'.str_replace('_', '', ucwords($type, '_')).'Section';
 
         if (! method_exists($this, $method)) {
@@ -1159,8 +1182,80 @@ CSS;
     }
 
     // ------------------------------------------------------------------
-    // Cache management (REP-6)
+    // Cache management & PDF Binary Generation (REP-6, MpdfWriter)
     // ------------------------------------------------------------------
+
+    /**
+     * Render the report directly to a PDF binary string using the configured PdfWriter (mPDF).
+     */
+    public function renderToPdf(Report $report, array $options = []): string
+    {
+        $html = $this->render($report);
+        $isDraft = in_array($report->status, ['draft', 'in_progress', 'reopened'], true);
+
+        $mergedOptions = array_merge([
+            'watermark' => $isDraft ? 'DRAFT' : null,
+        ], $options);
+
+        return $this->pdfWriter->write($html, $mergedOptions);
+    }
+
+    /**
+     * Generate and cache the PDF file on disk. Returns the storage path (REP-6).
+     */
+    public function generatePdfFile(Report $report, bool $force = false): string
+    {
+        $targetPath = $this->pdfStoragePath($report);
+
+        if (! $force && ! $this->isCacheStale($report) && Storage::disk('public')->exists($targetPath)) {
+            return $report->pdf_path ?: $targetPath;
+        }
+
+        $pdfBinary = $this->renderToPdf($report);
+
+        // Delete older cached PDFs for this report unless closed
+        $this->cleanupPreviousPdfs($report);
+
+        Storage::disk('public')->put($targetPath, $pdfBinary);
+        $this->markPdfGenerated($report, $targetPath);
+
+        return $targetPath;
+    }
+
+    /**
+     * Clean up previous cached PDFs for this report to prevent disk bloat (REP-6).
+     */
+    protected function cleanupPreviousPdfs(Report $report): void
+    {
+        if ($report->status === ReportStatus::Closed->value) {
+            return;
+        }
+
+        $dir = "reports/{$report->id}/pdf";
+        if (Storage::disk('public')->exists($dir)) {
+            $files = Storage::disk('public')->files($dir);
+            foreach ($files as $file) {
+                Storage::disk('public')->delete($file);
+            }
+        }
+    }
+
+    /**
+     * Compute a cache fingerprint for this report's state (Section 5.5).
+     */
+    public function cacheFingerprint(Report $report): string
+    {
+        return hash('sha256', implode('|', [
+            $report->id,
+            $report->current_version,
+            $report->status,
+            $report->template_version,
+            $report->form?->template_version ?? 1,
+            $report->submitted_at?->timestamp ?? '',
+            $report->closed_at?->timestamp ?? '',
+            'mpdf_v1',
+        ]));
+    }
 
     /**
      * Determine whether the cached PDF is stale and needs regeneration.

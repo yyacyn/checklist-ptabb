@@ -3,6 +3,7 @@ import {
     ArrowLeft,
     CheckCircle2,
     CloudOff,
+    FileDown,
     Loader2,
     RefreshCw,
     Search,
@@ -186,6 +187,20 @@ export function ReportHeader({
                         >
                             <SlidersHorizontal className="size-3" />
                             <span className="hidden md:inline">{showUnansweredOnly ? 'Unanswered' : 'Filter'}</span>
+                        </Button>
+
+                        {/* Export / View PDF Action */}
+                        <Button
+                            size="sm"
+                            variant="outline"
+                            asChild
+                            className="h-7 text-xs px-2.5 flex items-center gap-1.5 whitespace-nowrap"
+                            title="Preview or print report PDF"
+                        >
+                            <a href={`/reports/${report.id}/pdf`} target="_blank" rel="noopener noreferrer">
+                                <FileDown className="size-3 text-primary" />
+                                <span className="hidden sm:inline">PDF</span>
+                            </a>
                         </Button>
 
                         {/* Delete Draft Action */}

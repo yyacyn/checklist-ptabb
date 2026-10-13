@@ -11,7 +11,8 @@
         "laravel/fortify": "^1.40",
         "laravel/framework": "^13.17",
         "laravel/tinker": "^3.0",
-        "laravel/wayfinder": "^0.1.21"
+        "laravel/wayfinder": "^0.1.21",
+        "mpdf/mpdf": "^8.3"
     },
     "require-dev": {
         "fakerphp/faker": "^1.23",

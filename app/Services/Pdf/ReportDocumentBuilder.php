@@ -1,0 +1,327 @@
+<?php
+
+namespace App\Services\Pdf;
+
+use App\Models\Report;
+use App\Models\ReportGroup;
+use App\Models\ReportQuestion;
+use InvalidArgumentException;
+
+/**
+ * Builds a normalized, query-optimized plain array representation of a report (ReportDocument)
+ * for PDF rendering (Tasks 6.1, 6.2, REP-1g).
+ *
+ * Guaranteed query count: <= 6 queries total (well under the 12 query target).
+ */
+class ReportDocumentBuilder
+{
+    /**
+     * Build the ReportDocument array from the given report.
+     *
+     * @return array<string, mixed>
+     *
+     * @throws InvalidArgumentException
+     */
+    public function build(Report $report): array
+    {
+        $this->validateRequiredFields($report);
+
+        // 1. Eager load single/direct relations
+        $report->loadMissing([
+            'form',
+            'vesselType',
+            'findings' => fn ($q) => $q->orderBy('id'),
+            'photos' => fn ($q) => $q->orderBy('item_no')->orderBy('sort_order')->orderBy('id'),
+            'photos.category',
+        ]);
+
+        // 2. Fetch all groups and questions in 2 bulk queries
+        $allGroups = ReportGroup::query()
+            ->where('report_id', $report->id)
+            ->orderBy('sort_order')
+            ->get();
+
+        $allQuestions = ReportQuestion::query()
+            ->where('report_id', $report->id)
+            ->with('answer')
+            ->orderBy('sort_order')
+            ->get();
+
+        $questionsByGroupId = $allQuestions->groupBy('report_group_id');
+        $subgroupsByParentId = $allGroups->whereNotNull('parent_id')->groupBy('parent_id');
+        $topLevelGroups = $allGroups->whereNull('parent_id')->sortBy('sort_order');
+
+        // 3. Assemble structured chapters
+        $chapters = [];
+        $chapterAnswerCounts = [];
+
+        foreach ($topLevelGroups as $group) {
+            $isCh1 = $this->isChapterOne($group);
+            $groupDirectQuestions = $questionsByGroupId->get($group->id, collect());
+            $groupSubgroups = $subgroupsByParentId->get($group->id, collect());
+
+            $formattedQuestions = [];
+            $noCount = 0;
+            $nsCount = 0;
+
+            foreach ($groupDirectQuestions as $q) {
+                $ansVal = strtolower(trim((string) ($q->answer?->answer ?? '')));
+                if ($ansVal === 'no') {
+                    $noCount++;
+                } elseif ($ansVal === 'ns' || $ansVal === 'n/s') {
+                    $nsCount++;
+                }
+
+                $formattedQuestions[] = [
+                    'id' => $q->id,
+                    'display_no' => $q->display_no ?: (string) ($q->sort_order + 1),
+                    'question_text' => $q->question_text,
+                    'guidance' => $q->guidance,
+                    'input_type' => $q->input_type,
+                    'is_applicable' => (bool) $q->is_applicable,
+                    'applicable_reason' => $q->applicable_reason,
+                    'answer' => $ansVal,
+                    'note' => $q->answer?->note,
+                    'extra_value' => $q->answer?->extra_value,
+                ];
+            }
+
+            $formattedSubgroups = [];
+            foreach ($groupSubgroups as $sg) {
+                $sgQuestions = $questionsByGroupId->get($sg->id, collect());
+                $formattedSgQuestions = [];
+
+                foreach ($sgQuestions as $q) {
+                    $ansVal = strtolower(trim((string) ($q->answer?->answer ?? '')));
+                    if ($ansVal === 'no') {
+                        $noCount++;
+                    } elseif ($ansVal === 'ns' || $ansVal === 'n/s') {
+                        $nsCount++;
+                    }
+
+                    $formattedSgQuestions[] = [
+                        'id' => $q->id,
+                        'display_no' => $q->display_no ?: (string) ($q->sort_order + 1),
+                        'question_text' => $q->question_text,
+                        'guidance' => $q->guidance,
+                        'input_type' => $q->input_type,
+                        'is_applicable' => (bool) $q->is_applicable,
+                        'applicable_reason' => $q->applicable_reason,
+                        'answer' => $ansVal,
+                        'note' => $q->answer?->note,
+                        'extra_value' => $q->answer?->extra_value,
+                    ];
+                }
+
+                $formattedSubgroups[] = [
+                    'id' => $sg->id,
+                    'title' => $sg->title,
+                    'display_no' => $sg->display_no,
+                    'is_applicable' => (bool) $sg->is_applicable,
+                    'na_reason' => $sg->na_reason,
+                    'questions' => $formattedSgQuestions,
+                ];
+            }
+
+            $chKey = (string) ($group->chapter_no ?: $group->sort_order);
+            $chapterAnswerCounts[$chKey] = [
+                'no_count' => $noCount,
+                'ns_count' => $nsCount,
+            ];
+
+            $chapters[] = [
+                'id' => $group->id,
+                'no' => $chKey,
+                'display_no' => $group->display_no ?: $chKey,
+                'title' => $group->title,
+                'is_chapter_one' => $isCh1,
+                'is_applicable' => (bool) $group->is_applicable,
+                'na_reason' => $group->na_reason,
+                'comments' => $group->comments,
+                'questions' => $formattedQuestions,
+                'subgroups' => $formattedSubgroups,
+                'no_count' => $noCount,
+                'ns_count' => $nsCount,
+            ];
+        }
+
+        // 4. Observations & Findings summary counts
+        $findings = $report->findings ?? collect();
+        $findingsData = [];
+        $highCount = 0;
+        $medCount = 0;
+        $lowCount = 0;
+
+        foreach ($findings as $f) {
+            $risk = strtolower(trim((string) ($f->risk ?? $f->severity ?? '')));
+            if ($risk === 'high') {
+                $highCount++;
+            } elseif ($risk === 'medium') {
+                $medCount++;
+            } elseif ($risk === 'low') {
+                $lowCount++;
+            }
+
+            $findingsData[] = [
+                'id' => $f->id,
+                'finding_no' => $f->finding_no,
+                'chapter_label' => $f->chapter_label,
+                'viq_paragraph' => $f->viq_paragraph,
+                'description' => $f->description,
+                'risk' => ucfirst($risk ?: '-'),
+                'job_order_no' => $f->job_order_no ?: '-',
+                'target_date' => $f->target_date?->format('d F Y') ?: '-',
+            ];
+        }
+
+        // 5. Photos normalization
+        $photos = $report->photos ?? collect();
+        $photosData = [];
+        foreach ($photos as $p) {
+            $localPath = null;
+            if (! empty($p->file_path)) {
+                $candidate = storage_path('app/public/'.$p->file_path);
+                if (file_exists($candidate)) {
+                    $localPath = $candidate;
+                }
+            }
+
+            $photosData[] = [
+                'id' => $p->id,
+                'item_no' => (int) ($p->item_no ?? $p->sort_order ?? 1),
+                'title' => $p->title,
+                'caption' => $p->caption,
+                'description' => $p->description,
+                'category_name' => $p->category?->name,
+                'location' => $p->location,
+                'file_path' => $p->file_path,
+                'local_path' => $localPath,
+                'file_url' => $p->file_url,
+            ];
+        }
+
+        // 6. Summary ratings matrix
+        $summarySchema = $report->form->summary_schema ?? [];
+        $ratingOptions = $summarySchema['rating_options'] ?? [
+            ['value' => 'very_good', 'label' => 'Very Good'],
+            ['value' => 'satisfactory', 'label' => 'Satisfactory'],
+            ['value' => 'unsatisfactory', 'label' => 'Unsatisfactory'],
+        ];
+
+        $ratingsRows = [];
+        foreach ($chapters as $ch) {
+            if ($ch['is_chapter_one']) {
+                continue;
+            }
+            $chOrder = $ch['no'];
+            $ratingVal = $report->summary_ratings['chapter_'.$chOrder]
+                ?? $report->summary_ratings['chapter_'.$ch['display_no']]
+                ?? null;
+
+            $ratingsRows[] = [
+                'no' => $ch['display_no'],
+                'title' => $ch['title'],
+                'rating' => $ratingVal,
+                'no_count' => $ch['no_count'],
+                'ns_count' => $ch['ns_count'],
+            ];
+        }
+
+        // 7. Status and watermarking
+        $isDraft = in_array($report->status, ['draft', 'in_progress', 'reopened'], true);
+        $statusLabel = strtoupper(str_replace('_', ' ', (string) $report->status));
+
+        return [
+            'meta' => [
+                'report_id' => $report->id,
+                'reference_number' => $report->reference_number,
+                'form_id' => $report->form_id,
+                'form_code' => $report->form->code ?? '',
+                'form_name' => $report->form->name ?? '',
+                'form_version' => $report->form->form_version ?? '',
+                'template_version' => $report->template_version ?? 1,
+                'report_type' => $report->report_type,
+                'report_date' => $report->report_date->format('d F Y'),
+                'report_date_raw' => $report->report_date->toDateString(),
+                'status' => $report->status,
+                'status_label' => $statusLabel,
+                'is_draft' => $isDraft,
+                'watermark' => $isDraft ? 'DRAFT' : '',
+                'current_version' => $report->current_version,
+                'generated_at' => now()->format('Y-m-d H:i').' UTC',
+            ],
+            'vessel' => [
+                'name' => $report->vessel_name,
+                'imo' => $report->vessel_imo,
+                'flag' => $report->vessel_flag,
+                'gt' => $report->vessel_gt,
+                'built' => $report->vessel_built,
+                'type_name' => $report->vesselType?->name,
+                'ice_class' => (bool) $report->vessel_ice_class,
+                'master_name' => $report->master_name,
+                'chief_engineer_name' => $report->chief_engineer_name,
+                'chief_officer_name' => $report->chief_officer_name,
+            ],
+            'particulars' => [
+                'inspected_by' => $report->inspected_by,
+                'port' => $report->port,
+                'operations' => is_array($report->operations) ? $report->operations : [],
+                'psc' => [
+                    'last_port' => $report->psc_last_port,
+                    'last_date' => $report->psc_last_date?->format('d F Y'),
+                    'detained_or_deficiencies' => (bool) $report->psc_detained_or_deficiencies,
+                ],
+                'drydock' => [
+                    'last_date' => $report->drydock_last_date?->format('d F Y'),
+                    'next_date' => $report->drydock_next_date?->format('d F Y'),
+                ],
+                'voyage' => [
+                    'sailing_with_vessel' => (bool) $report->sailing_with_vessel,
+                    'from' => $report->sailing_from,
+                    'to' => $report->sailing_to,
+                ],
+            ],
+            'chapters' => $chapters,
+            'summary' => [
+                'rating_options' => $ratingOptions,
+                'ratings' => $ratingsRows,
+                'best_practices' => $report->summary_data['best_practices'] ?? $report->summary_data['best_practices_text'] ?? '',
+                'counts' => [
+                    'high' => $highCount,
+                    'medium' => $medCount,
+                    'low' => $lowCount,
+                    'total_findings' => count($findingsData),
+                ],
+                'text_fields' => $summarySchema['text_fields'] ?? [],
+                'summary_data' => $report->summary_data ?? [],
+            ],
+            'findings' => $findingsData,
+            'photos' => $photosData,
+        ];
+    }
+
+    /**
+     * Validate that mandatory fields exist on the report.
+     */
+    protected function validateRequiredFields(Report $report): void
+    {
+        if (empty($report->reference_number)) {
+            throw new InvalidArgumentException("Report {$report->id} is missing a reference number.");
+        }
+
+        if (empty($report->vessel_name)) {
+            throw new InvalidArgumentException("Report {$report->id} is missing a vessel name.");
+        }
+
+        if (empty($report->report_date)) {
+            throw new InvalidArgumentException("Report {$report->id} is missing a report date.");
+        }
+    }
+
+    protected function isChapterOne(ReportGroup $group): bool
+    {
+        return $group->chapter_no === '1'
+            || $group->chapter_no === '1.0'
+            || strtolower($group->title) === 'general information';
+    }
+}

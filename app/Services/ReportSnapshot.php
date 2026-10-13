@@ -53,7 +53,8 @@ class ReportSnapshot
                 ->get();
 
             foreach ($topLevelGroups as $group) {
-                $this->copyGroup($report, $group, null, $vesselTypeIds, $iceClass);
+                $questionCounter = 0;
+                $this->copyGroup($report, $group, null, $vesselTypeIds, $iceClass, $questionCounter);
             }
 
             return $report;
@@ -70,9 +71,14 @@ class ReportSnapshot
         FormGroup $group,
         ?ReportGroup $parentReportGroup,
         array $vesselTypeIds,
-        bool $iceClass
+        bool $iceClass,
+        int &$questionCounter
     ): ReportGroup {
         $groupApplicability = FormApplicability::resolveGroupApplicability($group, $vesselTypeIds, $iceClass);
+
+        $displayNo = $parentReportGroup
+            ? ($parentReportGroup->display_no ? $parentReportGroup->display_no.'.'.$group->sort_order : (string) $group->sort_order)
+            : ($group->chapter_no ?: (string) $group->sort_order);
 
         $reportGroup = ReportGroup::create([
             'report_id' => $report->id,
@@ -80,6 +86,7 @@ class ReportSnapshot
             'parent_id' => $parentReportGroup?->id,
             'title' => $group->title,
             'chapter_no' => $group->chapter_no,
+            'display_no' => $displayNo,
             'sort_order' => $group->sort_order,
             'is_applicable' => $groupApplicability['applicable'],
             'na_reason' => $groupApplicability['reason'],
@@ -94,6 +101,7 @@ class ReportSnapshot
             ->get();
 
         foreach ($questions as $question) {
+            $questionCounter++;
             $questionApplicability = FormApplicability::resolveQuestionApplicability(
                 $question,
                 $groupApplicability,
@@ -108,6 +116,7 @@ class ReportSnapshot
                 'question_text' => $question->question_text,
                 'guidance' => $question->guidance,
                 'input_type' => $question->input_type,
+                'display_no' => (string) $questionCounter,
                 'sort_order' => $question->sort_order,
                 'is_applicable' => $questionApplicability['applicable'],
                 'applicable_reason' => $questionApplicability['reason'],
@@ -123,7 +132,7 @@ class ReportSnapshot
             ->get();
 
         foreach ($subgroups as $subgroup) {
-            $this->copyGroup($report, $subgroup, $reportGroup, $vesselTypeIds, $iceClass);
+            $this->copyGroup($report, $subgroup, $reportGroup, $vesselTypeIds, $iceClass, $questionCounter);
         }
 
         return $reportGroup;

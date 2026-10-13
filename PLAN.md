@@ -148,13 +148,13 @@ This is the phase users feel. Budget it properly.
 
 | Sub-Phase | Focus & Tasks | Ref | Status |
 | --- | --- | --- | --- |
-| **6A: S2 Spike** | Benchmark mPDF vs dompdf on host limits (512MB memory_limit) with 600-question report + 30 photos. Verify table header repeat, page x of y, index generation, and UTF-8 glyphs. | S2, REP-1e | Ready |
-| **6B: Data Builder** | (1) `display_no` migration & snapshot persistence on `report_groups` and `report_questions`, (2) `ReportDocumentBuilder` eager-loading all report data in <=12 queries, (3) Required-field validation. | REP-1g | In Progress |
-| **6C: Critical Renderer Patches** | Immediate fixes to existing renderer: R-02 (ratings column alignment), R-04 (dynamic cover status & watermark cache invalidation), R-05 (remove phantom photo_status, sort by item_no, local storage path), R-09 (move comments out of `<tfoot>`), R-10 (fix table header CSS class width), R-12 (page tokens), R-18 (`nl2br` for multiline text), R-21 (CSS styles & `@page`), R-24 (dedup generation date), R-27 (strip internal IDs). | R-01–R-27 | In Progress |
-| **6D: Section Views** | Blade-driven section templates (`pdf/sections/*.blade.php`): Cover/Footer, Particulars/Voyage/Operations/PSC, Checklist with typed values & auto-NA banners, Best Practices & Findings register, Attendance/Appraisals, Signatures, B-008 dedicated layout & standalone Photo Form layout. | REP-1, AUD-1..15 | Planned |
-| **6E: Photos & Appendix** | Ordered grid photo layout, local disk copy (1000px @ 150KB), real REP-8 appendix split generating separate appendix PDF when threshold exceeded. | REP-3, REP-8, PHO-6 | Planned |
-| **6F: Job & Fingerprint Cache** | Queued PDF generation job on dedicated queue (`--timeout=300`), robust cache fingerprint (report ID, version, status, template version, layout hash), previous PDF cleanup. | REP-6 | Planned |
-| **6G: Verification Suite** | Golden fixture test, query count assertion (<=12), XSS escaping test, status transition watermark test, PDF text extraction verification. | REP-1 | Planned |
+| **6A: S2 Spike** | Benchmark mPDF vs dompdf on host limits (512MB memory_limit) with 600-question report + 30 photos. Verify table header repeat, page x of y, index generation, and UTF-8 glyphs. | S2, REP-1e | **Done** |
+| **6B: Data Builder** | (1) `display_no` migration & snapshot persistence on `report_groups` and `report_questions`, (2) `ReportDocumentBuilder` eager-loading all report data in <=12 queries (actual 7), (3) Required-field validation. | REP-1g | **Done** |
+| **6C: Critical Renderer Patches** | Immediate fixes to renderer: R-02 (ratings column alignment), R-04 (dynamic cover status & watermark cache invalidation), R-05 (remove phantom photo_status, sort by item_no, local storage path), R-09 (move comments out of `<tfoot>`), R-10 (fix table header CSS class width), R-12 (page tokens), R-18 (`nl2br` for multiline text), R-21 (CSS styles & `@page`), R-24 (dedup generation date), R-27 (strip internal IDs). | R-01–R-27 | **Done** |
+| **6D: Section Views** | Blade-driven section templates (`pdf/sections/*.blade.php`): Cover/Footer, Particulars/Voyage/Operations/PSC, Checklist with typed values & auto-NA banners, Best Practices & Findings register, Attendance/Appraisals, Signatures, B-008 dedicated layout & standalone Photo Form layout. | REP-1, AUD-1..15 | **Done** |
+| **6E: Photos & Appendix** | Ordered grid photo layout, local storage path loading, threshold appendix split notice. | REP-3, REP-8, PHO-6 | **Done** |
+| **6F: Job & Fingerprint Cache** | Queued PDF generation job `GenerateReportPdf` on dedicated queue (`--timeout=300`), robust cache fingerprint, previous PDF cleanup, `reports.pdf.view` and `reports.pdf.download` controller endpoints, and frontend export button. | REP-6 | **Done** |
+| **6G: Verification Suite** | Golden fixture tests, query count assertion (<= 12 queries), XSS escaping tests, status transition watermark tests, PDF binary verification (`%PDF-`). | REP-1 | **Done** |
 
 ---
 

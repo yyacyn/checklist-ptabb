@@ -7,6 +7,7 @@ use Illuminate\Database\Eloquent\Attributes\Fillable;
 use Illuminate\Database\Eloquent\Factories\HasFactory;
 use Illuminate\Database\Eloquent\Model;
 use Illuminate\Database\Eloquent\Relations\BelongsTo;
+use Illuminate\Database\Eloquent\Relations\HasMany;
 use Illuminate\Database\Eloquent\Relations\HasOne;
 
 /**
@@ -31,6 +32,7 @@ use Illuminate\Database\Eloquent\Relations\HasOne;
     'question_text',
     'guidance',
     'input_type',
+    'display_no',
     'sort_order',
     'is_applicable',
     'applicable_reason',
@@ -69,7 +71,7 @@ class ReportQuestion extends Model
         return $this->hasOne(ReportAnswer::class);
     }
 
-    public function photos(): \Illuminate\Database\Eloquent\Relations\HasMany
+    public function photos(): HasMany
     {
         return $this->hasMany(Photo::class);
     }
