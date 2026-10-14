@@ -1,7 +1,9 @@
 # Implementation Plan — Vessel Audit & Inspection App
 
-Version 1.0
-Derived from `SRS.md` v0.5 and `ERD.md` v1.0. Read those two first; this file is only the order of work.
+Version 1.1
+Derived from `SRS.md` v0.7 and `ERD.md` (section for the audit needs updating, task 7.2). Read those two first; this file is only the order of work.
+
+**1.1:** Phase 7 rewritten for the simplified audit (SRS 0.7, sections 7 and 14.4). The four audit tables built under the old 7.1 are replaced by `summary_data` plus a generic `report_datasets` table, so Phase 7 now starts with a rework, not with new screens. Phase 10, the decisions table, the risk register, and the last section are adjusted to match.
 
 Estimates are working days for one developer and are deliberately rough. They exist to show
 sequencing, not to promise dates.
@@ -156,17 +158,30 @@ This is the phase users feel. Budget it properly.
 | **6F: Job & Fingerprint Cache** | Queued PDF generation job `GenerateReportPdf` on dedicated queue (`--timeout=300`), robust cache fingerprint, previous PDF cleanup, `reports.pdf.view` and `reports.pdf.download` controller endpoints, and frontend export button. | REP-6 | **Done** |
 | **6G: Verification Suite** | Golden fixture tests, query count assertion (<= 12 queries), XSS escaping tests, status transition watermark tests, PDF binary verification (`%PDF-`). | REP-1 | **Done** |
 
+*Note (1.1): the B-008 views and `audit_header.blade.php` built in 6D read the four audit tables that Phase 7 removes. Task 7.2 repoints them. The renderer, cache, and the other sections are not affected.*
+
 ---
 
-## Phase 7 — Audit specifics (4 to 5 days)
+## Phase 7 — Audit specifics (3 to 4 days)
+
+B-008 is the checklist plus fill-in pages (SRS 7.1): fields, repeating rows, and text boxes, on the same blocks as the inspection. Findings, photos, the checklist engine, and the status flow already exist from Phases 3 to 6. What is new is one generic table, two generic UI blocks, and the audit pages built from them.
+
+The old 7.1 (audit set-up with `audit_details`, `auditees`, `auditors`, `audit_activities`) was finished against the previous SRS. It is reworked first, in 7.2, so that there are never two sources of truth.
 
 | # | Task | Ref | Status |
 | --- | --- | --- | --- |
-| 7.1 | Audit set-up: operations, activities, type, dates, auditees, auditors, lead auditor | AUD-2, AUD-3 | **done**: `audit_details`, `auditees`, `auditors`, `audit_activities` migrations & models, snapshot defaults, `PUT reports/{report}/audit-setup` endpoint, PDF `audit_header.blade.php`, interactive B-008 Chapter 1 UI in `general-info-section.tsx`, comprehensive test suite `AuditSetupTest` |
-| 7.2 | Follow-up from the previous audit, with auto-pulled counts | AUD-4 | Pending |
-| 7.3 | Auditee evaluation blocks, minimum four, scores 1–5 with help text, visible to Corporate and authoring Vessel Account | AUD-11, §2 | Pending |
-| 7.4 | Execution log, general comments, distribution list on the PDF | AUD-12, AUD-13, AUD-15 | Pending |
-| 7.5 | Corporate review and "mark as reviewed" | AUD-16, RLS-6 | Pending |
+| 7.1 | **Generic storage.** `report_datasets` migration, model, factory (report, dataset key, rows JSON, `row_version`). Dataset registry: key to allowed row shape, validated server-side from the form's layout config. Endpoint `PUT reports/{report}/datasets/{key}` that follows the autosave rules (`client_save_id`, `row_version`, 409 on a stale save). Endpoint `PUT reports/{report}/fields` for the `summary_data` keys. Both editable only in `draft`, `in_progress`, `reopened` | SRS 14.4, NFR-1, NFR-2, NFR-15 | **done**: `report_datasets` migration, `ReportDataset` model & factory, `ReportDatasetRegistry` validator, `PUT reports/{report}/datasets/{key}` with idempotency & 409 conflict checks, `PUT reports/{report}/fields` for `summary_data`, 7 passing tests in `ReportDatasetTest` |
+| 7.2 | **Rework the finished audit set-up (was 7.1, marked done).** Copy any existing rows from `audit_details`, `auditees`, `auditors`, `audit_activities` into `summary_data` keys and the `audit_people` dataset, then drop the four tables in the same migration. Replace `PUT reports/{report}/audit-setup` with the two endpoints from 7.1. Repoint `audit_header.blade.php`, the B-008 views from 6D, and the B-008 Chapter 1 UI in `general-info-section.tsx` to the new sources. Update `AuditSetupTest`. Update the audit section of `ERD.md` | SRS 14.4 | Pending (rework of a done task) |
+| 7.3 | **Generic UI blocks.** `fields-block` and `rows-block` (add and remove rows, typed columns: text, date, time, number, select). Both use the existing autosave queue (3.5) with debounce and the same saved / saving / retrying indicator. They are not audit-specific, so D-062 can use them later | AUD-2 to AUD-4, AUD-11, AUD-12 | Pending |
+| 7.4 | **Pages 1 to 3.** Audit details (dates, audit type with text for D, activities, operations from the configured list, Master, Chief Engineer), people (one list, name, rank, role, at least one Lead auditor), previous audit (four typed fields). Pre-filling from the last audit is v1.1 | AUD-2, AUD-3, AUD-4 | Pending |
+| 7.5 | **NCs and observations.** Confirm the Phase 4 findings table covers this with no second table: kind (NC or observation), description, target date, issue date, numbering per audit (NC-01, OBS-01), totals shown in the audit results. Evidence photo link already exists (5.9) | AUD-9, AUD-10, FND-1 | Pending |
+| 7.6 | **Auditee evaluation.** Copy the criteria into `summary_data.evaluation_criteria` when the audit is created, so later edits never change an old audit. Page of rows: one per auditee (at least four), seven criteria scored 1 to 5 with the definitions as help text, overall status. **Restricted:** stripped from every response except the audit's own page and its PDF. Never in lists, search, exports, or the findings register | AUD-11, SRS 2 | Pending |
+| 7.7 | **Execution log, general comments, printed-only items.** Execution log rows, positive and negative comments (two `summary_data` keys), and the signature lines and distribution list printed from the B-008 PDF layout as fixed text, with names and ranks from the people list | AUD-12 to AUD-15 | Pending |
+| 7.8 | **Audit submit guard** in the status transition policy, next to RLS-2: audit start date, audit type, a Lead auditor, every applicable question answered. Kept in one place so changing it after OQ-9 is a single edit | RLS-2, OQ-9 | Pending, rules unconfirmed |
+| 7.9 | Corporate review and "mark as reviewed" | AUD-16, RLS-6 | Pending |
+| 7.10 | **Tests.** Dataset shape validation, stale-save conflict on a dataset, restricted scores (every list, search, export, and findings endpoint asserted not to contain scores), B-008 golden fixture (every audit page value appears in the PDF HTML), the four old tables are gone, query count stays at 12 or fewer with datasets loaded, submit guard refusals | NFR-8, REP-1 | Pending |
+
+**Phase 7 is done when** a vessel user can fill a whole B-008 from the pages above, a corporate user can read it and mark it reviewed, and the PDF prints every page of it.
 
 ---
 
@@ -204,7 +219,8 @@ off, and a restore has been rehearsed.
 ## Phase 10 — v1.1, separately (10 to 12 days)
 
 Findings lifecycle with close-out (FND-3), Excel export (FND-4), dashboard (REP-5),
-previous-report comparison (INS-19), 12-month coverage view (INS-20), template layout
+previous-report comparison (INS-19), 12-month coverage view (INS-20), pre-filling the previous
+audit follow-up from the last audit with the same IMO number (AUD-4), template layout
 refinement once real reports exist.
 
 Kept out of v1 on purpose: notifications, because v1 has no notification requirement and
@@ -223,6 +239,8 @@ These are needed at specific points. Late answers cost rework, not just delay.
 | Phase 1, task 1.7 | ~~Status list, reopening~~ | **Resolved:** `closed` is final, never reopened |
 | Phase 1, task 1.8 | ~~Report numbering~~ | **Resolved:** form code, date, daily sequence |
 | Phase 1, task 1.10 | Does the DPA accept crew-run internal audits? (OQ-4) | Open, does not block Phase 1 |
+| Phase 7, before 7.2 | Do the four old audit tables hold any real audit reports, or only test data? | Assumed test data only (the project starts clean). Confirm before the drop |
+| Phase 7, task 7.8 | Audit submit rules (OQ-9) | Proposed in SRS 7.2, unconfirmed |
 | Phase 9 | ~~Retention~~ | **Resolved:** five years |
 | Phase 9 | Real user and report counts (OQ-8) | 200 users assumed |
 
@@ -240,6 +258,8 @@ These are needed at specific points. Late answers cost rework, not just delay.
 | Vessel name typos break access control                                  | Crew cannot see their own records   | Pick-from-list for vessel users, normalisation, superadmin notified on unmatched names                                                             |
 | VSAT too slow to be usable in the field                                 | Users go back to Word               | NFR-13 measured on a throttled link before v1 ships, not after                                                                                     |
 | Scope creep into v1.1 features                                          | v1 never ships                      | The non-goals list in SRS §16.1 exists to be quoted back                                                                                           |
+| Audit set-up rework leaves two sources of truth (old tables and `report_datasets`) | Reports show different data in the UI and the PDF | Migrate and drop the four old tables in one change (7.2), and a test asserts they no longer exist |
+| Evaluation scores leak through a list, export, or the findings register | Scores of named crew seen by the wrong people | The scores have their own dataset key, are stripped in one place, and 7.10 asserts it for every list and export endpoint |
 | Findings close-out loop has no notification                             | Findings pile up unclosed           | Explicitly accepted for v1; the dashboard surfaces them (REP-5, v1.1)                                                                              |
 
 ---
@@ -258,6 +278,4 @@ A task is finished when:
 
 ## 5. Where to start tomorrow
 
-Phase 0, S1, the form parser. It needs the two source documents, it has no dependencies, and
-its result changes the shape of everything after it. Output is a review file the document
-owner can open, plus a written count of what was and was not extracted.
+Phases 0 to 6 are done. Start with Phase 7, tasks 7.1 and 7.2 together: add `report_datasets`, then move the finished audit set-up onto it and drop the four old tables in the same change, so there is never a moment with two sources of truth. Everything after that in Phase 7 is built on the generic blocks from 7.3. First, confirm that the old audit tables hold test data only (decisions table).

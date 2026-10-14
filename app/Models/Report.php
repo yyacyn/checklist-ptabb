@@ -223,4 +223,9 @@ class Report extends Model
     {
         return $this->hasMany(AuditActivity::class)->orderBy('sort_order')->orderBy('id');
     }
+
+    public function datasets(): HasMany
+    {
+        return $this->hasMany(ReportDataset::class);
+    }
 }

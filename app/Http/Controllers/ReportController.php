@@ -8,11 +8,13 @@ use App\Models\Form;
 use App\Models\PhotoCategory;
 use App\Models\Report;
 use App\Models\ReportAnswer;
+use App\Models\ReportDataset;
 use App\Models\ReportGroup;
 use App\Models\ReportQuestion;
 use App\Models\User;
 use App\Models\VesselType;
 use App\Services\Pdf\ReportPdfRenderer;
+use App\Services\ReportDatasetRegistry;
 use App\Services\ReportSnapshot;
 use App\Services\ReportStatusService;
 use App\Services\VesselName;
@@ -297,6 +299,7 @@ class ReportController extends Controller
             'auditees',
             'auditors',
             'auditActivities',
+            'datasets',
         ]);
 
         $photoCategories = PhotoCategory::query()
@@ -763,6 +766,98 @@ class ReportController extends Controller
             'auditees' => $report->auditees,
             'auditors' => $report->auditors,
             'audit_activities' => $report->auditActivities,
+        ]);
+    }
+
+    /**
+     * Update a repeating dataset on a report (SRS 14.4, NFR-1, NFR-2, NFR-15, Task 7.1).
+     */
+    public function updateDataset(Request $request, Report $report, string $key): JsonResponse
+    {
+        Gate::authorize('update', $report);
+
+        $validated = $request->validate([
+            'rows' => ['required', 'array'],
+            'client_save_id' => ['nullable', 'string', 'max:100'],
+            'base_row_version' => ['nullable', 'integer'],
+        ]);
+
+        // Validate row shape using ReportDatasetRegistry
+        $sanitizedRows = ReportDatasetRegistry::validate($key, $validated['rows']);
+
+        $existing = ReportDataset::where('report_id', $report->id)
+            ->where('dataset_key', $key)
+            ->first();
+
+        // Idempotency check (NFR-2)
+        if (! empty($validated['client_save_id']) && $existing && $existing->client_save_id === $validated['client_save_id']) {
+            return response()->json([
+                'status' => 'saved',
+                'dataset' => $existing,
+            ]);
+        }
+
+        // Stale row_version conflict detection (NFR-15)
+        if ($existing && array_key_exists('base_row_version', $validated) && $validated['base_row_version'] !== null) {
+            if ($existing->row_version > (int) $validated['base_row_version']) {
+                return response()->json([
+                    'status' => 'conflict',
+                    'message' => 'Dataset was modified by another save.',
+                    'server_dataset' => [
+                        'id' => $existing->id,
+                        'dataset_key' => $existing->dataset_key,
+                        'rows' => $existing->rows,
+                        'row_version' => $existing->row_version,
+                    ],
+                ], 409);
+            }
+        }
+
+        $nextVersion = $existing ? ($existing->row_version + 1) : 1;
+
+        $dataset = ReportDataset::updateOrCreate(
+            [
+                'report_id' => $report->id,
+                'dataset_key' => $key,
+            ],
+            [
+                'rows' => $sanitizedRows,
+                'row_version' => $nextVersion,
+                'client_save_id' => $validated['client_save_id'] ?? null,
+            ]
+        );
+
+        $report->increment('current_version');
+
+        return response()->json([
+            'status' => 'saved',
+            'dataset' => $dataset,
+        ]);
+    }
+
+    /**
+     * Update scalar summary_data fields on a report (SRS 14.4, Task 7.1).
+     */
+    public function updateFields(Request $request, Report $report): JsonResponse
+    {
+        Gate::authorize('update', $report);
+
+        $validated = $request->validate([
+            'fields' => ['required', 'array'],
+        ]);
+
+        $currentSummary = $report->summary_data ?? [];
+        $newSummary = array_merge($currentSummary, $validated['fields']);
+
+        $report->update([
+            'summary_data' => $newSummary,
+        ]);
+
+        $report->increment('current_version');
+
+        return response()->json([
+            'status' => 'saved',
+            'summary_data' => $report->summary_data,
         ]);
     }
 

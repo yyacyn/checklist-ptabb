@@ -23,6 +23,8 @@ Route::middleware(['auth', 'verified'])->group(function () {
     Route::post('reports/{report}/questions/{question}/attachment', [ReportController::class, 'uploadAttachment'])->name('reports.questions.attachment');
     Route::put('reports/{report}/general-info', [ReportController::class, 'updateGeneralInfo'])->name('reports.general-info.update');
     Route::put('reports/{report}/audit-setup', [ReportController::class, 'updateAuditSetup'])->name('reports.audit-setup.update');
+    Route::put('reports/{report}/datasets/{key}', [ReportController::class, 'updateDataset'])->name('reports.datasets.update');
+    Route::put('reports/{report}/fields', [ReportController::class, 'updateFields'])->name('reports.fields.update');
     Route::put('reports/{report}/summary', [ReportController::class, 'updateSummary'])->name('reports.summary.update');
     Route::post('reports/{report}/groups/{group}/comments', [ReportController::class, 'saveGroupComments'])->name('reports.groups.comments');
     Route::post('reports/{report}/photo-section-comment', [ReportController::class, 'savePhotoSectionComment'])->name('reports.photo-section-comment');

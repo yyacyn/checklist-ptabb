@@ -1,7 +1,9 @@
 # Vessel Audit &amp; Inspection App: SRS / PRD
 
-Version 0.6
+Version 0.7
 Source forms: B-008 Vessel Internal Audit Checklist (v00.00, 25-Aug-23), D-062 Vessel Inspection Report (v01.01, 01-Jul-23), PT. Amarin Ship Management
+
+**0.7: the audit module is simplified (section 7, section 14.4).** B-008 is the checklist plus fill-in pages: fields, repeating rows, and text boxes, built from the same blocks as the inspection. The eight audit-specific tables are replaced by `reports.summary_data` plus one generic `report_datasets` table. Findings, photos, and the status flow are shared with D-062. Audit report numbers follow RLS-7 (the `AUD-003/2026` style is gone). Evaluation scores are never returned outside the audit itself.
 
 **0.6: answers received.** `closed` is final and a closed report can never be reopened (RLS-9). Report numbers are form code plus date plus a daily sequence (RLS-7). The host offers PHP up to 8.8 and **inherited INI only** (section 13.1). Five year retention confirmed (NFR-17).
 
@@ -44,7 +46,7 @@ Rules:
 
 - Vessel accounts are provisioned per vessel (one account per ship, e.g. for the ship's cargo office / bridge workstation) rather than creating and maintaining individual accounts for rotating crew members. This eliminates IT overhead during frequent crew changes.
 - Actual inspector, auditor, and auditee identities are recorded as typed particulars on each report (name, rank, master, chief engineer), ensuring non-repudiation and legal audit evidence without requiring individual login accounts per seafarer.
-- Auditee evaluation scores (B-008 Chapter 14) are visible to Corporate Users and the authoring Vessel Account. Other vessels never see them.
+- Auditee evaluation scores (B-008 auditee evaluation) are visible to Corporate Users and the authoring Vessel Account. Other vessels never see them.
 - If a vessel is renamed or decommissioned, the vessel account can be updated or deactivated by the Superadmin without losing historical report integrity.
 
 ### 2.1 Vessel identity without a vessel table
@@ -229,30 +231,44 @@ Read with `spikes/s1-parser/FINDINGS.md`, which lists what still needs a human d
 
 ## 7. Audit module (B-008, Vessel Users)
 
-### 7.1 Set-up
+B-008 is the checklist plus a handful of fill-in pages. It reuses the same building blocks as the inspection: the checklist engine (section 4), findings (section 9), photos (section 8), and the status flow (section 10). The extra pages are plain fields, repeating rows, and text boxes. The audit has no tables of its own (section 14.4).
 
-- AUD-1: Create an audit. Audit number and year auto-generated (for example `AUD-003/2026`). Vessel name defaults to the vessel name on the user's account and vessel particulars (IMO, GT, flag, built, type) are typed or corrected by the user (section 2.1). Entered: date, Master name, Chief Engineer name.
-- AUD-2: Operation at time of audit, multi-select: loading, discharging, bunkering, repairs afloat, deballasting, ballasting, idle, river transit, at anchor, at sea, drydock.
-- AUD-3: Audit details: activities audited (Bridge, Deck, Engine, plus extra rows), audit type (A Internal, B Independent, C Unscheduled, D Other with specify), audit dates, auditees (name, rank), auditors (name, rank), lead auditor.
-- AUD-4: Follow-up from previous audit: date, number of NCRs and observations pulled from the vessel's last audit. Text field for verification of close-out and implementation of actions.
+### 7.1 What the user fills in
 
-### 7.2 Checklist
+| # | Page | Block | What is on it |
+| --- | --- | --- | --- |
+| 1 | Audit details | Fields | Audit number (automatic), audit start and end date, audit type (A Internal, B Independent, C Unscheduled, D Other with a text box), activities audited (Bridge, Deck, Engine, other), operations at the time, Master, Chief Engineer, and the typed vessel particulars (section 2.1) |
+| 2 | People | Rows | Auditors and auditees in one list: name, rank, role (Lead auditor, Auditor, Auditee) |
+| 3 | Previous audit | Fields | Date of the previous audit, number of NCs, number of observations, close-out verification notes |
+| 4 | Checklist | Checklist | The 17 sections from the form editor. Yes / No / N/S, a comments box per section |
+| 5 | NCs and observations | Findings | Raised from a No answer. Same findings table as D-062 |
+| 6 | Auditee evaluation | Rows with scores | One row per auditee, seven criteria scored 1 to 5, overall status |
+| 7 | Execution log | Rows | Person or function, date, start time, end time, topics |
+| 8 | General comments | Text | Positive comments, negative comments |
+| 9 | Printed only | Static | Signature lines and the distribution list |
 
-- AUD-5: Sections come from the managed form structure (17 groups at import).
+Sidebar order: pages 1 to 3, then the checklist sections, then the summary chapter (pages 5 and 8, configured by `summary_schema` with no ratings matrix), then pages 6 and 7.
+
+### 7.2 Requirements
+
+- AUD-1: Create an audit. The reference number follows RLS-7 (for example `B008-20261005-01`), replacing the `AUD-003/2026` numbering printed on the paper form. The vessel name defaults to the vessel name on the user's account. The vessel particulars (IMO, GT, flag, year built, vessel type, ice class) are typed or corrected by the user (section 2.1).
+- AUD-2: Audit details page. Fields as in 7.1. Operations at the time is a multi-select from a configured list: loading, discharging, bunkering, repairs afloat, deballasting, ballasting, idle, river transit, at anchor, at sea, drydock. Audit type is required, and type D needs its text.
+- AUD-3: People list. One repeating list for auditors and auditees, typed names and ranks. No user account is needed for anyone on it. At least one Lead auditor.
+- AUD-4: Previous audit. Four typed fields. Pre-filling them from the last audit with the same IMO number is v1.1.
+- AUD-5: Checklist sections come from the managed form structure (17 groups at import).
 - AUD-6: Each question: Yes / No / N/S, optional note. One comments box per group, as in the form.
-- AUD-7: Typed inputs where the question has them (for example date of last unannounced D&amp;A test, date of last OWS test).
-- AUD-8: Progress per group and unanswered filter.
-- AUD-9: Answering No lets the user raise it as a Non-Conformity or an Observation. NCs get an auto ID, issue date, description, and close-out target date. Totals are calculated.
-- AUD-10: Attach photos or files as evidence to a question or a finding.
+- AUD-7: Typed inputs where the question has them (for example date of last unannounced D&A test, date of last OWS test).
+- AUD-8: Progress per group, an unanswered filter, and the same navigation as the inspection (INS-22).
+- AUD-9: Findings. Answering No lets the user raise a Non-Conformity or an Observation, and one can also be added without a question. Fields: kind, description, target date for close-out. Each is numbered within the audit (NC-01, OBS-01), and the issue date is the date it was created. The totals of NCs and observations are calculated and shown in the audit results. Same table and rules as section 9.
+- AUD-10: Evidence. Attach photos or files to a question or a finding (section 8).
+- AUD-11: Auditee evaluation. One row per auditee (at least four rows, more if needed). The seven criteria come from `evaluation_criteria`, each scored 1 to 5, with the 1 to 5 definitions shown as help text, plus an overall status. The criteria wording is copied into the audit when it is created, so later edits to the criteria never change an old audit. The scores are shown only on the audit itself and its PDF, never in lists, search, the findings register, or exports.
+- AUD-12: Execution log. Repeating rows: person or function, date, start time, end time, topics.
+- AUD-13: General comments. Two text boxes: positive and negative.
+- AUD-14: Signature lines (lead auditor, auditors) are left blank on the PDF for manual signing. Names and ranks come from the people list.
+- AUD-15: The distribution list from the form is printed on the PDF as fixed text from the form layout. It is not tracked digitally in v1.
+- AUD-16: Corporate Users can view, filter, and export all audits, and mark an audit as reviewed (section 10).
 
-### 7.3 Evaluation and results
-
-- AUD-11: Auditee evaluation: one block per auditee (allow at least 4, add more if needed). Seven criteria from the form, each scored 1 to 5, plus overall status. The 1 to 5 definitions (excellent to unsatisfactory) show as help text.
-- AUD-12: Audit execution log (repeating rows): person/function, date, start time, end time, topics.
-- AUD-13: Auditors' general comments (positive and negative).
-- AUD-14: Signature lines (lead auditor, auditors) **left blank for manual signing** on the PDF.
-- AUD-15: Distribution list from the form printed on the PDF. Not tracked digitally in v1.
-- AUD-16: Corporate Users can view, filter, and export all audits, and mark an audit as reviewed.
+Proposed rules for submitting an audit (to be confirmed, OQ-9): audit start date, audit type, at least one Lead auditor, and every applicable question answered (RLS-2). Evaluation, execution log, and comments are optional.
 
 Note on the audit design: B-008 is built around independent auditors and auditees. Here the vessel crew fill it in, so the person completing it may be auditing colleagues, or the Master. Check with the DPA that this satisfies the company's SMS requirement for internal audit independence. The app supports it either way.
 
@@ -490,17 +506,22 @@ There is no `vessels` table. See section 2.1.
 
 ### 14.4 Audit specifics
 
+The audit has no tables of its own. It uses what the inspection already needs, plus one generic table for its repeating pages.
 
-| Entity                | Notes                                                                                                                                                                             |
-| --------------------- | --------------------------------------------------------------------------------------------------------------------------------------------------------------------------------- |
-| auditees              | report, name, rank, user\_id (nullable link to a vessel user)                                                                                                                     |
-| auditors              | report, name, rank, is\_lead, user\_id nullable                                                                                                                                   |
-| audit\_activities     | report, activity (Bridge/Deck/Engine + extra rows)                                                                                                                                |
-| audit\_dates          | report, start\_date, end\_date, audit\_type (A/B/C/D + specify), activities covered                                                                                               |
-| audit\_followup       | report, previous\_audit\_id, previous\_ncr\_count, previous\_observation\_count, closeout\_notes                                                                                  |
-| audit\_execution\_log | report, person\_or\_function, date, start\_time, end\_time, topics                                                                                                                |
-| auditee\_evaluations  | audit report, auditee, 7 criteria scores (one row per criterion so criteria are configurable), overall status. **Read restricted**: authors of the audit and Corporate Users only |
-| report\_signatures    | lead auditor / auditors / inspected by / circulation. Name and date captured, **image never uploaded** (signatures stay manual, section 2)                                        |
+
+| Entity | Notes |
+| --- | --- |
+| reports.summary\_data | Existing JSON column (INS-12). Audit fields and text boxes live here. Keys: audit\_type, audit\_type\_other, audit\_end\_date, activities\_audited (list), previous\_audit\_date, previous\_ncr\_count, previous\_observation\_count, closeout\_notes, positive\_comments, negative\_comments, evaluation\_criteria (copy of the criteria taken at creation). The audit start date is `reports.report_date`. Master and Chief Engineer are report columns. Operations use `report_operations` (14.3) |
+| report\_datasets | **New, generic.** report, dataset key, rows (JSON array), updated\_at. One row per dataset per report. For the audit: `audit_people` (name, rank, role), `audit_evaluation` (auditee name, rank, scores keyed by criterion key, overall status), `audit_execution_log` (person or function, date, start time, end time, topics). The shape of a row comes from the form's layout config and is validated on save. For form-specific repeating pages only: anything queried across reports (answers, findings, photos) keeps its own table |
+| evaluation\_criteria | In 14.2. Config, copied into the report at creation (AUD-11) |
+| findings, photos | Shared with the inspection (14.5) |
+
+Rules:
+
+- `audit_evaluation` is **read restricted**. It is returned only by the audit's own page and PDF, to Corporate Users and the vessel account the audit belongs to. It is never included in lists, search, exports, or the findings register. It has its own dataset key so the restriction is applied in one place.
+- Signatures stay manual. There is no signatures table; names and ranks are in `audit_people`.
+- Removed from the previous draft: auditees, auditors, audit\_activities, audit\_dates, audit\_followup, audit\_execution\_log, auditee\_evaluations, report\_signatures.
+- Trade-off accepted: JSON rows cannot be queried across audits in SQL (for example the average score per auditee over two years). Nothing in v1 or v1.1 needs it. If that changes, move the dataset to its own table.
 
 
 ### 14.5 Findings, photos, audit trail
@@ -582,6 +603,12 @@ Added in 0.3, to be confirmed by the project owner:
 - The host runs PHP 8.8 with inherited INI only, so client-side resizing and small requests are architecture, not optimisation (section 13.1).
 - Five year retention confirmed (NFR-17).
 
+Added in 0.7, to be confirmed by the project owner:
+
+- The audit pages are fields, repeating rows, and text boxes. There are no audit-specific tables (section 14.4). Data lives in `reports.summary_data` and `report_datasets`.
+- Proposed rules for submitting an audit (section 7.2, OQ-9).
+- Auditee evaluation scores are returned only by the audit itself, never in lists or exports (AUD-11).
+
 ### 16.1 Non-goals for v1
 
 Not in v1, so that scope creep has to be a decision rather than a drift:
@@ -627,3 +654,4 @@ Each item needs an owner and a date. The first one blocks the data model.
 | OQ-6 | **RESOLVED in 0.6.** Five year retention confirmed (NFR-17).                                                                                                                                                                                                                                                                     | Closed         | Closed        |
 | OQ-7 | **RESOLVED in 0.6.** Form code plus date plus a daily sequence, for example `D062-20261005-01`. The daily sequence was added because form code plus date alone collides on a busy day (RLS-7). Note this replaces the `AUD-003/2026` numbering printed on form B-008.                                                            | Closed         | Closed        |
 | OQ-8 | Real user count and report frequency, to replace the 200 user planning figure.                                                                                                                                                                                                                                                   | NFR-12         | Project owner |
+| OQ-9 | Confirm the proposed audit submit rules (section 7.2): audit start date, audit type, a Lead auditor, every applicable question answered. | Section 7 | Project owner |
