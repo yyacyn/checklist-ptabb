@@ -40,17 +40,18 @@ import type {
 } from '@/types';
 
 export const D062_RATING_CATEGORIES: { key: string; label: string; chapter: string }[] = [
-    { key: 'navigation', label: 'Navigation & Bridge Procedures', chapter: 'Chapter 2' },
-    { key: 'safety_management', label: 'Safety Management & ISM', chapter: 'Chapter 3' },
-    { key: 'crew_management', label: 'Crew Management & STCW', chapter: 'Chapter 4' },
-    { key: 'machinery_spaces', label: 'Machinery Spaces & Engineering', chapter: 'Chapter 5' },
-    { key: 'cargo_ballast', label: 'Cargo, Ballast & Operations', chapter: 'Chapter 6' },
-    { key: 'pollution_prevention', label: 'Pollution Prevention (MARPOL)', chapter: 'Chapter 7' },
-    { key: 'structural_condition', label: 'Hull, Decks & Structural Condition', chapter: 'Chapter 8' },
-    { key: 'mooring_towing', label: 'Mooring, Anchoring & Towing', chapter: 'Chapter 9' },
-    { key: 'security', label: 'Ship Security (ISPS)', chapter: 'Chapter 10' },
-    { key: 'health_hygiene', label: 'Health, Hygiene & MLC', chapter: 'Chapter 11' },
-    { key: 'radio_gmdss', label: 'Radio, GMDSS & Communication', chapter: 'Chapter 12' },
+    { key: 'chapter_2', label: 'Certification and Documentation', chapter: 'Chapter 2' },
+    { key: 'chapter_3', label: 'Crew Management', chapter: 'Chapter 3' },
+    { key: 'chapter_4', label: 'Navigation', chapter: 'Chapter 4' },
+    { key: 'chapter_5', label: 'Safety Management', chapter: 'Chapter 5' },
+    { key: 'chapter_6', label: 'Pollution Prevention', chapter: 'Chapter 6' },
+    { key: 'chapter_7', label: 'Structural Condition', chapter: 'Chapter 7' },
+    { key: 'chapter_8', label: 'Cargo Operations', chapter: 'Chapter 8' },
+    { key: 'chapter_9', label: 'Mooring', chapter: 'Chapter 9' },
+    { key: 'chapter_10', label: 'Communications', chapter: 'Chapter 10' },
+    { key: 'chapter_11', label: 'Engine Room', chapter: 'Chapter 11' },
+    { key: 'chapter_12', label: 'General Appearance', chapter: 'Chapter 12' },
+    { key: 'chapter_13', label: 'Ice Operations', chapter: 'Chapter 13' },
 ];
 
 export interface ObservationsSectionProps {
@@ -103,6 +104,112 @@ export function ObservationsSection({
         { value: 'satisfactory', label: 'Satisfactory', color: 'blue' },
         { value: 'unsatisfactory', label: 'Unsatisfactory', color: 'rose' },
     ];
+
+    const ratingCategories = React.useMemo(() => {
+        if (report.groups && report.groups.length > 0) {
+            const list = report.groups
+                .filter((g) => {
+                    const cNo = parseInt(g.chapter_no || '', 10);
+                    return !isNaN(cNo) && cNo >= 2 && cNo <= 13;
+                })
+                .sort((a, b) => parseInt(a.chapter_no || '0', 10) - parseInt(b.chapter_no || '0', 10))
+                .map((g) => ({
+                    key: `chapter_${g.chapter_no}`,
+                    label: g.title.replace(/^Chapter\s+\d+\s*[-–:]\s*/i, ''),
+                    chapter: `Chapter ${g.chapter_no}`,
+                }));
+            if (list.length > 0) {
+                return list;
+            }
+        }
+        return D062_RATING_CATEGORIES;
+    }, [report.groups]);
+
+    interface OfficerAppraisalItem {
+        rank: string;
+        name: string;
+        comments: string;
+        appraised: boolean;
+    }
+
+    const defaultAppraisals: OfficerAppraisalItem[] = [
+        {
+            rank: 'Master',
+            name: report.master_name || '',
+            comments: 'The familiarity with on-board safety systems and equipment confirmed in good order.',
+            appraised: true,
+        },
+        {
+            rank: 'Chief Engineer',
+            name: report.chief_engineer_name || '',
+            comments: 'High standard of engine room procedures and environmental compliance verified.',
+            appraised: true,
+        },
+        {
+            rank: 'Chief Officer',
+            name: report.chief_officer_name || '',
+            comments: 'Navigation oversight and cargo equipment handling verified satisfactory.',
+            appraised: true,
+        },
+        {
+            rank: 'Second Engineer',
+            name: '',
+            comments: 'Watchkeeping and auxiliary machinery maintenance confirmed in order.',
+            appraised: true,
+        },
+    ];
+
+    const [officerAppraisals, setOfficerAppraisals] = useState<OfficerAppraisalItem[]>(() => {
+        const fromSummary = (report.summary_data as Record<string, any> | null)?.senior_officers_appraisal;
+        if (Array.isArray(fromSummary) && fromSummary.length > 0) {
+            return fromSummary.map((item: any, idx: number) => ({
+                rank: item.rank || defaultAppraisals[idx]?.rank || `Officer ${idx + 1}`,
+                name: item.name || '',
+                comments: item.comments || '',
+                appraised: item.appraised === true || item.appraised === 'yes' || item.appraised === '1',
+            }));
+        }
+        return defaultAppraisals;
+    });
+    const [appraisalSaving, setAppraisalSaving] = useState(false);
+    const [appraisalSaved, setAppraisalSaved] = useState(false);
+    const appraisalDebounceTimer = useRef<ReturnType<typeof setTimeout> | null>(null);
+
+    const saveAppraisals = async (updated: OfficerAppraisalItem[]) => {
+        if (!isEditable) return;
+        setAppraisalSaving(true);
+        try {
+            const res = await fetch(`/reports/${report.id}/summary-text`, {
+                method: 'POST',
+                headers: {
+                    'Content-Type': 'application/json',
+                    Accept: 'application/json',
+                    ...csrfHeaders(),
+                    'X-Requested-With': 'XMLHttpRequest',
+                },
+                body: JSON.stringify({ key: 'senior_officers_appraisal', value: updated }),
+            });
+            if (res.ok) {
+                setAppraisalSaved(true);
+                setTimeout(() => setAppraisalSaved(false), 2000);
+            }
+        } catch {
+            // Ignore transient save errors
+        } finally {
+            setAppraisalSaving(false);
+        }
+    };
+
+    const handleAppraisalChange = (index: number, patch: Partial<OfficerAppraisalItem>) => {
+        const next = officerAppraisals.map((item, idx) => (idx === index ? { ...item, ...patch } : item));
+        setOfficerAppraisals(next);
+        if (appraisalDebounceTimer.current) {
+            clearTimeout(appraisalDebounceTimer.current);
+        }
+        appraisalDebounceTimer.current = setTimeout(() => {
+            saveAppraisals(next);
+        }, 1200);
+    };
 
     const [ratings, setRatings] = useState<Record<string, string>>(() => {
         return (report.summary_ratings as Record<string, string>) || {};
@@ -383,8 +490,8 @@ export function ObservationsSection({
                     </CardHeader>
                     <CardContent className="pt-4 p-0">
                         <div className="divide-y">
-                            {D062_RATING_CATEGORIES.map((cat) => {
-                                const currentRating = ratings[cat.key];
+                            {ratingCategories.map((cat) => {
+                                const currentRating = ratings[cat.key] || ratings[cat.key.replace('chapter_', '')];
 
                                 return (
                                     <div
@@ -495,6 +602,108 @@ export function ObservationsSection({
                     );
                 })}
             </div>
+
+            {/* Senior Officers Appraisal (Form D-062, INS-15) */}
+            {isD062 && (
+                <Card className="border-2 border-border/80 shadow-xs bg-card overflow-hidden">
+                    <CardHeader className="p-4 pb-3 border-b bg-muted/20">
+                        <div className="flex items-center justify-between">
+                            <div className="flex items-center gap-2">
+                                <Users className="size-4 text-primary" />
+                                <CardTitle className="text-sm font-semibold">
+                                    Appraisal of Senior Officers
+                                </CardTitle>
+                            </div>
+                            <div className="flex items-center gap-2 text-xs">
+                                {appraisalSaving && (
+                                    <span className="text-amber-500 animate-pulse flex items-center gap-1 text-[11px]">
+                                        <Loader2 className="size-3 animate-spin" /> Saving...
+                                    </span>
+                                )}
+                                {appraisalSaved && (
+                                    <span className="text-emerald-600 flex items-center gap-1 text-[11px]">
+                                        <Check className="size-3" /> Saved
+                                    </span>
+                                )}
+                            </div>
+                        </div>
+                        <CardDescription className="text-xs">
+                            To be briefly indicated along with Appraisal Report C1-013 &amp; 014 (Master, Chief Engineer, Chief Officer, 2nd Engineer).
+                        </CardDescription>
+                    </CardHeader>
+                    <CardContent className="p-0">
+                        <div className="overflow-x-auto">
+                            <table className="w-full text-xs">
+                                <thead>
+                                    <tr className="border-b bg-muted/40 text-muted-foreground font-medium">
+                                        <th className="py-2.5 px-3 text-left w-36">Rank</th>
+                                        <th className="py-2.5 px-3 text-left w-48">Name</th>
+                                        <th className="py-2.5 px-3 text-left">Comments &amp; Verification Remarks</th>
+                                        <th className="py-2.5 px-3 text-center w-28">Appraised</th>
+                                    </tr>
+                                </thead>
+                                <tbody className="divide-y divide-border">
+                                    {officerAppraisals.map((officer, idx) => (
+                                        <tr key={officer.rank || idx} className="hover:bg-muted/10 transition-colors">
+                                            <td className="py-2.5 px-3 font-semibold text-foreground align-middle">
+                                                {officer.rank}
+                                            </td>
+                                            <td className="py-2 px-3 align-middle">
+                                                <Input
+                                                    type="text"
+                                                    value={officer.name}
+                                                    disabled={!isEditable}
+                                                    placeholder={`Name of ${officer.rank}`}
+                                                    onChange={(e) => handleAppraisalChange(idx, { name: e.target.value })}
+                                                    className="h-8 text-xs bg-transparent"
+                                                />
+                                            </td>
+                                            <td className="py-2 px-3 align-middle">
+                                                <Input
+                                                    type="text"
+                                                    value={officer.comments}
+                                                    disabled={!isEditable}
+                                                    placeholder="Comments on familiarity with safety systems..."
+                                                    onChange={(e) => handleAppraisalChange(idx, { comments: e.target.value })}
+                                                    className="h-8 text-xs bg-transparent"
+                                                />
+                                            </td>
+                                            <td className="py-2 px-3 text-center align-middle">
+                                                <div className="inline-flex rounded-md border p-0.5 bg-muted/30">
+                                                    <button
+                                                        type="button"
+                                                        disabled={!isEditable}
+                                                        onClick={() => handleAppraisalChange(idx, { appraised: true })}
+                                                        className={`px-2.5 py-0.5 text-xs font-medium rounded transition-all ${
+                                                            officer.appraised
+                                                                ? 'bg-emerald-600 text-white font-bold shadow-xs'
+                                                                : 'text-muted-foreground hover:text-foreground'
+                                                        }`}
+                                                    >
+                                                        Yes
+                                                    </button>
+                                                    <button
+                                                        type="button"
+                                                        disabled={!isEditable}
+                                                        onClick={() => handleAppraisalChange(idx, { appraised: false })}
+                                                        className={`px-2.5 py-0.5 text-xs font-medium rounded transition-all ${
+                                                            !officer.appraised
+                                                                ? 'bg-rose-600 text-white font-bold shadow-xs'
+                                                                : 'text-muted-foreground hover:text-foreground'
+                                                        }`}
+                                                    >
+                                                        No
+                                                    </button>
+                                                </div>
+                                            </td>
+                                        </tr>
+                                    ))}
+                                </tbody>
+                            </table>
+                        </div>
+                    </CardContent>
+                </Card>
+            )}
 
             {/* Findings & Observations Register (Task 4.2) */}
             {hasFindingsRegister && (

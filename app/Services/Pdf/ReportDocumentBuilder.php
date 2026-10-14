@@ -348,6 +348,37 @@ class ReportDocumentBuilder
         $positiveComments = $summary['positive_comments'] ?? '';
         $negativeComments = $summary['negative_comments'] ?? '';
 
+        // 5e. Senior Officers Appraisal (Form D-062, INS-15)
+        $seniorOfficersAppraisal = $summary['senior_officers_appraisal'] ?? null;
+        if (empty($seniorOfficersAppraisal) || ! is_array($seniorOfficersAppraisal)) {
+            $seniorOfficersAppraisal = [
+                [
+                    'rank' => 'Master',
+                    'name' => $report->master_name ?: '—',
+                    'comments' => 'The familiarity with on-board safety systems and equipment confirmed in good order.',
+                    'appraised' => true,
+                ],
+                [
+                    'rank' => 'Chief Engineer',
+                    'name' => $report->chief_engineer_name ?: '—',
+                    'comments' => 'High standard of engine room procedures and environmental compliance verified.',
+                    'appraised' => true,
+                ],
+                [
+                    'rank' => 'Chief Officer',
+                    'name' => $report->chief_officer_name ?: '—',
+                    'comments' => 'Navigation oversight and cargo equipment handling verified satisfactory.',
+                    'appraised' => true,
+                ],
+                [
+                    'rank' => 'Second Engineer',
+                    'name' => '—',
+                    'comments' => 'Watchkeeping and auxiliary machinery maintenance confirmed in order.',
+                    'appraised' => true,
+                ],
+            ];
+        }
+
         // 6. Summary ratings matrix
         $summarySchema = $report->form->summary_schema ?? [];
         $ratingOptions = $summarySchema['rating_options'] ?? [
@@ -361,9 +392,15 @@ class ReportDocumentBuilder
             if ($ch['is_chapter_one']) {
                 continue;
             }
-            $chOrder = $ch['no'];
+            $chOrder = (string) $ch['no'];
+            $displayNo = (string) ($ch['display_no'] ?? $chOrder);
+            $cleanTitle = strtolower(trim(preg_replace('/[^a-z0-9]+/i', '_', $ch['title']), '_'));
+
             $ratingVal = $report->summary_ratings['chapter_'.$chOrder]
-                ?? $report->summary_ratings['chapter_'.$ch['display_no']]
+                ?? $report->summary_ratings['chapter_'.$displayNo]
+                ?? $report->summary_ratings[$chOrder]
+                ?? $report->summary_ratings[$displayNo]
+                ?? $report->summary_ratings[$cleanTitle]
                 ?? null;
 
             $ratingsRows[] = [
@@ -463,6 +500,7 @@ class ReportDocumentBuilder
             'execution_log' => $executionLogRows,
             'positive_comments' => $positiveComments,
             'negative_comments' => $negativeComments,
+            'senior_officers_appraisal' => $seniorOfficersAppraisal,
         ];
     }
 

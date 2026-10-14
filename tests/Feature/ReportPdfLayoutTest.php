@@ -76,18 +76,17 @@ class ReportPdfLayoutTest extends TestCase
         $this->assertContains('best_practices', $sectionTypes);
         $this->assertContains('summary_of_observations', $sectionTypes);
         $this->assertContains('report_summary', $sectionTypes);
-        $this->assertContains('photo_chapter', $sectionTypes);
+        $this->assertNotContains('photo_chapter', $sectionTypes);
         $this->assertContains('comparison_blocks', $sectionTypes);
-        $this->assertContains('circulation', $sectionTypes);
+        $this->assertNotContains('circulation', $sectionTypes);
+        $this->assertContains('senior_officers_appraisal', $sectionTypes);
         $this->assertContains('signature_lines', $sectionTypes);
 
-        // REP-1b: report_summary must come after summary_of_observations and before photo_chapter
+        // REP-1b: report_summary must come after summary_of_observations
         $summaryIdx = array_search('summary_of_observations', $sectionTypes, true);
         $reportSummaryIdx = array_search('report_summary', $sectionTypes, true);
-        $photoIdx = array_search('photo_chapter', $sectionTypes, true);
 
         $this->assertGreaterThan($summaryIdx, $reportSummaryIdx, 'REPORT SUMMARY must come after Summary of Observations (REP-1b)');
-        $this->assertLessThan($photoIdx, $reportSummaryIdx, 'REPORT SUMMARY must come before Photo Chapter (REP-1b)');
 
         // Footer fields (REP-1a)
         $this->assertContains('form_code', $schema['footer']['fields']);
@@ -205,7 +204,7 @@ class ReportPdfLayoutTest extends TestCase
         $this->assertStringContainsString('Chapter 14 - Best Practices', $html);
         $this->assertStringContainsString('Chapter 15 - Summary of Observations', $html);
         $this->assertStringContainsString('REPORT SUMMARY', $html);
-        $this->assertStringContainsString('Chapter 16 - Photographic Records', $html);
+        $this->assertStringContainsString('Appraisals of Senior Officers', $html);
         $this->assertStringContainsString('Comparison with Previous Reports', $html);
         $this->assertStringContainsString('Internal Circulation', $html);
         $this->assertStringContainsString('Signatures', $html);
@@ -405,7 +404,7 @@ class ReportPdfLayoutTest extends TestCase
         $this->assertStringContainsString('Very Good', $html);
         $this->assertStringContainsString('Satisfactory', $html);
         $this->assertStringContainsString('Unsatisfactory', $html);
-        $this->assertStringContainsString('●', $html);
+        $this->assertStringContainsString('X', $html);
     }
 
     /**

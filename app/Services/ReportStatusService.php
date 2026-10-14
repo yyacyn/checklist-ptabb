@@ -151,6 +151,11 @@ class ReportStatusService
                         ],
                     ]);
                 }
+
+                // 4b. Audit submit guard (Task 7.8, RLS-2, OQ-9)
+                if ($report->report_type === 'audit' || ($report->form && $report->form->code === 'B-008')) {
+                    static::validateAuditSubmissionGuard($report);
+                }
             }
         }
 
@@ -195,5 +200,80 @@ class ReportStatusService
         $report->update($updates);
 
         return $report;
+    }
+
+    /**
+     * Get any missing audit submission requirements (Task 7.8, RLS-2, OQ-9).
+     *
+     * Rules (to be confirmed, OQ-9):
+     * 1. Audit start date (report_date).
+     * 2. Audit type (summary_data.audit_type, plus audit_type_other if type is 'D').
+     * 3. At least one Lead Auditor with a valid name registered (AUD-3).
+     *
+     * Note: Auditee evaluation, execution log, and comments are optional (SRS section 7.2).
+     * Kept in this single method so changing rules after OQ-9 is a single edit.
+     *
+     * @return list<string>
+     */
+    public static function getAuditSubmissionErrors(Report $report): array
+    {
+        $errors = [];
+
+        // 1. Audit start date (report_date)
+        if (empty($report->report_date)) {
+            $errors[] = 'audit start date is required.';
+        }
+
+        // 2. Audit type (summary_data.audit_type)
+        $summary = $report->summary_data ?? [];
+        $auditType = trim((string) ($summary['audit_type'] ?? ''));
+        if ($auditType === '') {
+            $errors[] = 'audit type is required.';
+        } elseif ($auditType === 'D' && empty(trim((string) ($summary['audit_type_other'] ?? '')))) {
+            $errors[] = 'audit type description is required when audit type is Other (D).';
+        }
+
+        // 3. At least one Lead Auditor with a name (AUD-3)
+        $hasLeadAuditor = false;
+        $peopleDataset = $report->datasets()->where('dataset_key', ReportDatasetRegistry::KEY_AUDIT_PEOPLE)->first();
+
+        if ($peopleDataset && is_array($peopleDataset->rows) && ! empty($peopleDataset->rows)) {
+            foreach ($peopleDataset->rows as $person) {
+                $role = strtolower(trim((string) ($person['role'] ?? '')));
+                $name = trim((string) ($person['name'] ?? ''));
+                if ($role === 'lead auditor' && $name !== '') {
+                    $hasLeadAuditor = true;
+                    break;
+                }
+            }
+        } elseif (! empty(trim((string) ($report->inspected_by ?? '')))) {
+            $hasLeadAuditor = true;
+        } elseif (! empty(trim((string) ($summary['lead_auditor'] ?? '')))) {
+            $hasLeadAuditor = true;
+        }
+
+        if (! $hasLeadAuditor) {
+            $errors[] = 'at least one Lead Auditor with a name must be registered (AUD-3).';
+        }
+
+        return $errors;
+    }
+
+    /**
+     * Validate audit-specific submission requirements (Task 7.8, RLS-2, OQ-9).
+     *
+     * @throws ValidationException
+     */
+    public static function validateAuditSubmissionGuard(Report $report): void
+    {
+        $errors = static::getAuditSubmissionErrors($report);
+
+        if (! empty($errors)) {
+            throw ValidationException::withMessages([
+                'status' => [
+                    'Cannot submit audit report: '.implode(' ', $errors),
+                ],
+            ]);
+        }
     }
 }

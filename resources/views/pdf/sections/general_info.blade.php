@@ -114,7 +114,50 @@
     </tbody>
   </table>
 
-  {{-- 6. Static texts --}}
+  {{-- 6. Other Attendance-Related Activities (INS-13) --}}
+  @php
+    $ch1 = collect($doc['chapters'] ?? [])->firstWhere('is_chapter_one', true);
+    $attendanceSg = null;
+    if ($ch1 && !empty($ch1['subgroups'])) {
+        $attendanceSg = collect($ch1['subgroups'])->first(function($sg) {
+            return str_contains(strtolower($sg['title'] ?? ''), 'attendance');
+        });
+    }
+  @endphp
+
+  @if($attendanceSg && !empty($attendanceSg['questions']))
+    <div style="page-break-before: always; margin-top: 14pt;">
+      <h3 class="chapter-header">Other Attendance-Related Activities</h3>
+      <table class="findings-table" style="width: 100%; margin-top: 6pt;">
+        <thead>
+          <tr style="background-color: #f1f5f9;">
+            <th style="width: 48%; text-align: left;">Activity / Verification Item</th>
+            <th style="width: 8%; text-align: center;">Yes</th>
+            <th style="width: 8%; text-align: center;">No</th>
+            <th style="text-align: left;">Details / Comments / Specific Type</th>
+          </tr>
+        </thead>
+        <tbody>
+          @foreach($attendanceSg['questions'] as $q)
+            @php
+              $ans = strtolower(trim((string)($q['answer'] ?? '')));
+              $isYes = in_array($ans, ['yes', 'y'], true);
+              $isNo = in_array($ans, ['no', 'n'], true);
+              $details = $q['note'] ?: ($q['extra_value'] ?: '—');
+            @endphp
+            <tr>
+              <td style="font-size: 8pt;">{{ $q['question_text'] }}</td>
+              <td class="text-center" style="font-weight: bold; font-size: 9pt;">{{ $isYes ? 'X' : '' }}</td>
+              <td class="text-center" style="font-weight: bold; font-size: 9pt;">{{ $isNo ? 'X' : '' }}</td>
+              <td style="font-size: 8pt;">{{ $details }}</td>
+            </tr>
+          @endforeach
+        </tbody>
+      </table>
+    </div>
+  @endif
+
+  {{-- 7. Static texts --}}
   @if(!empty($staticTexts['fill_in_instructions']))
     <div class="static-text" style="margin-top:12pt;padding:8pt;border:1pt solid #ddd;background-color:#f9f9f9;font-size:8pt;">
       <h4 style="margin:0 0 4pt;font-size:8.5pt;">FILL IN INSTRUCTIONS</h4>

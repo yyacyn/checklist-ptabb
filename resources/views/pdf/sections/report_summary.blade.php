@@ -51,7 +51,7 @@
             <td colspan="{{ count($ratingOptions) }}" class="text-center" style="color: #777; font-style: italic;">N/A</td>
           @else
             @foreach($ratingOptions as $opt)
-              <td class="text-center">{{ ($row['rating'] === $opt['value']) ? '●' : '' }}</td>
+              <td class="text-center" style="font-weight: bold; font-size: 9pt;">{{ ($row['rating'] === $opt['value']) ? 'X' : '' }}</td>
             @endforeach
           @endif
           <td class="text-center">{{ $isApplicable ? $row['no_count'] : '-' }}</td>

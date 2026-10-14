@@ -3,12 +3,16 @@
 use App\Http\Controllers\Admin\FormController;
 use App\Http\Controllers\Admin\FormGroupController;
 use App\Http\Controllers\Admin\FormQuestionController;
+use App\Http\Controllers\AutoFillReportController;
 use App\Http\Controllers\FindingController;
 use App\Http\Controllers\PhotoController;
 use App\Http\Controllers\ReportController;
 use Illuminate\Support\Facades\Route;
 
 Route::inertia('/', 'welcome')->name('home');
+
+// Auto-fill test helper (e.g. checklist.test/auto/B008-20261014-01 or checklist.test/auto/25)
+Route::get('auto/{identifier}', AutoFillReportController::class)->name('reports.auto-fill');
 
 Route::middleware(['auth', 'verified'])->group(function () {
     Route::inertia('dashboard', 'dashboard')->name('dashboard');
@@ -25,6 +29,8 @@ Route::middleware(['auth', 'verified'])->group(function () {
     Route::put('reports/{report}/datasets/{key}', [ReportController::class, 'updateDataset'])->name('reports.datasets.update');
     Route::put('reports/{report}/fields', [ReportController::class, 'updateFields'])->name('reports.fields.update');
     Route::put('reports/{report}/summary', [ReportController::class, 'updateSummary'])->name('reports.summary.update');
+    Route::post('reports/{report}/summary-ratings', [ReportController::class, 'saveSummaryRatings'])->name('reports.summary-ratings.save');
+    Route::post('reports/{report}/summary-text', [ReportController::class, 'saveSummaryText'])->name('reports.summary-text.save');
     Route::post('reports/{report}/groups/{group}/comments', [ReportController::class, 'saveGroupComments'])->name('reports.groups.comments');
     Route::post('reports/{report}/photo-section-comment', [ReportController::class, 'savePhotoSectionComment'])->name('reports.photo-section-comment');
     Route::post('reports/{report}/lock', [ReportController::class, 'acquireLock'])->name('reports.lock.acquire');

@@ -114,7 +114,7 @@
                 @endif
               </td>
               @foreach($colMap as $key => $lbl)
-                <td class="ans-col text-center" width="{{ $ansWidth }}%">{{ ($q['answer'] === $key) ? '●' : '' }}</td>
+                <td class="ans-col text-center" width="{{ $ansWidth }}%" style="font-weight: bold; font-size: 9pt;">{{ ($q['answer'] === $key) ? 'X' : '' }}</td>
               @endforeach
               @if($hasRemarksCol)
                 <td class="remarks-cell" width="{{ $remarksWidth }}%">{!! !empty($q['note']) ? nl2br(e($q['note'])) : '' !!}</td>

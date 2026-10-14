@@ -487,13 +487,8 @@ class FormSeeder extends Seeder
                     'heading' => 'REPORT SUMMARY',
                     'subheading' => '(Printed after Chapter 15; shown in Chapter 1 of form D-062 v01.01)',
                 ],
-                [
-                    'type' => 'photo_chapter',
-                    'chapter_no' => '16',
-                    'title' => 'Chapter 16 - Photographic Records',
-                ],
                 ['type' => 'comparison_blocks'],
-                ['type' => 'circulation'],
+                ['type' => 'senior_officers_appraisal'],
                 ['type' => 'signature_lines'],
             ],
             'footer' => [

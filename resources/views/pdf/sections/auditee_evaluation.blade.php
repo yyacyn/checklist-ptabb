@@ -57,7 +57,7 @@
             <td>{{ $cIdx + 1 }}. {{ $crit['label'] }}</td>
             @for($s = 1; $s <= 5; $s++)
               <td class="text-center" style="font-size: 9pt; {{ (int)$score === $s ? 'font-weight: bold; background-color: #e2e8f0;' : 'color: #94a3b8;' }}">
-                {{ (int)$score === $s ? '●' : '☐' }}
+                {{ (int)$score === $s ? 'X' : '☐' }}
               </td>
             @endfor
           </tr>

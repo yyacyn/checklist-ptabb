@@ -141,14 +141,13 @@ HTML;
         return [
             'sections' => [
                 ['type' => 'cover', 'title_key' => 'inspection_report'],
-                ['type' => 'general_info', 'title' => 'Chapter 1 - General Information', 'components' => ['vessel_particulars', 'operations_grid', 'psc_drydock', 'open_items_table', 'internal_circulation']],
+                ['type' => 'general_info', 'title' => 'Chapter 1 - General Information', 'components' => ['vessel_particulars', 'operations_grid', 'psc_drydock', 'voyage_info', 'open_items_table', 'internal_circulation', 'other_attendance']],
                 ['type' => 'checklist_chapters', 'column_labels' => ['No.', 'Item', 'Yes', 'No', 'NS', 'NA']],
-                ['type' => 'best_practices', 'chapter_no' => '14'],
-                ['type' => 'summary_of_observations', 'chapter_no' => '15'],
+                ['type' => 'best_practices', 'chapter_no' => '14', 'title' => 'Chapter 14 - Best Practices'],
+                ['type' => 'summary_of_observations', 'chapter_no' => '15', 'title' => 'Chapter 15 - Summary of Observations'],
                 ['type' => 'report_summary', 'position' => 'after_chapter_15'],
-                ['type' => 'photo_chapter', 'chapter_no' => '16'],
                 ['type' => 'comparison_blocks'],
-                ['type' => 'circulation'],
+                ['type' => 'senior_officers_appraisal', 'title' => 'Appraisals of Senior Officers'],
                 ['type' => 'signature_lines'],
             ],
             'footer' => [
@@ -198,6 +197,16 @@ HTML;
 
         // 1. Photo Form isolation: ONLY allow cover, photo_chapter, and signature_lines
         if ($formType === 'photo' && ! in_array($type, ['cover', 'photo_chapter', 'signature_lines'], true)) {
+            return '';
+        }
+
+        // 1b. Non-photo forms should NOT render photo_chapter
+        if ($type === 'photo_chapter' && $formType !== 'photo') {
+            return '';
+        }
+
+        // 1c. Form D-062 already has internal circulation in Chapter 1; suppress duplicate circulation section
+        if ($type === 'circulation' && ($doc['meta']['form_code'] ?? '') === 'D-062') {
             return '';
         }
 

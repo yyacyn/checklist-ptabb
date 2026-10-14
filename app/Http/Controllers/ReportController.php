@@ -779,6 +779,60 @@ class ReportController extends Controller
     }
 
     /**
+     * Save ratings matrix for report summary (Form D-062).
+     */
+    public function saveSummaryRatings(Request $request, Report $report): JsonResponse
+    {
+        Gate::authorize('update', $report);
+
+        $validated = $request->validate([
+            'ratings' => ['required', 'array'],
+        ]);
+
+        $report->update([
+            'summary_ratings' => $validated['ratings'],
+        ]);
+        $report->increment('current_version');
+
+        return response()->json([
+            'status' => 'saved',
+            'summary_ratings' => $report->summary_ratings,
+            'report' => $report->fresh(),
+        ]);
+    }
+
+    /**
+     * Save scalar text block for report summary.
+     */
+    public function saveSummaryText(Request $request, Report $report): JsonResponse
+    {
+        Gate::authorize('update', $report);
+
+        $validated = $request->validate([
+            'key' => ['required', 'string', 'max:100'],
+            'value' => ['nullable'],
+        ]);
+
+        $summaryData = $report->summary_data ?? [];
+        $summaryData[$validated['key']] = $validated['value'] ?? '';
+
+        $directColumns = ['summary_comments_no', 'summary_safety_meetings', 'summary_participants', 'summary_concept_understanding', 'summary_training_needs'];
+        $updates = ['summary_data' => $summaryData];
+        if (in_array($validated['key'], $directColumns, true)) {
+            $updates[$validated['key']] = $validated['value'] ?? null;
+        }
+
+        $report->update($updates);
+        $report->increment('current_version');
+
+        return response()->json([
+            'status' => 'saved',
+            'summary_data' => $report->summary_data,
+            'report' => $report->fresh(),
+        ]);
+    }
+
+    /**
      * Upload an attachment for a question (Form D-062).
      */
     public function uploadAttachment(Request $request, Report $report, ReportQuestion $question): JsonResponse

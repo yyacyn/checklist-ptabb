@@ -63,7 +63,11 @@ class ReportSnapshot
                 $summary['audit_type'] = $summary['audit_type'] ?? 'A';
                 $summary['audit_end_date'] = $summary['audit_end_date'] ?? $reportDate;
                 $summary['activities_audited'] = $summary['activities_audited'] ?? ['Bridge', 'Deck', 'Engine'];
-                $summary['lead_auditor'] = $summary['lead_auditor'] ?? ($report->inspected_by ?? '');
+                $leadAuditorName = ! empty($report->inspected_by)
+                    ? $report->inspected_by
+                    : ($report->creator?->name ?? '');
+
+                $summary['lead_auditor'] = $summary['lead_auditor'] ?? $leadAuditorName;
 
                 // Copy the criteria into summary_data.evaluation_criteria when the audit is created (AUD-11, Task 7.6)
                 if (empty($summary['evaluation_criteria'])) {
@@ -90,7 +94,7 @@ class ReportSnapshot
 
                 $people = [
                     [
-                        'name' => $report->inspected_by ?? '',
+                        'name' => $leadAuditorName,
                         'rank' => 'Lead Auditor',
                         'role' => 'Lead auditor',
                         'sort_order' => 1,
