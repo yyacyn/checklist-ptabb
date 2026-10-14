@@ -66,34 +66,33 @@ class ReportDatasetTest extends TestCase
         [$user, $report] = $this->createAuditReport();
 
         $rows = [
-            ['name' => 'Capt. John', 'rank' => 'Master', 'role' => 'Auditee', 'sort_order' => 1],
-            ['name' => 'Jane Auditor', 'rank' => 'Superintendent', 'role' => 'Lead auditor', 'sort_order' => 2],
+            ['person_or_function' => 'Bridge Team', 'date' => '2026-10-14', 'start_time' => '09:00', 'end_time' => '11:00', 'topics' => 'Passage planning', 'sort_order' => 1],
         ];
 
-        // 1. First save
+        // 1. First save (creation)
         $response = $this->actingAs($user)
-            ->putJson(route('reports.datasets.update', [$report->id, 'audit_people']), [
+            ->putJson(route('reports.datasets.update', [$report->id, 'audit_execution_log']), [
                 'rows' => $rows,
             ]);
 
         $response->assertOk()
             ->assertJsonPath('status', 'saved')
-            ->assertJsonPath('dataset.dataset_key', 'audit_people')
+            ->assertJsonPath('dataset.dataset_key', 'audit_execution_log')
             ->assertJsonPath('dataset.row_version', 1);
 
         $this->assertDatabaseHas('report_datasets', [
             'report_id' => $report->id,
-            'dataset_key' => 'audit_people',
+            'dataset_key' => 'audit_execution_log',
             'row_version' => 1,
         ]);
 
         // 2. Second save (update)
         $updatedRows = array_merge($rows, [
-            ['name' => 'Eng. Calculus', 'rank' => 'Chief Engineer', 'role' => 'Auditee', 'sort_order' => 3],
+            ['person_or_function' => 'Engine Team', 'date' => '2026-10-14', 'start_time' => '11:00', 'end_time' => '13:00', 'topics' => 'Oil record book', 'sort_order' => 2],
         ]);
 
         $response2 = $this->actingAs($user)
-            ->putJson(route('reports.datasets.update', [$report->id, 'audit_people']), [
+            ->putJson(route('reports.datasets.update', [$report->id, 'audit_execution_log']), [
                 'rows' => $updatedRows,
                 'base_row_version' => 1,
             ]);
@@ -104,7 +103,7 @@ class ReportDatasetTest extends TestCase
 
         $this->assertDatabaseHas('report_datasets', [
             'report_id' => $report->id,
-            'dataset_key' => 'audit_people',
+            'dataset_key' => 'audit_execution_log',
             'row_version' => 2,
         ]);
     }
@@ -115,11 +114,11 @@ class ReportDatasetTest extends TestCase
 
         $clientSaveId = 'save-uuid-12345';
         $rows = [
-            ['name' => 'Jane Auditor', 'rank' => 'Lead Auditor', 'role' => 'Lead auditor'],
+            ['person_or_function' => 'Superintendent', 'topics' => 'Opening meeting', 'sort_order' => 1],
         ];
 
         $response1 = $this->actingAs($user)
-            ->putJson(route('reports.datasets.update', [$report->id, 'audit_people']), [
+            ->putJson(route('reports.datasets.update', [$report->id, 'audit_execution_log']), [
                 'rows' => $rows,
                 'client_save_id' => $clientSaveId,
             ]);
@@ -129,7 +128,7 @@ class ReportDatasetTest extends TestCase
 
         // Resend identical request with same client_save_id
         $response2 = $this->actingAs($user)
-            ->putJson(route('reports.datasets.update', [$report->id, 'audit_people']), [
+            ->putJson(route('reports.datasets.update', [$report->id, 'audit_execution_log']), [
                 'rows' => $rows,
                 'client_save_id' => $clientSaveId,
             ]);
@@ -137,22 +136,23 @@ class ReportDatasetTest extends TestCase
         $response2->assertOk()
             ->assertJsonPath('dataset.row_version', 1);
 
-        $this->assertEquals(1, ReportDataset::where('report_id', $report->id)->count());
+        $this->assertEquals(1, ReportDataset::where('report_id', $report->id)->where('dataset_key', 'audit_execution_log')->count());
     }
 
     public function test_dataset_conflict_detection_returns_409(): void
     {
         [$user, $report] = $this->createAuditReport();
 
-        // Create initial dataset at version 2
-        ReportDataset::create([
-            'report_id' => $report->id,
-            'dataset_key' => 'audit_people',
-            'rows' => [
-                ['name' => 'Capt. Current', 'rank' => 'Master', 'role' => 'Auditee'],
-            ],
-            'row_version' => 2,
-        ]);
+        // Ensure dataset is at version 2
+        ReportDataset::updateOrCreate(
+            ['report_id' => $report->id, 'dataset_key' => 'audit_people'],
+            [
+                'rows' => [
+                    ['name' => 'Capt. Current', 'rank' => 'Master', 'role' => 'Auditee'],
+                ],
+                'row_version' => 2,
+            ]
+        );
 
         // Client attempts to save based on stale version 1
         $response = $this->actingAs($user)
@@ -166,6 +166,48 @@ class ReportDatasetTest extends TestCase
         $response->assertStatus(409)
             ->assertJsonPath('status', 'conflict')
             ->assertJsonPath('server_dataset.row_version', 2);
+    }
+
+    public function test_dataset_conflict_resolution_by_overwriting_with_server_version(): void
+    {
+        [$user, $report] = $this->createAuditReport();
+
+        // Server dataset is at version 3
+        ReportDataset::updateOrCreate(
+            ['report_id' => $report->id, 'dataset_key' => 'audit_people'],
+            [
+                'rows' => [
+                    ['name' => 'Capt. Original', 'rank' => 'Master', 'role' => 'Auditee'],
+                ],
+                'row_version' => 3,
+            ]
+        );
+
+        // 1. Client attempts to save with stale version 2 -> returns 409
+        $conflictResponse = $this->actingAs($user)
+            ->putJson(route('reports.datasets.update', [$report->id, 'audit_people']), [
+                'rows' => [
+                    ['name' => 'Capt. Overwritten', 'rank' => 'Master', 'role' => 'Auditee'],
+                ],
+                'base_row_version' => 2,
+            ]);
+
+        $conflictResponse->assertStatus(409)
+            ->assertJsonPath('server_dataset.row_version', 3);
+
+        // 2. Client chooses "Overwrite Server", resending with base_row_version = 3
+        $overwriteResponse = $this->actingAs($user)
+            ->putJson(route('reports.datasets.update', [$report->id, 'audit_people']), [
+                'rows' => [
+                    ['name' => 'Capt. Overwritten', 'rank' => 'Master', 'role' => 'Auditee'],
+                ],
+                'base_row_version' => 3,
+            ]);
+
+        $overwriteResponse->assertOk()
+            ->assertJsonPath('status', 'saved')
+            ->assertJsonPath('dataset.row_version', 4)
+            ->assertJsonPath('dataset.rows.0.name', 'Capt. Overwritten');
     }
 
     public function test_dataset_rejects_unsupported_key_or_malformed_rows(): void

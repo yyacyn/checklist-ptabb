@@ -1,10 +1,20 @@
-import { Camera, CheckCircle2, Info, ShieldAlert } from 'lucide-react';
+import {
+    Calendar,
+    Camera,
+    CheckCircle2,
+    FileCheck,
+    History,
+    Info,
+    ShieldAlert,
+    UserCheck,
+} from 'lucide-react';
 import React from 'react';
 import { Badge } from '@/components/ui/badge';
 import type { ChapterData, FindingData, PhotoRecord, SummarySchema } from '@/types';
 
 export interface ReportChapterSidebarProps {
     isPhotoForm: boolean;
+    isB008?: boolean;
     photoChapterTitle: string;
     photos: PhotoRecord[];
     activeChapterId: number;
@@ -27,6 +37,7 @@ export interface ReportChapterSidebarProps {
 
 export function ReportChapterSidebar({
     isPhotoForm,
+    isB008 = false,
     photoChapterTitle,
     photos,
     activeChapterId,
@@ -41,7 +52,7 @@ export function ReportChapterSidebar({
     return (
         <aside className="w-80 shrink-0 border-r bg-muted/20 overflow-y-auto p-4 space-y-1.5">
             <div className="text-xs font-semibold uppercase tracking-wider text-muted-foreground px-2 pb-1">
-                {isPhotoForm ? 'Photo Form Sections' : 'Chapters / Sections'}
+                {isPhotoForm ? 'Photo Form Sections' : isB008 ? 'Audit Pages & Sections' : 'Chapters / Sections'}
             </div>
 
             {/* Standalone Photo Form Single Primary Section */}
@@ -72,32 +83,35 @@ export function ReportChapterSidebar({
                 </button>
             ) : (
                 <>
-                    {/* Chapter 1: General Information & Particulars */}
-                    <button
-                        type="button"
-                        onClick={() => onChapterSwitch(0)}
-                        className={`w-full text-left rounded-lg p-3 transition-all flex flex-col gap-1.5 ${
-                            activeChapterId === 0
-                                ? 'bg-card border-2 border-primary shadow-xs ring-1 ring-primary/20'
-                                : 'border border-transparent hover:bg-card/70'
-                        }`}
-                    >
-                        <div className="flex items-start justify-between gap-2">
-                            <div className="flex items-center gap-1.5 min-w-0">
-                                <Info className="size-4 text-primary shrink-0" />
-                                <span className="font-semibold text-xs text-foreground truncate">
-                                    1. General Information
-                                </span>
+                    {/* D-062 Chapter 1: General Information */}
+                    {!isB008 && (
+                        <button
+                            type="button"
+                            onClick={() => onChapterSwitch(0)}
+                            className={`w-full text-left rounded-lg p-3 transition-all flex flex-col gap-1.5 ${
+                                activeChapterId === 0
+                                    ? 'bg-card border-2 border-primary shadow-xs ring-1 ring-primary/20'
+                                    : 'border border-transparent hover:bg-card/70'
+                            }`}
+                        >
+                            <div className="flex items-start justify-between gap-2">
+                                <div className="flex items-center gap-1.5 min-w-0">
+                                    <Info className="size-4 text-primary shrink-0" />
+                                    <span className="font-semibold text-xs text-foreground truncate">
+                                        1. General Information
+                                    </span>
+                                </div>
+                                <Badge variant="secondary" className="text-[10px] shrink-0 font-mono">
+                                    Particulars
+                                </Badge>
                             </div>
-                            <Badge variant="secondary" className="text-[10px] shrink-0 font-mono">
-                                Particulars
-                            </Badge>
-                        </div>
-                        <div className="text-[11px] text-muted-foreground pl-5 truncate">
-                            Ship, PSC, Drydock, Operations & Officers
-                        </div>
-                    </button>
+                            <div className="text-[11px] text-muted-foreground pl-5 truncate">
+                                Ship, PSC, Drydock, Operations & Officers
+                            </div>
+                        </button>
+                    )}
 
+                    {/* Checklist Chapters / Sections */}
                     {groups
                         .filter((g) => g.chapter_no !== '1' && g.title !== 'General Information')
                         .map((group) => {
@@ -216,6 +230,34 @@ export function ReportChapterSidebar({
                                 ) : (
                                     'Executive Summary & Assessment'
                                 )}
+                            </div>
+                        </button>
+                    )}
+
+                    {/* B-008: Vessel's Audit Report (Form B-008 Page at End) */}
+                    {isB008 && (
+                        <button
+                            type="button"
+                            onClick={() => onChapterSwitch(-100)}
+                            className={`w-full text-left rounded-lg p-3 transition-all flex flex-col gap-1.5 ${
+                                activeChapterId === -100 || activeChapterId === 0 || activeChapterId === -101 || activeChapterId === -102 || activeChapterId === -103
+                                    ? 'bg-card border-2 border-primary shadow-xs ring-1 ring-primary/20'
+                                    : 'border border-transparent hover:bg-card/70'
+                            }`}
+                        >
+                            <div className="flex items-start justify-between gap-2">
+                                <div className="flex items-center gap-1.5 min-w-0">
+                                    <FileCheck className="size-4 text-primary shrink-0" />
+                                    <span className="font-semibold text-xs text-foreground truncate">
+                                        Vessel&apos;s Audit Report
+                                    </span>
+                                </div>
+                                <Badge variant="secondary" className="text-[10px] shrink-0 font-mono">
+                                    Particulars
+                                </Badge>
+                            </div>
+                            <div className="text-[11px] text-muted-foreground pl-5 truncate">
+                                Particulars, Operations, People & Follow-up
                             </div>
                         </button>
                     )}

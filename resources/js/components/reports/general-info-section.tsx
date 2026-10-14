@@ -24,9 +24,7 @@ import { csrfHeaders } from '@/lib/autosave-queue';
 import { formatDate } from '@/lib/question-utils';
 import type {
     AnswerData,
-    AuditActivityData,
-    AuditeeData,
-    AuditorData,
+    AuditPersonRow,
     ChapterData,
     ConflictData,
     QuestionData,
@@ -184,57 +182,65 @@ export function GeneralInfoSection({
     };
 
     // ==========================================
-    // B-008 Audit Set-up State (AUD-2, AUD-3, Task 7.1)
+    // B-008 Audit Set-up State (SRS 14.4, Task 7.2)
     // ==========================================
     const [auditState, setAuditState] = useState({
-        report_date: formatDate(report.audit_detail?.start_date || report.report_date),
+        report_date: formatDate(report.report_date),
         port: report.port || '',
         master_name: report.master_name || '',
         chief_engineer_name: report.chief_engineer_name || '',
-        start_date: formatDate(report.audit_detail?.start_date || report.report_date),
-        end_date: formatDate(report.audit_detail?.end_date || report.report_date),
-        audit_type: report.audit_detail?.audit_type || 'A',
-        audit_type_other: report.audit_detail?.audit_type_other || '',
-        lead_auditor: report.audit_detail?.lead_auditor || report.inspected_by || '',
+        start_date: formatDate(report.report_date),
+        end_date: formatDate(report.summary_data?.audit_end_date || report.report_date),
+        audit_type: report.summary_data?.audit_type || 'A',
+        audit_type_other: report.summary_data?.audit_type_other || '',
+        lead_auditor: report.summary_data?.lead_auditor || report.inspected_by || '',
         operations: (report.operations || []) as string[],
     });
 
-    const [activities, setActivities] = useState<AuditActivityData[]>(
-        report.audit_activities && report.audit_activities.length > 0
-            ? report.audit_activities
-            : [
-                  { activity: 'Bridge', sort_order: 1 },
-                  { activity: 'Deck', sort_order: 2 },
-                  { activity: 'Engine', sort_order: 3 },
-              ]
+    const [activities, setActivities] = useState<string[]>(
+        report.summary_data?.activities_audited && report.summary_data.activities_audited.length > 0
+            ? report.summary_data.activities_audited
+            : ['Bridge', 'Deck', 'Engine']
     );
     const [newActivityInput, setNewActivityInput] = useState('');
 
-    const [auditors, setAuditors] = useState<AuditorData[]>(
-        report.auditors && report.auditors.length > 0
-            ? report.auditors
+    const auditPeopleDataset = report.datasets?.find((d) => d.dataset_key === 'audit_people');
+    const initialPeople: AuditPersonRow[] = auditPeopleDataset?.rows ?? [];
+
+    const initialAuditors = initialPeople.filter((p) =>
+        (p.role || '').toLowerCase().includes('auditor')
+    );
+    const initialAuditees = initialPeople.filter(
+        (p) => !(p.role || '').toLowerCase().includes('auditor')
+    );
+
+    const [auditors, setAuditors] = useState<AuditPersonRow[]>(
+        initialAuditors.length > 0
+            ? initialAuditors
             : [
                   {
                       name: report.inspected_by || '',
                       rank: 'Lead Auditor',
-                      is_lead: true,
+                      role: 'Lead auditor',
                       sort_order: 1,
                   },
               ]
     );
 
-    const [auditees, setAuditees] = useState<AuditeeData[]>(
-        report.auditees && report.auditees.length > 0
-            ? report.auditees
+    const [auditees, setAuditees] = useState<AuditPersonRow[]>(
+        initialAuditees.length > 0
+            ? initialAuditees
             : [
                   {
                       name: report.master_name || '',
                       rank: 'Master',
+                      role: 'Auditee',
                       sort_order: 1,
                   },
                   {
                       name: report.chief_engineer_name || '',
                       rank: 'Chief Engineer',
+                      role: 'Auditee',
                       sort_order: 2,
                   },
               ]
@@ -242,42 +248,15 @@ export function GeneralInfoSection({
 
     const persistAuditSetup = async (
         nextAuditState: typeof auditState,
-        nextActivities: AuditActivityData[],
-        nextAuditors: AuditorData[],
-        nextAuditees: AuditeeData[]
+        nextActivities: string[],
+        nextAuditors: AuditPersonRow[],
+        nextAuditees: AuditPersonRow[]
     ) => {
         if (!isEditable) return;
         setSaveStatus('saving');
         try {
-            const payload = {
-                report_date: nextAuditState.start_date || nextAuditState.report_date,
-                port: nextAuditState.port,
-                master_name: nextAuditState.master_name,
-                chief_engineer_name: nextAuditState.chief_engineer_name,
-                start_date: nextAuditState.start_date,
-                end_date: nextAuditState.end_date,
-                audit_type: nextAuditState.audit_type,
-                audit_type_other: nextAuditState.audit_type_other,
-                lead_auditor: nextAuditState.lead_auditor,
-                operations: nextAuditState.operations,
-                activities: nextActivities.map((a, i) => ({
-                    activity: a.activity,
-                    sort_order: a.sort_order ?? i + 1,
-                })),
-                auditors: nextAuditors.map((a, i) => ({
-                    name: a.name,
-                    rank: a.rank,
-                    is_lead: Boolean(a.is_lead),
-                    sort_order: a.sort_order ?? i + 1,
-                })),
-                auditees: nextAuditees.map((a, i) => ({
-                    name: a.name,
-                    rank: a.rank,
-                    sort_order: a.sort_order ?? i + 1,
-                })),
-            };
-
-            const res = await fetch(`/reports/${report.id}/audit-setup`, {
+            // 1. Update scalar fields & report columns via PUT /reports/{id}/fields
+            const fieldsPromise = fetch(`/reports/${report.id}/fields`, {
                 method: 'PUT',
                 headers: {
                     'Content-Type': 'application/json',
@@ -285,10 +264,52 @@ export function GeneralInfoSection({
                     ...csrfHeaders(),
                     'X-Requested-With': 'XMLHttpRequest',
                 },
-                body: JSON.stringify(payload),
+                body: JSON.stringify({
+                    fields: {
+                        report_date: nextAuditState.start_date || nextAuditState.report_date,
+                        port: nextAuditState.port,
+                        master_name: nextAuditState.master_name,
+                        chief_engineer_name: nextAuditState.chief_engineer_name,
+                        operations: nextAuditState.operations,
+                        audit_type: nextAuditState.audit_type,
+                        audit_type_other: nextAuditState.audit_type_other,
+                        audit_end_date: nextAuditState.end_date,
+                        lead_auditor: nextAuditState.lead_auditor,
+                        activities_audited: nextActivities,
+                    },
+                }),
             });
 
-            if (res.ok) {
+            // 2. Update people dataset via PUT /reports/{id}/datasets/audit_people
+            const combinedPeople = [
+                ...nextAuditors.map((a, i) => ({
+                    name: a.name,
+                    rank: a.rank,
+                    role: a.role || 'Auditor',
+                    sort_order: i + 1,
+                })),
+                ...nextAuditees.map((a, i) => ({
+                    name: a.name,
+                    rank: a.rank,
+                    role: 'Auditee',
+                    sort_order: nextAuditors.length + i + 1,
+                })),
+            ];
+
+            const datasetPromise = fetch(`/reports/${report.id}/datasets/audit_people`, {
+                method: 'PUT',
+                headers: {
+                    'Content-Type': 'application/json',
+                    Accept: 'application/json',
+                    ...csrfHeaders(),
+                    'X-Requested-With': 'XMLHttpRequest',
+                },
+                body: JSON.stringify({ rows: combinedPeople }),
+            });
+
+            const [fieldsRes, datasetRes] = await Promise.all([fieldsPromise, datasetPromise]);
+
+            if (fieldsRes.ok && datasetRes.ok) {
                 setSaveStatus('saved');
                 setTimeout(() => setSaveStatus('idle'), 2500);
             } else {
@@ -334,11 +355,11 @@ export function GeneralInfoSection({
     const handleAddActivity = () => {
         const trimmed = newActivityInput.trim();
         if (!trimmed) return;
-        if (activities.some((a) => a.activity.toLowerCase() === trimmed.toLowerCase())) {
+        if (activities.some((a) => a.toLowerCase() === trimmed.toLowerCase())) {
             setNewActivityInput('');
             return;
         }
-        const next = [...activities, { activity: trimmed, sort_order: activities.length + 1 }];
+        const next = [...activities, trimmed];
         setActivities(next);
         setNewActivityInput('');
         triggerAuditAutosave(auditState, next, auditors, auditees, false);
@@ -351,12 +372,12 @@ export function GeneralInfoSection({
     };
 
     const handleAddAuditor = () => {
-        const next: AuditorData[] = [
+        const next: AuditPersonRow[] = [
             ...auditors,
             {
                 name: '',
                 rank: 'Auditor',
-                is_lead: auditors.length === 0,
+                role: auditors.length === 0 ? 'Lead auditor' : 'Auditor',
                 sort_order: auditors.length + 1,
             },
         ];
@@ -364,14 +385,17 @@ export function GeneralInfoSection({
         triggerAuditAutosave(auditState, activities, next, auditees, false);
     };
 
-    const handleUpdateAuditor = (index: number, field: keyof AuditorData, val: any) => {
+    const handleUpdateAuditor = (index: number, field: keyof AuditPersonRow | 'is_lead', val: any) => {
         const next = auditors.map((auditor, i) => {
             if (i !== index) {
                 // If setting this auditor as lead, unset others
                 if (field === 'is_lead' && val === true) {
-                    return { ...auditor, is_lead: false };
+                    return { ...auditor, role: 'Auditor' };
                 }
                 return auditor;
+            }
+            if (field === 'is_lead') {
+                return { ...auditor, role: val ? 'Lead auditor' : 'Auditor' };
             }
             return { ...auditor, [field]: val };
         });
@@ -379,10 +403,12 @@ export function GeneralInfoSection({
 
         // Keep lead_auditor in auditState in sync if lead auditor name changes
         let nextAudit = auditState;
+        const current = next[index];
+        const isLead = current.role === 'Lead auditor';
         if (field === 'is_lead' && val === true) {
-            nextAudit = { ...auditState, lead_auditor: next[index].name };
+            nextAudit = { ...auditState, lead_auditor: current.name };
             setAuditState(nextAudit);
-        } else if (field === 'name' && next[index].is_lead) {
+        } else if (field === 'name' && isLead) {
             nextAudit = { ...auditState, lead_auditor: val };
             setAuditState(nextAudit);
         }
@@ -397,11 +423,12 @@ export function GeneralInfoSection({
     };
 
     const handleAddAuditee = () => {
-        const next: AuditeeData[] = [
+        const next: AuditPersonRow[] = [
             ...auditees,
             {
                 name: '',
                 rank: 'Officer',
+                role: 'Auditee',
                 sort_order: auditees.length + 1,
             },
         ];
@@ -409,7 +436,7 @@ export function GeneralInfoSection({
         triggerAuditAutosave(auditState, activities, auditors, next, false);
     };
 
-    const handleUpdateAuditee = (index: number, field: keyof AuditeeData, val: any) => {
+    const handleUpdateAuditee = (index: number, field: keyof AuditPersonRow, val: any) => {
         const next = auditees.map((auditee, i) => (i === index ? { ...auditee, [field]: val } : auditee));
         setAuditees(next);
         triggerAuditAutosave(auditState, activities, auditors, next, true);
@@ -439,8 +466,8 @@ export function GeneralInfoSection({
                     </h1>
                     <p className="text-xs text-muted-foreground mt-0.5">
                         {isB008
-                            ? 'Vessel particulars, audit scope, dates, auditors, auditees, and operations (Form B-008 AUD-2 & AUD-3).'
-                            : 'Vessel particulars, senior officers, PSC records, dry dock dates, and operational status (Form D-062).'}
+                            ? 'Vessel particulars, audit scope, dates, auditors, auditees, and operations.'
+                            : 'Vessel particulars, senior officers, PSC records, dry dock dates, and operational status.'}
                     </p>
                 </div>
 
@@ -519,12 +546,12 @@ export function GeneralInfoSection({
             {/* ============================================================== */}
             {isB008 ? (
                 <>
-                    {/* 2. Audit Details & Schedule (AUD-3) */}
+                    {/* 2. Audit Details & Schedule */}
                     <Card>
                         <CardHeader className="pb-3">
                             <CardTitle className="text-sm font-semibold flex items-center gap-2">
                                 <Calendar className="size-4 text-primary" />
-                                <span>Audit Scope, Type & Dates (AUD-3)</span>
+                                <span>Audit Scope, Type & Dates</span>
                             </CardTitle>
                             <CardDescription className="text-xs">
                                 Specify audit classification, execution dates, lead auditor, and port location.
@@ -673,12 +700,12 @@ export function GeneralInfoSection({
                         </CardContent>
                     </Card>
 
-                    {/* 3. Audited Activities (AUD-3) */}
+                    {/* 3. Audited Activities */}
                     <Card>
                         <CardHeader className="pb-3">
                             <CardTitle className="text-sm font-semibold flex items-center gap-2">
                                 <Briefcase className="size-4 text-primary" />
-                                <span>Audited Activities & Scope (AUD-3)</span>
+                                <span>Audited Activities & Scope</span>
                             </CardTitle>
                             <CardDescription className="text-xs">
                                 Standard activities include Bridge, Deck, and Engine. Add any additional operational areas audited.
@@ -691,7 +718,7 @@ export function GeneralInfoSection({
                                         key={idx}
                                         className="inline-flex items-center gap-1.5 px-3 py-1.5 rounded-md bg-secondary text-secondary-foreground text-xs font-medium border"
                                     >
-                                        <span>{act.activity}</span>
+                                        <span>{act}</span>
                                         {isEditable && activities.length > 1 && (
                                             <button
                                                 type="button"
@@ -804,7 +831,7 @@ export function GeneralInfoSection({
                                                     <label className="flex items-center gap-1.5 cursor-pointer text-xs">
                                                         <input
                                                             type="checkbox"
-                                                            checked={Boolean(auditor.is_lead)}
+                                                            checked={auditor.role === 'Lead auditor'}
                                                             disabled={!isEditable}
                                                             onChange={(e) =>
                                                                 handleUpdateAuditor(idx, 'is_lead', e.target.checked)
@@ -920,12 +947,12 @@ export function GeneralInfoSection({
                         </Card>
                     </div>
 
-                    {/* 5. Operation at Time of Audit (AUD-2) */}
+                    {/* 5. Operation at Time of Audit */}
                     <Card>
                         <CardHeader className="pb-3">
                             <CardTitle className="text-sm font-semibold flex items-center gap-2">
                                 <Info className="size-4 text-primary" />
-                                <span>Operation at Time of Audit (AUD-2)</span>
+                                <span>Operation at Time of Audit</span>
                             </CardTitle>
                             <CardDescription className="text-xs">
                                 Select all operational activities occurring during the audit (Form B-008 Chapter 1).

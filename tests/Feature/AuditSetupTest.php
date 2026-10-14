@@ -2,27 +2,30 @@
 
 namespace Tests\Feature;
 
-use App\Models\AuditActivity;
-use App\Models\Auditor;
 use App\Models\Form;
 use App\Models\Report;
+use App\Models\ReportDataset;
 use App\Models\User;
 use App\Models\VesselType;
 use App\Services\Pdf\ReportPdfRenderer;
 use App\Services\ReportSnapshot;
 use Database\Seeders\FormSeeder;
 use Illuminate\Foundation\Testing\RefreshDatabase;
+use Illuminate\Support\Facades\Schema;
 use Tests\TestCase;
 
 /**
- * Phase 7, Task 7.1: Audit Set-up (SRS AUD-2, AUD-3).
+ * Phase 7, Task 7.2: Reworked Audit Set-up (SRS AUD-2, AUD-3, SRS v0.7 14.4).
  *
  * Verifies:
- * - Default audit_details and audit_activities are seeded on snapshot.
- * - Auditor can update audit type, dates, lead auditor, operations, activities, auditors, and auditees.
+ * - Default audit scalar fields and activities are seeded in summary_data on snapshot.
+ * - Default audit_people dataset is initialized on snapshot.
+ * - Auditor can update audit type, dates, lead auditor, operations, activities via /fields.
+ * - Auditor can update audit team and auditees via /datasets/audit_people.
  * - Other audit type (D) and vessel header particulars are persisted.
- * - Authorization enforcement on updateAuditSetup.
+ * - Authorization enforcement on update.
  * - PDF renderer includes audit particulars, team, auditees, and AUD-2 operations.
+ * - Obsolete dedicated audit tables (audit_details, auditors, auditees, audit_activities) are dropped.
  */
 class AuditSetupTest extends TestCase
 {
@@ -62,69 +65,70 @@ class AuditSetupTest extends TestCase
         return [$user, $report];
     }
 
+    public function test_old_audit_tables_do_not_exist(): void
+    {
+        $this->assertFalse(Schema::hasTable('audit_details'));
+        $this->assertFalse(Schema::hasTable('auditors'));
+        $this->assertFalse(Schema::hasTable('auditees'));
+        $this->assertFalse(Schema::hasTable('audit_activities'));
+    }
+
     public function test_audit_report_snapshot_initializes_default_audit_details_and_activities(): void
     {
         [$user, $report] = $this->createAuditReport();
 
-        $this->assertDatabaseHas('audit_details', [
+        $report->refresh();
+
+        // 1. Scalar summary_data checks
+        $this->assertIsArray($report->summary_data);
+        $this->assertEquals('A', $report->summary_data['audit_type'] ?? null);
+        $this->assertEquals('2026-10-14', $report->summary_data['audit_end_date'] ?? null);
+        $this->assertEquals(['Bridge', 'Deck', 'Engine'], $report->summary_data['activities_audited'] ?? null);
+
+        // 2. audit_people dataset initialized
+        $this->assertDatabaseHas('report_datasets', [
             'report_id' => $report->id,
-            'audit_type' => 'A',
-            'start_date' => '2026-10-14',
-            'end_date' => '2026-10-14',
+            'dataset_key' => 'audit_people',
         ]);
 
-        $activities = AuditActivity::where('report_id', $report->id)->pluck('activity')->all();
-        $this->assertContains('Bridge', $activities);
-        $this->assertContains('Deck', $activities);
-        $this->assertContains('Engine', $activities);
+        $dataset = ReportDataset::where('report_id', $report->id)
+            ->where('dataset_key', 'audit_people')
+            ->firstOrFail();
+
+        $this->assertNotEmpty($dataset->rows);
+        $this->assertContains('Lead auditor', array_column($dataset->rows, 'role'));
     }
 
     public function test_auditor_can_update_audit_setup(): void
     {
         [$user, $report] = $this->createAuditReport();
 
-        $payload = [
-            'start_date' => '2026-10-15',
-            'end_date' => '2026-10-17',
-            'audit_type' => 'B',
-            'lead_auditor' => 'Capt. John Auditor',
-            'port' => 'Bojonegara Port',
-            'master_name' => 'Capt. Haddock',
-            'chief_engineer_name' => 'Eng. Calculus',
-            'operations' => ['Loading', 'Bunkering', 'Repairs afloat'],
-            'activities' => [
-                ['activity' => 'Bridge', 'sort_order' => 1],
-                ['activity' => 'Deck', 'sort_order' => 2],
-                ['activity' => 'Engine', 'sort_order' => 3],
-                ['activity' => 'Cargo Operations', 'sort_order' => 4],
-            ],
-            'auditors' => [
-                ['name' => 'Capt. John Auditor', 'rank' => 'Lead Auditor', 'is_lead' => true, 'sort_order' => 1],
-                ['name' => 'Jane Tech', 'rank' => 'Technical Auditor', 'is_lead' => false, 'sort_order' => 2],
-            ],
-            'auditees' => [
-                ['name' => 'Capt. Haddock', 'rank' => 'Master', 'sort_order' => 1],
-                ['name' => 'Eng. Calculus', 'rank' => 'Chief Engineer', 'sort_order' => 2],
-                ['name' => 'Tintin', 'rank' => 'Chief Officer', 'sort_order' => 3],
+        // 1. Update scalar fields & header particulars via PUT /fields
+        $fieldsPayload = [
+            'fields' => [
+                'report_date' => '2026-10-15',
+                'audit_end_date' => '2026-10-17',
+                'audit_type' => 'B',
+                'lead_auditor' => 'Capt. John Auditor',
+                'port' => 'Bojonegara Port',
+                'master_name' => 'Capt. Haddock',
+                'chief_engineer_name' => 'Eng. Calculus',
+                'operations' => ['Loading', 'Bunkering', 'Repairs afloat'],
+                'activities_audited' => ['Bridge', 'Deck', 'Engine', 'Cargo Operations'],
             ],
         ];
 
-        $response = $this->actingAs($user)
-            ->putJson(route('reports.audit-setup.update', $report->id), $payload);
+        $fieldsResponse = $this->actingAs($user)
+            ->putJson(route('reports.fields.update', $report->id), $fieldsPayload);
 
-        $response->assertOk()
+        $fieldsResponse->assertOk()
             ->assertJsonPath('status', 'saved')
-            ->assertJsonPath('report.audit_detail.audit_type', 'B')
-            ->assertJsonPath('report.audit_detail.lead_auditor', 'Capt. John Auditor');
+            ->assertJsonPath('report.port', 'Bojonegara Port')
+            ->assertJsonPath('report.master_name', 'Capt. Haddock')
+            ->assertJsonPath('summary_data.audit_type', 'B')
+            ->assertJsonPath('summary_data.lead_auditor', 'Capt. John Auditor');
 
-        // Check audit details
-        $this->assertDatabaseHas('audit_details', [
-            'report_id' => $report->id,
-            'audit_type' => 'B',
-            'lead_auditor' => 'Capt. John Auditor',
-        ]);
-
-        // Check report header fields
+        // Check report header fields persisted on reports table
         $this->assertDatabaseHas('reports', [
             'id' => $report->id,
             'port' => 'Bojonegara Port',
@@ -132,28 +136,38 @@ class AuditSetupTest extends TestCase
             'chief_engineer_name' => 'Eng. Calculus',
         ]);
 
-        // Check activities
-        $this->assertDatabaseCount('audit_activities', 4);
-        $this->assertDatabaseHas('audit_activities', [
-            'report_id' => $report->id,
-            'activity' => 'Cargo Operations',
-        ]);
+        // Check summary_data
+        $report->refresh();
+        $this->assertEquals('B', $report->summary_data['audit_type']);
+        $this->assertEquals('Capt. John Auditor', $report->summary_data['lead_auditor']);
+        $this->assertEquals(['Bridge', 'Deck', 'Engine', 'Cargo Operations'], $report->summary_data['activities_audited']);
 
-        // Check auditors
-        $this->assertDatabaseCount('auditors', 2);
-        $this->assertDatabaseHas('auditors', [
-            'report_id' => $report->id,
-            'name' => 'Capt. John Auditor',
-            'is_lead' => true,
-        ]);
+        // 2. Update audit team and auditees via PUT /datasets/audit_people
+        $datasetPayload = [
+            'rows' => [
+                ['name' => 'Capt. John Auditor', 'rank' => 'Lead Auditor', 'role' => 'Lead auditor', 'sort_order' => 1],
+                ['name' => 'Jane Tech', 'rank' => 'Technical Auditor', 'role' => 'Auditor', 'sort_order' => 2],
+                ['name' => 'Capt. Haddock', 'rank' => 'Master', 'role' => 'Auditee', 'sort_order' => 3],
+                ['name' => 'Eng. Calculus', 'rank' => 'Chief Engineer', 'role' => 'Auditee', 'sort_order' => 4],
+                ['name' => 'Tintin', 'rank' => 'Chief Officer', 'role' => 'Auditee', 'sort_order' => 5],
+            ],
+        ];
 
-        // Check auditees
-        $this->assertDatabaseCount('auditees', 3);
-        $this->assertDatabaseHas('auditees', [
-            'report_id' => $report->id,
-            'name' => 'Tintin',
-            'rank' => 'Chief Officer',
-        ]);
+        $datasetResponse = $this->actingAs($user)
+            ->putJson(route('reports.datasets.update', [$report->id, 'audit_people']), $datasetPayload);
+
+        $datasetResponse->assertOk()
+            ->assertJsonPath('status', 'saved')
+            ->assertJsonPath('dataset.dataset_key', 'audit_people');
+
+        $dataset = ReportDataset::where('report_id', $report->id)
+            ->where('dataset_key', 'audit_people')
+            ->firstOrFail();
+
+        $this->assertCount(5, $dataset->rows);
+        $names = array_column($dataset->rows, 'name');
+        $this->assertContains('Capt. John Auditor', $names);
+        $this->assertContains('Tintin', $names);
     }
 
     public function test_update_audit_setup_supports_other_audit_type(): void
@@ -161,28 +175,23 @@ class AuditSetupTest extends TestCase
         [$user, $report] = $this->createAuditReport();
 
         $payload = [
-            'audit_type' => 'D',
-            'audit_type_other' => 'Special Navigation Audit',
-            'lead_auditor' => 'Inspector Gadget',
-            'activities' => [
-                ['activity' => 'Bridge'],
+            'fields' => [
+                'audit_type' => 'D',
+                'audit_type_other' => 'Special Navigation Audit',
+                'lead_auditor' => 'Inspector Gadget',
+                'activities_audited' => ['Bridge'],
             ],
-            'auditors' => [
-                ['name' => 'Inspector Gadget', 'rank' => 'Senior Auditor', 'is_lead' => true],
-            ],
-            'auditees' => [],
         ];
 
         $response = $this->actingAs($user)
-            ->putJson(route('reports.audit-setup.update', $report->id), $payload);
+            ->putJson(route('reports.fields.update', $report->id), $payload);
 
         $response->assertOk();
 
-        $this->assertDatabaseHas('audit_details', [
-            'report_id' => $report->id,
-            'audit_type' => 'D',
-            'audit_type_other' => 'Special Navigation Audit',
-        ]);
+        $report->refresh();
+        $this->assertEquals('D', $report->summary_data['audit_type']);
+        $this->assertEquals('Special Navigation Audit', $report->summary_data['audit_type_other']);
+        $this->assertEquals('Inspector Gadget', $report->summary_data['lead_auditor']);
     }
 
     public function test_unauthorized_user_cannot_update_audit_setup(): void
@@ -191,40 +200,52 @@ class AuditSetupTest extends TestCase
         $stranger = User::factory()->create(['role' => 'vessel', 'is_active' => true, 'vessel_name' => 'Different Vessel']);
 
         $response = $this->actingAs($stranger)
-            ->putJson(route('reports.audit-setup.update', $report->id), [
-                'audit_type' => 'B',
+            ->putJson(route('reports.fields.update', $report->id), [
+                'fields' => [
+                    'audit_type' => 'B',
+                ],
             ]);
 
         $response->assertForbidden();
+
+        $datasetResponse = $this->actingAs($stranger)
+            ->putJson(route('reports.datasets.update', [$report->id, 'audit_people']), [
+                'rows' => [],
+            ]);
+
+        $datasetResponse->assertForbidden();
     }
 
     public function test_pdf_renderer_includes_audit_details_team_and_auditees(): void
     {
         [$user, $report] = $this->createAuditReport();
 
-        // Populate audit details
-        $report->auditDetail()->updateOrCreate(
-            ['report_id' => $report->id],
+        // Populate summary_data
+        $summary = $report->summary_data ?? [];
+        $summary['audit_type'] = 'A';
+        $summary['audit_end_date'] = '2026-10-16';
+        $summary['lead_auditor'] = 'Capt. Senior Lead';
+        $summary['activities_audited'] = ['Bridge', 'Deck', 'Engine'];
+        $summary['previous_audit_date'] = '2025-11-20';
+        $summary['previous_ncr_count'] = 2;
+        $summary['previous_observation_count'] = 5;
+        $summary['closeout_notes'] = 'All prior CAP items have been physically verified on board.';
+        $report->summary_data = $summary;
+        $report->save();
+
+        // Populate audit_people dataset
+        ReportDataset::updateOrCreate(
+            ['report_id' => $report->id, 'dataset_key' => 'audit_people'],
             [
-                'start_date' => '2026-10-15',
-                'end_date' => '2026-10-16',
-                'audit_type' => 'A',
-                'lead_auditor' => 'Capt. Senior Lead',
+                'rows' => [
+                    ['name' => 'Capt. Senior Lead', 'rank' => 'Lead Auditor', 'role' => 'Lead auditor', 'sort_order' => 1],
+                    ['name' => 'Capt. Shipmaster', 'rank' => 'Master', 'role' => 'Auditee', 'sort_order' => 2],
+                ],
+                'row_version' => 1,
             ]
         );
 
-        $report->auditors()->create([
-            'name' => 'Capt. Senior Lead',
-            'rank' => 'Lead Auditor',
-            'is_lead' => true,
-            'sort_order' => 1,
-        ]);
-
-        $report->auditees()->create([
-            'name' => 'Capt. Shipmaster',
-            'rank' => 'Master',
-            'sort_order' => 1,
-        ]);
+        $report->load('datasets');
 
         $renderer = app(ReportPdfRenderer::class);
         $html = $renderer->render($report);
@@ -235,5 +256,37 @@ class AuditSetupTest extends TestCase
         $this->assertStringContainsString('Auditees (Vessel Crew)', $html);
         $this->assertStringContainsString('Capt. Shipmaster', $html);
         $this->assertStringContainsString('Operation at Time of Audit', $html);
+        $this->assertStringContainsString('Follow-up from Previous Audit', $html);
+        $this->assertStringContainsString('20 November 2025', $html);
+        $this->assertStringContainsString('All prior CAP items have been physically verified on board.', $html);
+    }
+
+    public function test_auditor_can_update_previous_audit_fields(): void
+    {
+        [$user, $report] = $this->createAuditReport();
+
+        $payload = [
+            'fields' => [
+                'previous_audit_date' => '2025-11-20',
+                'previous_ncr_count' => 2,
+                'previous_observation_count' => 5,
+                'closeout_notes' => 'All prior CAP items have been physically verified on board.',
+            ],
+        ];
+
+        $response = $this->actingAs($user)
+            ->putJson(route('reports.fields.update', $report->id), $payload);
+
+        $response->assertOk()
+            ->assertJsonPath('status', 'saved')
+            ->assertJsonPath('summary_data.previous_audit_date', '2025-11-20')
+            ->assertJsonPath('summary_data.previous_ncr_count', 2)
+            ->assertJsonPath('summary_data.previous_observation_count', 5);
+
+        $report->refresh();
+        $this->assertEquals('2025-11-20', $report->summary_data['previous_audit_date']);
+        $this->assertEquals(2, $report->summary_data['previous_ncr_count']);
+        $this->assertEquals(5, $report->summary_data['previous_observation_count']);
+        $this->assertEquals('All prior CAP items have been physically verified on board.', $report->summary_data['closeout_notes']);
     }
 }

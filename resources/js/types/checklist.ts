@@ -208,46 +208,37 @@ export interface ReportData {
     summary_safety_meetings?: string | null;
     summary_participants?: string | null;
     summary_concept_understanding?: string | null;
-    summary_data?: (Record<string, any> & { photo_section_comments?: Record<string, string> }) | null;
-    audit_detail?: AuditDetailData | null;
-    auditees?: AuditeeData[];
-    auditors?: AuditorData[];
-    audit_activities?: AuditActivityData[];
+    summary_data?: (Record<string, any> & {
+        photo_section_comments?: Record<string, string>;
+        audit_type?: string;
+        audit_type_other?: string;
+        audit_end_date?: string;
+        lead_auditor?: string;
+        activities_audited?: string[];
+        previous_audit_date?: string;
+        previous_ncr_count?: number;
+        previous_observation_count?: number;
+        closeout_notes?: string;
+        positive_comments?: string;
+        negative_comments?: string;
+    }) | null;
+    datasets?: ReportDatasetData[];
 }
 
-export interface AuditDetailData {
+export interface ReportDatasetData {
     id?: number;
     report_id?: number;
-    start_date?: string | null;
-    end_date?: string | null;
-    audit_type?: string | null;
-    audit_type_other?: string | null;
-    lead_auditor?: string | null;
+    dataset_key: string;
+    rows: any[];
+    row_version: number;
+    client_save_id?: string | null;
+    updated_at?: string;
 }
 
-export interface AuditeeData {
-    id?: number;
-    report_id?: number;
+export interface AuditPersonRow {
     name: string;
     rank: string;
-    user_id?: number | null;
-    sort_order?: number;
-}
-
-export interface AuditorData {
-    id?: number;
-    report_id?: number;
-    name: string;
-    rank: string;
-    is_lead: boolean;
-    user_id?: number | null;
-    sort_order?: number;
-}
-
-export interface AuditActivityData {
-    id?: number;
-    report_id?: number;
-    activity: string;
+    role: string; // 'Lead auditor' | 'Auditor' | 'Auditee'
     sort_order?: number;
 }
 

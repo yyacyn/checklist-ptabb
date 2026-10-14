@@ -42,6 +42,12 @@ import {
     ReportChapterSidebar,
     ReportHeader,
 } from '@/components/reports';
+import {
+    AuditReportSection,
+    AuditDetailsPage,
+    AuditPeoplePage,
+    AuditPreviousPage,
+} from '@/components/reports/audit';
 import type {
     AnswerData,
     ConflictData,
@@ -180,7 +186,11 @@ export default function ReportDataEntry({
         } catch {
             // fallback
         }
-        return isPhotoForm ? -888 : 0;
+        if (isPhotoForm) return -888;
+        if (report.form.code === 'B-008') {
+            return report.groups[0]?.id ?? -100;
+        }
+        return 0;
     });
 
     // Photographic Records state (Task 5.3)
@@ -876,6 +886,7 @@ export default function ReportDataEntry({
                     {/* Left Sticky Chapter Navigation Sidebar */}
                     <ReportChapterSidebar
                         isPhotoForm={isPhotoForm}
+                        isB008={isB008}
                         photoChapterTitle={photoChapterTitle}
                         photos={photos}
                         activeChapterId={activeChapterId}
@@ -924,6 +935,12 @@ export default function ReportDataEntry({
                                     </div>
                                 )}
                             </div>
+                        ) : isB008 && (activeChapterId === -100 || activeChapterId === 0 || activeChapterId === -101 || activeChapterId === -102 || activeChapterId === -103) ? (
+                            <AuditReportSection
+                                report={report}
+                                isEditable={is_editable}
+                                onChapterSwitch={handleChapterSwitch}
+                            />
                         ) : activeChapterId === 0 ? (
                             <GeneralInfoSection
                                 report={report}
@@ -932,7 +949,7 @@ export default function ReportDataEntry({
                                     .find((g) => g.chapter_no === '1' || g.title === 'General Information')
                                     ?.subgroups?.find((sg) => sg.title.toLowerCase().includes('attendance'))}
                                 answers={answers}
-                                isB008={isB008}
+                                isB008={false}
                                 answerChoices={answerChoices}
                                 expandedGuidance={expandedGuidance}
                                 saveStatuses={saveStatuses}

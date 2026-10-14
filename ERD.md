@@ -305,89 +305,59 @@ stay manual (SRS section 2, REP-2).
 
 ---
 
-## 5. Diagram — Audit (B-008) specifics
+## 5. Diagram — Audit (B-008) Generic Datasets & Summary Data
+
+As of SRS v0.7 (§14.4), bespoke audit tables (`audit_details`, `auditors`, `auditees`, `audit_activities`, `audit_execution_log`, `auditee_evaluations`, etc.) are retired in favor of generic extensible storage:
+1. **Scalar fields** reside in `reports.summary_data` (JSON).
+2. **Repeating tabular datasets** reside in `report_datasets` (JSON rows with versioning and conflict detection).
 
 ```mermaid
 erDiagram
-    REPORTS ||--o{ AUDITEES : "has"
-    REPORTS ||--o{ AUDITORS : "has"
-    REPORTS ||--o{ AUDIT_ACTIVITIES : "has"
-    REPORTS ||--o| AUDIT_DETAILS : "has"
-    REPORTS ||--o| AUDIT_FOLLOWUP : "has"
-    REPORTS ||--o{ AUDIT_EXECUTION_LOG : "has"
-    AUDITEES ||--o{ AUDITEE_EVALUATIONS : "scored in"
-    REPORTS ||--o{ AUDITEE_EVALUATIONS : "has"
-    AUDITEE_EVALUATIONS ||--o{ AUDITEE_EVALUATION_SCORES : "seven criteria"
-    EVALUATION_CRITERIA ||--o{ AUDITEE_EVALUATION_SCORES : "defines"
-    USERS ||--o{ AUDITORS : "may link an account"
-    USERS ||--o{ AUDITEES : "may link an account"
+    REPORTS ||--o{ REPORT_DATASETS : "stores repeating tables"
 
-    AUDITEES {
+    REPORTS {
+        bigint id PK
+        string report_type "audit | inspection"
+        json summary_data "audit_type, audit_end_date, activities_audited, lead_auditor, previous_ncr_count, etc."
+        string port
+        string master_name
+        string chief_engineer_name
+        json operations
+    }
+    REPORT_DATASETS {
         bigint id PK
         bigint report_id FK
-        string name
-        string rank
-        bigint user_id FK "nullable"
-    }
-    AUDITORS {
-        bigint id PK
-        bigint report_id FK
-        string name
-        string rank
-        bool is_lead
-        bigint user_id FK "nullable"
-    }
-    AUDIT_ACTIVITIES {
-        bigint id PK
-        bigint report_id FK
-        string activity "Bridge|Deck|Engine|extra"
-        int sort_order
-    }
-    AUDIT_DETAILS {
-        bigint id PK
-        bigint report_id FK "unique"
-        date start_date
-        date end_date
-        string audit_type "A Internal|B Independent|C Unscheduled|D Other"
-        string audit_type_other
-    }
-    AUDIT_FOLLOWUP {
-        bigint id PK
-        bigint report_id FK "unique"
-        bigint previous_audit_id FK "nullable"
-        int previous_ncr_count
-        int previous_observation_count
-        text closeout_notes
-    }
-    AUDIT_EXECUTION_LOG {
-        bigint id PK
-        bigint report_id FK
-        string person_or_function
-        date log_date
-        time start_time
-        time end_time
-        text topics
-        int sort_order
-    }
-    AUDITEE_EVALUATIONS {
-        bigint id PK
-        bigint report_id FK
-        bigint auditee_id FK
-        string overall_status
-        bigint entered_by FK
-        datetime entered_at
-    }
-    AUDITEE_EVALUATION_SCORES {
-        bigint id PK
-        bigint evaluation_id FK
-        bigint criterion_id FK
-        tinyint score "1 to 5"
+        string dataset_key "audit_people | audit_evaluation | audit_execution_log"
+        json rows "array of structured row objects"
+        int row_version "concurrency control (NFR-15)"
+        string client_save_id "idempotent retry token (NFR-2)"
+        datetime created_at
+        datetime updated_at
     }
 ```
 
-Evaluation scores are the most sensitive rows in the database: readable only by the audit
-authors and Corporate Users (SRS section 2). Enforced in one policy, plus a database
-constraint that `criterion_id` belongs to the audit's own form.
+### Dataset Schemas (`report_datasets.rows`)
+
+| Dataset Key | Row Schema | Description |
+|---|---|---|
+| `audit_people` | `{ name: string, rank: string, role: string, sort_order?: int }` | Combined audit team (role: `Lead auditor` / `Auditor`) and vessel crew interviewed (role: `Auditee`). |
+| `audit_evaluation` | `{ name: string, rank: string, scores: Record<string, number>, overall_status?: string, sort_order?: int }` | Auditee evaluations (1 to 5 scoring against 7 criteria). Access restricted to report author and corporate managers (SRS §2, §14.4). |
+| `audit_execution_log` | `{ person_or_function: string, date?: string, start_time?: string, end_time?: string, topics?: string, sort_order?: int }` | Timetable and scope log of audit execution across vessel areas. |
+
+### Scalar Fields (`reports.summary_data`)
+
+| Key | Type | Description |
+|---|---|---|
+| `audit_type` | `string` | Single-letter code: `'A'` (Internal), `'B'` (Independent), `'C'` (Unscheduled), `'D'` (Other). |
+| `audit_type_other` | `string` | Description if `audit_type === 'D'`. |
+| `audit_end_date` | `string` | Closing date of the audit (`YYYY-MM-DD`). |
+| `lead_auditor` | `string` | Primary lead auditor name (kept in sync with `audit_people`). |
+| `activities_audited` | `string[]` | Operational areas audited (default: `['Bridge', 'Deck', 'Engine']`). |
+| `previous_ncr_count` | `int` | Number of NCRs from previous audit (AUD-4). |
+| `previous_observation_count` | `int` | Number of observations from previous audit (AUD-4). |
+| `previous_audit_date` | `string` | Date of previous audit. |
+| `positive_comments` | `string` | Narrative commendations / strengths (AUD-4). |
+| `other_comments` | `string` | Overall audit summary narrative (AUD-4). |
 
 ---
 

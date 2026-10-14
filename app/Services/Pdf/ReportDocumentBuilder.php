@@ -5,6 +5,7 @@ namespace App\Services\Pdf;
 use App\Models\Report;
 use App\Models\ReportGroup;
 use App\Models\ReportQuestion;
+use Illuminate\Support\Carbon;
 use InvalidArgumentException;
 
 /**
@@ -33,6 +34,7 @@ class ReportDocumentBuilder
             'findings' => fn ($q) => $q->orderBy('id'),
             'photos' => fn ($q) => $q->orderBy('item_no')->orderBy('sort_order')->orderBy('id'),
             'photos.category',
+            'datasets',
         ]);
 
         // 2. Fetch all groups and questions in 2 bulk queries
@@ -249,11 +251,31 @@ class ReportDocumentBuilder
             $additionalPhotos = $photosData;
         }
 
-        // 5b. Audit particulars normalization (B-008, Task 7.1)
-        $auditDetail = $report->auditDetail;
-        $auditees = $report->auditees ?? collect();
-        $auditors = $report->auditors ?? collect();
-        $auditActivities = $report->auditActivities ?? collect();
+        // 5b. Audit particulars normalization (B-008, SRS 14.4, Task 7.2)
+        $summary = $report->summary_data ?? [];
+        $datasets = $report->relationLoaded('datasets') ? $report->datasets : $report->datasets()->get();
+        $auditPeopleDataset = $datasets->firstWhere('dataset_key', 'audit_people');
+        $peopleRows = $auditPeopleDataset?->rows ?? [];
+
+        $auditors = [];
+        $auditees = [];
+        foreach ($peopleRows as $person) {
+            $roleLower = strtolower($person['role'] ?? '');
+            if (str_contains($roleLower, 'auditor')) {
+                $auditors[] = [
+                    'name' => $person['name'] ?? '',
+                    'rank' => $person['rank'] ?? '',
+                    'role' => $person['role'] ?? 'Auditor',
+                    'is_lead' => $roleLower === 'lead auditor' || $roleLower === 'lead_auditor' || ! empty($person['is_lead']),
+                ];
+            } else {
+                $auditees[] = [
+                    'name' => $person['name'] ?? '',
+                    'rank' => $person['rank'] ?? '',
+                    'role' => $person['role'] ?? 'Auditee',
+                ];
+            }
+        }
 
         $auditTypeLabels = [
             'A' => 'A - Internal',
@@ -261,30 +283,29 @@ class ReportDocumentBuilder
             'C' => 'C - Unscheduled',
             'D' => 'D - Other',
         ];
-        $rawAuditType = $auditDetail?->audit_type;
+        $rawAuditType = $summary['audit_type'] ?? 'A';
         $auditTypeLabel = $auditTypeLabels[$rawAuditType] ?? $rawAuditType ?? 'A - Internal';
 
+        $startDateStr = $report->report_date?->format('d F Y');
+        $endDateRaw = $summary['audit_end_date'] ?? $report->report_date?->toDateString();
+        $endDateStr = $endDateRaw ? Carbon::parse($endDateRaw)->format('d F Y') : $startDateStr;
+
         $auditData = [
-            'start_date' => $auditDetail?->start_date?->format('d F Y'),
-            'end_date' => $auditDetail?->end_date?->format('d F Y'),
-            'start_date_raw' => $auditDetail?->start_date?->toDateString(),
-            'end_date_raw' => $auditDetail?->end_date?->toDateString(),
+            'start_date' => $startDateStr,
+            'end_date' => $endDateStr,
+            'start_date_raw' => $report->report_date?->toDateString(),
+            'end_date_raw' => $endDateRaw,
             'audit_type' => $rawAuditType,
             'audit_type_label' => $auditTypeLabel,
-            'audit_type_other' => $auditDetail?->audit_type_other,
-            'lead_auditor' => $auditDetail?->lead_auditor,
-            'activities' => $auditActivities->pluck('activity')->all(),
-            'auditees' => $auditees->map(fn ($a) => [
-                'id' => $a->id,
-                'name' => $a->name,
-                'rank' => $a->rank,
-            ])->all(),
-            'auditors' => $auditors->map(fn ($a) => [
-                'id' => $a->id,
-                'name' => $a->name,
-                'rank' => $a->rank,
-                'is_lead' => (bool) $a->is_lead,
-            ])->all(),
+            'audit_type_other' => $summary['audit_type_other'] ?? null,
+            'lead_auditor' => $summary['lead_auditor'] ?? null,
+            'activities' => $summary['activities_audited'] ?? ['Bridge', 'Deck', 'Engine'],
+            'auditees' => $auditees,
+            'auditors' => $auditors,
+            'previous_audit_date' => $summary['previous_audit_date'] ?? null,
+            'previous_ncr_count' => $summary['previous_ncr_count'] ?? 0,
+            'previous_observation_count' => $summary['previous_observation_count'] ?? 0,
+            'closeout_notes' => $summary['closeout_notes'] ?? null,
         ];
 
         // 6. Summary ratings matrix

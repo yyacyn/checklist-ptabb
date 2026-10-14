@@ -58,18 +58,43 @@ class ReportSnapshot
             }
 
             if ($reportType === 'audit') {
-                $report->auditDetail()->create([
-                    'start_date' => $reportDate,
-                    'end_date' => $reportDate,
-                    'audit_type' => 'A',
-                ]);
+                $summary = $report->summary_data ?? [];
+                $summary['audit_type'] = $summary['audit_type'] ?? 'A';
+                $summary['audit_end_date'] = $summary['audit_end_date'] ?? $reportDate;
+                $summary['activities_audited'] = $summary['activities_audited'] ?? ['Bridge', 'Deck', 'Engine'];
+                $summary['lead_auditor'] = $summary['lead_auditor'] ?? ($report->inspected_by ?? '');
+                $report->update(['summary_data' => $summary]);
 
-                foreach (['Bridge', 'Deck', 'Engine'] as $idx => $act) {
-                    $report->auditActivities()->create([
-                        'activity' => $act,
-                        'sort_order' => $idx + 1,
-                    ]);
+                $people = [
+                    [
+                        'name' => $report->inspected_by ?? '',
+                        'rank' => 'Lead Auditor',
+                        'role' => 'Lead auditor',
+                        'sort_order' => 1,
+                    ],
+                ];
+                if (! empty($report->master_name)) {
+                    $people[] = [
+                        'name' => $report->master_name,
+                        'rank' => 'Master',
+                        'role' => 'Auditee',
+                        'sort_order' => 2,
+                    ];
                 }
+                if (! empty($report->chief_engineer_name)) {
+                    $people[] = [
+                        'name' => $report->chief_engineer_name,
+                        'rank' => 'Chief Engineer',
+                        'role' => 'Auditee',
+                        'sort_order' => 3,
+                    ];
+                }
+
+                $report->datasets()->create([
+                    'dataset_key' => 'audit_people',
+                    'rows' => $people,
+                    'row_version' => 1,
+                ]);
             }
 
             return $report;

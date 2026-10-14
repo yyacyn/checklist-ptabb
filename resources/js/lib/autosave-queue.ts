@@ -15,13 +15,16 @@ const STORE_NAME = 'save_queue';
 export interface QueuedSaveItem {
     client_save_id: string;
     report_id: number;
-    question_id: number;
+    question_id?: number;
     endpoint: string;
+    method?: string;
     payload: {
         answer?: string | null;
         note?: string | null;
         extra_value?: string | null;
         client_save_id: string;
+        base_row_version?: number | null;
+        [key: string]: any;
     };
     timestamp: number;
     attempts: number;
@@ -86,19 +89,34 @@ export async function enqueueSave(item: QueuedSaveItem): Promise<void> {
             const tx = db.transaction(STORE_NAME, 'readwrite');
             const store = tx.objectStore(STORE_NAME);
 
-            // Deduplicate: check if an older unacknowledged save exists for the same question
-            const index = store.index('question_id');
-            const req = index.getAll(item.question_id);
+            // Deduplicate: check if an older unacknowledged save exists for the same question or endpoint
+            if (item.question_id) {
+                const index = store.index('question_id');
+                const req = index.getAll(item.question_id);
 
-            req.onsuccess = () => {
-                const existing = (req.result || []) as QueuedSaveItem[];
-                for (const oldItem of existing) {
-                    if (oldItem.report_id === item.report_id && oldItem.client_save_id !== item.client_save_id) {
-                        store.delete(oldItem.client_save_id);
+                req.onsuccess = () => {
+                    const existing = (req.result || []) as QueuedSaveItem[];
+                    for (const oldItem of existing) {
+                        if (oldItem.report_id === item.report_id && oldItem.client_save_id !== item.client_save_id) {
+                            store.delete(oldItem.client_save_id);
+                        }
                     }
-                }
-                store.put(item);
-            };
+                    store.put(item);
+                };
+            } else {
+                const index = store.index('report_id');
+                const req = index.getAll(item.report_id);
+
+                req.onsuccess = () => {
+                    const existing = (req.result || []) as QueuedSaveItem[];
+                    for (const oldItem of existing) {
+                        if (oldItem.endpoint === item.endpoint && oldItem.client_save_id !== item.client_save_id) {
+                            store.delete(oldItem.client_save_id);
+                        }
+                    }
+                    store.put(item);
+                };
+            }
 
             tx.oncomplete = () => resolve();
             tx.onerror = () => reject(tx.error);
@@ -196,8 +214,9 @@ export async function flushSaveQueue(
 
         for (const item of pending) {
             try {
+                const method = item.method || 'POST';
                 const response = await fetch(item.endpoint, {
-                    method: 'POST',
+                    method,
                     headers: {
                         'Content-Type': 'application/json',
                         'Accept': 'application/json',

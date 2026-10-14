@@ -496,7 +496,7 @@ class FormSeeder extends Seeder
                 ['type' => 'cover', 'title_key' => 'audit_report'],
                 [
                     'type' => 'audit_header',
-                    'title' => 'General Information',
+                    'title' => "VESSEL'S AUDIT REPORT",
                     'components' => ['vessel_particulars', 'operations_grid', 'followup'],
                 ],
                 [
