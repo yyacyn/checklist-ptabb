@@ -98,11 +98,11 @@ export function AuditPreviousPage({
             <AuditPageNav activeChapterId={-103} onChapterSwitch={onChapterSwitch} />
 
             {/* Quick Stat Highlights */}
-            <div className="grid grid-cols-1 sm:grid-cols-3 gap-4">
+            <div className="grid grid-cols-1 sm:grid-cols-3 gap-3">
                 <Card className="bg-card">
-                    <CardContent className="p-4 flex items-center gap-3">
+                    <CardContent className="p-3.5 flex items-center gap-3">
                         <div className="size-9 rounded-lg bg-primary/10 text-primary flex items-center justify-center shrink-0">
-                            <Calendar className="size-5" />
+                            <Calendar className="size-4" />
                         </div>
                         <div className="min-w-0">
                             <span className="text-[11px] text-muted-foreground block">
@@ -118,9 +118,9 @@ export function AuditPreviousPage({
                 </Card>
 
                 <Card className="bg-card">
-                    <CardContent className="p-4 flex items-center gap-3">
+                    <CardContent className="p-3.5 flex items-center gap-3">
                         <div className="size-9 rounded-lg bg-rose-50 text-rose-600 dark:bg-rose-950/40 flex items-center justify-center shrink-0">
-                            <ShieldAlert className="size-5" />
+                            <ShieldAlert className="size-4" />
                         </div>
                         <div className="min-w-0">
                             <span className="text-[11px] text-muted-foreground block">
@@ -134,9 +134,9 @@ export function AuditPreviousPage({
                 </Card>
 
                 <Card className="bg-card">
-                    <CardContent className="p-4 flex items-center gap-3">
+                    <CardContent className="p-3.5 flex items-center gap-3">
                         <div className="size-9 rounded-lg bg-amber-50 text-amber-600 dark:bg-amber-950/40 flex items-center justify-center shrink-0">
-                            <ShieldCheck className="size-5" />
+                            <ShieldCheck className="size-4" />
                         </div>
                         <div className="min-w-0">
                             <span className="text-[11px] text-muted-foreground block">

@@ -8,6 +8,7 @@ use App\Models\FormGroup;
 use App\Models\Report;
 use App\Models\ReportGroup;
 use App\Models\ReportQuestion;
+use Database\Seeders\FormSeeder;
 use Illuminate\Support\Facades\DB;
 
 class ReportSnapshot
@@ -63,6 +64,28 @@ class ReportSnapshot
                 $summary['audit_end_date'] = $summary['audit_end_date'] ?? $reportDate;
                 $summary['activities_audited'] = $summary['activities_audited'] ?? ['Bridge', 'Deck', 'Engine'];
                 $summary['lead_auditor'] = $summary['lead_auditor'] ?? ($report->inspected_by ?? '');
+
+                // Copy the criteria into summary_data.evaluation_criteria when the audit is created (AUD-11, Task 7.6)
+                if (empty($summary['evaluation_criteria'])) {
+                    $criteria = $form->evaluationCriteria()->orderBy('sort_order')->get();
+                    if ($criteria->isNotEmpty()) {
+                        $summary['evaluation_criteria'] = $criteria->map(fn ($c) => [
+                            'criterion_key' => $c->criterion_key,
+                            'label' => $c->label,
+                            'description' => $c->description,
+                            'sort_order' => $c->sort_order,
+                        ])->values()->all();
+                    } else {
+                        $summary['evaluation_criteria'] = FormSeeder::defaultEvaluationCriteria();
+                    }
+                    if (! isset($summary['positive_comments'])) {
+                        $summary['positive_comments'] = '';
+                    }
+                    if (! isset($summary['negative_comments'])) {
+                        $summary['negative_comments'] = '';
+                    }
+                }
+
                 $report->update(['summary_data' => $summary]);
 
                 $people = [
@@ -93,6 +116,52 @@ class ReportSnapshot
                 $report->datasets()->create([
                     'dataset_key' => 'audit_people',
                     'rows' => $people,
+                    'row_version' => 1,
+                ]);
+
+                // AUD-11, Task 7.6: Initial at least 4 auditee evaluation rows
+                $evalRows = [];
+                $auditeesFromPeople = array_values(array_filter($people, fn ($p) => strtolower($p['role'] ?? '') === 'auditee'));
+                foreach ($auditeesFromPeople as $idx => $aud) {
+                    $evalRows[] = [
+                        'name' => $aud['name'] ?? '',
+                        'rank' => $aud['rank'] ?? '',
+                        'scores' => (object) [],
+                        'overall_status' => 'Satisfactory',
+                        'sort_order' => $idx + 1,
+                    ];
+                }
+                $defaultRanks = ['Chief Officer', 'Second Engineer', 'Third Officer', 'Third Engineer'];
+                while (count($evalRows) < 4) {
+                    $nextIndex = count($evalRows);
+                    $evalRows[] = [
+                        'name' => '',
+                        'rank' => $defaultRanks[$nextIndex] ?? 'Officer/Crew',
+                        'scores' => (object) [],
+                        'overall_status' => '',
+                        'sort_order' => $nextIndex + 1,
+                    ];
+                }
+
+                $report->datasets()->create([
+                    'dataset_key' => 'audit_evaluation',
+                    'rows' => $evalRows,
+                    'row_version' => 1,
+                ]);
+
+                // AUD-12, Task 7.7: Initial audit execution timetable log
+                $report->datasets()->create([
+                    'dataset_key' => 'audit_execution_log',
+                    'rows' => [
+                        [
+                            'person_or_function' => 'Opening Meeting & SMS Review',
+                            'date' => $report->report_date?->toDateString() ?? date('Y-m-d'),
+                            'start_time' => '09:00',
+                            'end_time' => '10:00',
+                            'topics' => 'Opening meeting with Master and senior officers. Audit scope, methodology, and timetable confirmation.',
+                            'sort_order' => 1,
+                        ],
+                    ],
                     'row_version' => 1,
                 ]);
             }

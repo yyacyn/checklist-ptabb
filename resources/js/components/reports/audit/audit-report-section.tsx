@@ -10,6 +10,7 @@ import {
     Compass,
     History,
     Plus,
+    ShieldAlert,
     Ship,
     Users,
 } from 'lucide-react';
@@ -582,11 +583,11 @@ export function AuditReportSection({
 
             {/* 6. Follow-up from Previous Audit */}
             <div className="space-y-4">
-                <div className="grid grid-cols-1 sm:grid-cols-3 gap-4">
+                <div className="grid grid-cols-1 sm:grid-cols-3 gap-3">
                     <Card className="bg-card">
-                        <CardContent className="p-4 flex items-center gap-3">
+                        <CardContent className="p-3.5 flex items-center gap-3">
                             <div className="size-9 rounded-lg bg-primary/10 text-primary flex items-center justify-center shrink-0">
-                                <Calendar className="size-5" />
+                                <Calendar className="size-4" />
                             </div>
                             <div className="min-w-0">
                                 <span className="text-[11px] text-muted-foreground block">
@@ -602,9 +603,9 @@ export function AuditReportSection({
                     </Card>
 
                     <Card className="bg-card">
-                        <CardContent className="p-4 flex items-center gap-3">
+                        <CardContent className="p-3.5 flex items-center gap-3">
                             <div className="size-9 rounded-lg bg-rose-50 text-rose-600 dark:bg-rose-950/40 flex items-center justify-center shrink-0">
-                                <AlertCircle className="size-5" />
+                                <AlertCircle className="size-4" />
                             </div>
                             <div className="min-w-0">
                                 <span className="text-[11px] text-muted-foreground block">
@@ -618,9 +619,9 @@ export function AuditReportSection({
                     </Card>
 
                     <Card className="bg-card">
-                        <CardContent className="p-4 flex items-center gap-3">
+                        <CardContent className="p-3.5 flex items-center gap-3">
                             <div className="size-9 rounded-lg bg-amber-50 text-amber-600 dark:bg-amber-950/40 flex items-center justify-center shrink-0">
-                                <CheckCircle2 className="size-5" />
+                                <CheckCircle2 className="size-4" />
                             </div>
                             <div className="min-w-0">
                                 <span className="text-[11px] text-muted-foreground block">
@@ -647,20 +648,95 @@ export function AuditReportSection({
                 />
             </div>
 
+            {/* 7. Current Audit Results (Form B-008, AUD-9) */}
+            {(() => {
+                const currentFindings = report.findings || [];
+                const currentNcrCount = currentFindings.filter((f) => f.finding_kind === 'non_conformity').length;
+                const currentObsCount = currentFindings.filter((f) => f.finding_kind === 'observation').length;
+
+                return (
+                    <div className="space-y-3">
+                        <div className="flex items-center justify-between">
+                            <div>
+                                <h4 className="text-sm font-semibold flex items-center gap-2 text-foreground">
+                                    <ShieldAlert className="size-4 text-primary" />
+                                    <span>Audit Results (Current Audit)</span>
+                                </h4>
+                                <p className="text-xs text-muted-foreground">
+                                    Summary of non-conformities and observations raised during this audit.
+                                </p>
+                            </div>
+                            {onChapterSwitch && (
+                                <Button
+                                    type="button"
+                                    variant="outline"
+                                    size="sm"
+                                    onClick={() => onChapterSwitch(-999)}
+                                    className="text-xs h-8 flex items-center gap-1.5"
+                                >
+                                    <span>Open Findings Register</span>
+                                    <ChevronRight className="size-3.5" />
+                                </Button>
+                            )}
+                        </div>
+
+                        <div className="grid grid-cols-1 sm:grid-cols-2 gap-4">
+                            <Card className="bg-card border-2 border-rose-200 dark:border-rose-950/60 shadow-xs">
+                                <CardContent className="p-3.5 flex items-center gap-3">
+                                    <div className="size-9 rounded-lg bg-rose-100 text-rose-700 dark:bg-rose-950/60 dark:text-rose-400 flex items-center justify-center shrink-0">
+                                        <AlertCircle className="size-5" />
+                                    </div>
+                                    <div className="min-w-0">
+                                        <span className="text-[11px] font-semibold text-muted-foreground uppercase tracking-wider block">
+                                            Number of Non-Conformities (NCs)
+                                        </span>
+                                        <span className="text-2xl font-bold text-foreground">
+                                            {currentNcrCount}
+                                        </span>
+                                    </div>
+                                </CardContent>
+                            </Card>
+
+                            <Card className="bg-card border-2 border-amber-200 dark:border-amber-950/60 shadow-xs">
+                                <CardContent className="p-3.5 flex items-center gap-3">
+                                    <div className="size-9 rounded-lg bg-amber-100 text-amber-700 dark:bg-amber-950/60 dark:text-amber-400 flex items-center justify-center shrink-0">
+                                        <CheckCircle2 className="size-5" />
+                                    </div>
+                                    <div className="min-w-0">
+                                        <span className="text-[11px] font-semibold text-muted-foreground uppercase tracking-wider block">
+                                            Number of Observations
+                                        </span>
+                                        <span className="text-2xl font-bold text-foreground">
+                                            {currentObsCount}
+                                        </span>
+                                    </div>
+                                </CardContent>
+                            </Card>
+                        </div>
+                    </div>
+                );
+            })()}
+
             {/* Bottom Navigation */}
             {onChapterSwitch && (
                 <div className="flex justify-between items-center pt-4 border-t">
-                    <span className="text-xs text-muted-foreground">
-                        End of Vessel Audit Report details.
-                    </span>
                     <Button
                         type="button"
                         variant="outline"
-                        onClick={() => onChapterSwitch(report.groups[0]?.id ?? 0)}
+                        onClick={() => onChapterSwitch(-999)}
                         className="flex items-center gap-1.5"
                     >
                         <ChevronLeft className="size-4" />
-                        <span>Back to Checklist Questions</span>
+                        <span>Back: Summary &amp; Findings</span>
+                    </Button>
+                    <Button
+                        type="button"
+                        variant="default"
+                        onClick={() => onChapterSwitch(-104)}
+                        className="flex items-center gap-1.5"
+                    >
+                        <span>Next: Evaluation &amp; Execution</span>
+                        <ChevronRight className="size-4" />
                     </Button>
                 </div>
             )}

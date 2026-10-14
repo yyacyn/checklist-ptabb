@@ -5,6 +5,7 @@ namespace Tests\Feature;
 use App\Models\Finding;
 use App\Models\Form;
 use App\Models\User;
+use App\Services\Pdf\ReportDocumentBuilder;
 use App\Services\ReportSnapshot;
 use Database\Seeders\FormSeeder;
 use Illuminate\Foundation\Testing\RefreshDatabase;
@@ -378,5 +379,126 @@ class FindingManagementTest extends TestCase
             ->has('findings.data', 1)
             ->where('findings.data.0.risk', 'low')
         );
+    }
+
+    public function test_audit_findings_auto_generate_finding_numbers_and_issue_dates(): void
+    {
+        $vesselUser = User::factory()->create([
+            'role' => 'vessel',
+            'vessel_name' => 'MT Star Pioneer',
+            'is_active' => true,
+        ]);
+
+        $form = Form::where('code', 'B-008')->firstOrFail();
+        $report = app(ReportSnapshot::class)->createReport($form, [
+            'vessel_name' => 'MT Star Pioneer',
+            'report_date' => now()->toDateString(),
+            'created_by' => $vesselUser->id,
+            'status' => 'draft',
+        ]);
+
+        // 1. Create first non_conformity without finding_no and issue_date
+        $res1 = $this->actingAs($vesselUser)->postJson(route('reports.findings.store', $report->id), [
+            'finding_kind' => 'non_conformity',
+            'description' => 'First non-conformity finding on bridge procedures.',
+            'risk' => 'high',
+        ]);
+        $res1->assertCreated();
+        $this->assertEquals('NC-01', $res1->json('finding.finding_no'));
+        $this->assertStringStartsWith(now()->toDateString(), $res1->json('finding.issue_date'));
+
+        // 2. Create second non_conformity
+        $res2 = $this->actingAs($vesselUser)->postJson(route('reports.findings.store', $report->id), [
+            'finding_kind' => 'non_conformity',
+            'description' => 'Second non-conformity finding on cargo operations.',
+            'risk' => 'medium',
+        ]);
+        $res2->assertCreated();
+        $this->assertEquals('NC-02', $res2->json('finding.finding_no'));
+
+        // 3. Create first observation
+        $res3 = $this->actingAs($vesselUser)->postJson(route('reports.findings.store', $report->id), [
+            'finding_kind' => 'observation',
+            'description' => 'First observation regarding galley cleanliness.',
+            'risk' => 'low',
+        ]);
+        $res3->assertCreated();
+        $this->assertEquals('OBS-01', $res3->json('finding.finding_no'));
+
+        // 4. Create explicit custom finding number & issue date
+        $res4 = $this->actingAs($vesselUser)->postJson(route('reports.findings.store', $report->id), [
+            'finding_no' => 'CUSTOM-99',
+            'issue_date' => '2026-05-15',
+            'finding_kind' => 'observation',
+            'description' => 'Specific custom finding.',
+        ]);
+        $res4->assertCreated();
+        $this->assertEquals('CUSTOM-99', $res4->json('finding.finding_no'));
+        $this->assertStringStartsWith('2026-05-15', $res4->json('finding.issue_date'));
+    }
+
+    public function test_audit_summary_pdf_contains_b008_results_table_and_hides_ratings_matrix(): void
+    {
+        $corporate = User::factory()->create([
+            'role' => 'corporate',
+            'is_active' => true,
+        ]);
+
+        $form = Form::where('code', 'B-008')->firstOrFail();
+        $report = app(ReportSnapshot::class)->createReport($form, [
+            'vessel_name' => 'MT Star Pioneer',
+            'report_date' => now()->toDateString(),
+            'created_by' => $corporate->id,
+            'status' => 'draft',
+        ]);
+
+        Finding::create([
+            'report_id' => $report->id,
+            'finding_no' => 'NC-01',
+            'finding_kind' => 'non_conformity',
+            'issue_date' => '2026-10-10',
+            'description' => 'Bridge passage plan not updated.',
+            'target_date' => '2026-11-10',
+            'finding_status' => 'open',
+        ]);
+
+        Finding::create([
+            'report_id' => $report->id,
+            'finding_no' => 'OBS-01',
+            'finding_kind' => 'observation',
+            'issue_date' => '2026-10-12',
+            'description' => 'Lifeboat muster drill signage fading.',
+            'target_date' => '2026-10-25',
+            'finding_status' => 'open',
+        ]);
+
+        $docBuilder = app(ReportDocumentBuilder::class);
+        $doc = $docBuilder->build($report);
+
+        // Assert builder counts
+        $this->assertEquals(1, $doc['summary']['counts']['ncr']);
+        $this->assertEquals(1, $doc['summary']['counts']['observation']);
+        $this->assertEquals(1, $doc['audit']['current_ncr_count']);
+        $this->assertEquals(1, $doc['audit']['current_observation_count']);
+        $this->assertFalse($doc['summary']['has_ratings_matrix']);
+
+        // Render blade view
+        $html = view('pdf.sections.audit_summary', [
+            'report' => $report,
+            'doc' => $doc,
+            'config' => ['type' => 'audit_summary'],
+        ])->render();
+
+        $this->assertStringContainsString('Number of Non-Conformities:', $html);
+        $this->assertStringContainsString('Number of Observations:', $html);
+        $this->assertStringContainsString('LIST OF NON-CONFORMITIES AND OBSERVATIONS', $html);
+        $this->assertStringContainsString('N/C ID NUMBER', $html);
+        $this->assertStringContainsString('DATE ISSUED', $html);
+        $this->assertStringContainsString('BRIEF DESCRIPTION', $html);
+        $this->assertStringContainsString('CLOSE OUT TARGET DATE', $html);
+        $this->assertStringContainsString('NC-01', $html);
+        $this->assertStringContainsString('OBS-01', $html);
+        $this->assertStringContainsString('Bridge passage plan not updated.', $html);
+        $this->assertStringNotContainsString('ratings-table', $html);
     }
 }

@@ -2,6 +2,7 @@ import {
     Calendar,
     Camera,
     CheckCircle2,
+    ClipboardCheck,
     FileCheck,
     History,
     Info,
@@ -258,6 +259,37 @@ export function ReportChapterSidebar({
                             </div>
                             <div className="text-[11px] text-muted-foreground pl-5 truncate">
                                 Particulars, Operations, People & Follow-up
+                            </div>
+                        </button>
+                    )}
+
+                    {/* B-008: Auditee Evaluation (Task 7.6, AUD-11) */}
+                    {isB008 && (
+                        <button
+                            type="button"
+                            onClick={() => onChapterSwitch(-104)}
+                            className={`w-full text-left rounded-lg p-3 transition-all flex flex-col gap-1.5 ${
+                                activeChapterId === -104
+                                    ? 'bg-card border-2 border-primary shadow-xs ring-1 ring-primary/20'
+                                    : 'border border-transparent hover:bg-card/70'
+                            }`}
+                        >
+                            <div className="flex items-start justify-between gap-2">
+                                <div className="flex items-center gap-1.5 min-w-0">
+                                    <ClipboardCheck className="size-4 text-primary shrink-0" />
+                                    <span className="font-semibold text-xs text-foreground truncate">
+                                        Evaluation &amp; Execution
+                                    </span>
+                                </div>
+                                <Badge
+                                    variant="outline"
+                                    className="text-[10px] shrink-0 font-medium bg-amber-50 text-amber-800 border-amber-300 dark:bg-amber-950/40 dark:text-amber-300"
+                                >
+                                    Confidential
+                                </Badge>
+                            </div>
+                            <div className="text-[11px] text-muted-foreground pl-5 truncate">
+                                SMS scoring, execution log &amp; comments
                             </div>
                         </button>
                     )}

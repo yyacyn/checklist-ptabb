@@ -1,7 +1,8 @@
 @php
     $chapterNo = $config['chapter_no'] ?? '18';
-    $title = $config['title'] ?? 'Audit Summary & NCRs';
+    $title = $config['title'] ?? 'Audit Results';
     $findings = $doc['findings'] ?? [];
+    $hasRatingsMatrix = $config['has_ratings_matrix'] ?? ($doc['summary']['has_ratings_matrix'] ?? false);
 
     $ratings = $doc['summary']['ratings'] ?? [];
     $ratingOptions = $doc['summary']['rating_options'] ?? [
@@ -9,71 +10,85 @@
         ['value' => 'satisfactory', 'label' => 'Satisfactory'],
         ['value' => 'unsatisfactory', 'label' => 'Unsatisfactory'],
     ];
+
+    $ncrCount = $doc['audit']['current_ncr_count'] ?? $doc['summary']['counts']['ncr'] ?? 0;
+    $obsCount = $doc['audit']['current_observation_count'] ?? $doc['summary']['counts']['observation'] ?? 0;
 @endphp
 
 <div class="section page-break-before">
   <h3 class="chapter-header">{!! $title !!}</h3>
+
+  {{-- Audit Results Counts (Form B-008, AUD-9) --}}
+  <table class="particulars-table" style="width: 50%; margin-bottom: 12pt;">
+    <tr>
+      <td class="field-label" style="width: 70%;">Number of Non-Conformities:</td>
+      <td class="field-value" style="font-weight: bold; width: 30%;">{{ $ncrCount }}</td>
+    </tr>
+    <tr>
+      <td class="field-label" style="width: 70%;">Number of Observations:</td>
+      <td class="field-value" style="font-weight: bold; width: 30%;">{{ $obsCount }}</td>
+    </tr>
+  </table>
+
+  {{-- List of Non-Conformities and Observations (AUD-9, AUD-10) --}}
+  <h4 class="subsection-title" style="margin-top: 10pt; margin-bottom: 4pt;">LIST OF NON-CONFORMITIES AND OBSERVATIONS</h4>
   <table class="findings-table">
     <thead>
       <tr>
-        <th style="width: 28px;">No.</th>
-        <th style="width: 85px;">Chapter</th>
-        <th style="width: 85px;">VIQ / Paragraph</th>
-        <th>Description</th>
-        <th style="width: 60px;">Risk</th>
-        <th style="width: 70px;">Job Order No.</th>
-        <th style="width: 80px;">Target Date</th>
+        <th style="width: 110px;">N/C ID NUMBER</th>
+        <th style="width: 90px;">DATE ISSUED</th>
+        <th>BRIEF DESCRIPTION</th>
+        <th style="width: 120px;">CLOSE OUT TARGET DATE</th>
       </tr>
     </thead>
     <tbody>
-      @forelse($findings as $idx => $f)
+      @forelse($findings as $f)
         <tr>
-          <td class="text-center">{{ $f['finding_no'] ?: ($idx + 1) }}</td>
-          <td>{{ $f['chapter_label'] }}</td>
-          <td>{{ $f['viq_paragraph'] }}</td>
+          <td class="text-center" style="font-weight: bold;">{{ $f['finding_no'] ?: ($f['finding_kind'] === 'non_conformity' ? 'NC' : 'OBS') }}</td>
+          <td class="text-center">{{ $f['issue_date'] ?: '—' }}</td>
           <td>{!! nl2br(e($f['description'])) !!}</td>
-          <td class="text-center">{{ $f['risk'] }}</td>
-          <td class="text-center">{{ $f['job_order_no'] }}</td>
-          <td class="text-center">{{ $f['target_date'] }}</td>
+          <td class="text-center">{{ $f['target_date'] ?: '—' }}</td>
         </tr>
       @empty
-        <tr><td colspan="7" class="empty-row text-center">No observations recorded.</td></tr>
+        <tr><td colspan="4" class="empty-row text-center">No non-conformities or observations recorded.</td></tr>
       @endforelse
     </tbody>
   </table>
 
-  {{-- Ratings table --}}
-  <table class="ratings-table" style="margin-top:14pt;">
-    <thead>
-      <tr>
-        <th style="width: 28px;">No.</th>
-        <th>Chapter Title</th>
-        @foreach($ratingOptions as $opt)
-          <th style="width: 80px;" class="text-center">{{ $opt['label'] }}</th>
-        @endforeach
-        <th style="width: 55px;" class="text-center">No Count</th>
-        <th style="width: 55px;" class="text-center">NS Count</th>
-      </tr>
-    </thead>
-    <tbody>
-      @forelse($ratings as $row)
-        @php $isApplicable = $row['is_applicable'] ?? true; @endphp
+  @if($hasRatingsMatrix)
+    {{-- Ratings table (only shown if form has ratings matrix configured) --}}
+    <table class="ratings-table" style="margin-top:14pt;">
+      <thead>
         <tr>
-          <td class="text-center">{{ $row['no'] }}</td>
-          <td>{{ $row['title'] }} {{ !$isApplicable ? '(N/A)' : '' }}</td>
-          @if(!$isApplicable)
-            <td colspan="{{ count($ratingOptions) }}" class="text-center" style="color: #777; font-style: italic;">N/A</td>
-          @else
-            @foreach($ratingOptions as $opt)
-              <td class="text-center">{{ ($row['rating'] === $opt['value']) ? '●' : '' }}</td>
-            @endforeach
-          @endif
-          <td class="text-center">{{ $isApplicable ? $row['no_count'] : '-' }}</td>
-          <td class="text-center">{{ $isApplicable ? $row['ns_count'] : '-' }}</td>
+          <th style="width: 28px;">No.</th>
+          <th>Chapter Title</th>
+          @foreach($ratingOptions as $opt)
+            <th style="width: 80px;" class="text-center">{{ $opt['label'] }}</th>
+          @endforeach
+          <th style="width: 55px;" class="text-center">No Count</th>
+          <th style="width: 55px;" class="text-center">NS Count</th>
         </tr>
-      @empty
-        <tr><td colspan="{{ 4 + count($ratingOptions) }}" class="empty-row text-center">No checklist chapters available.</td></tr>
-      @endforelse
-    </tbody>
-  </table>
+      </thead>
+      <tbody>
+        @forelse($ratings as $row)
+          @php $isApplicable = $row['is_applicable'] ?? true; @endphp
+          <tr>
+            <td class="text-center">{{ $row['no'] }}</td>
+            <td>{{ $row['title'] }} {{ !$isApplicable ? '(N/A)' : '' }}</td>
+            @if(!$isApplicable)
+              <td colspan="{{ count($ratingOptions) }}" class="text-center" style="color: #777; font-style: italic;">N/A</td>
+            @else
+              @foreach($ratingOptions as $opt)
+                <td class="text-center">{{ ($row['rating'] === $opt['value']) ? '●' : '' }}</td>
+              @endforeach
+            @endif
+            <td class="text-center">{{ $isApplicable ? $row['no_count'] : '-' }}</td>
+            <td class="text-center">{{ $isApplicable ? $row['ns_count'] : '-' }}</td>
+          </tr>
+        @empty
+          <tr><td colspan="{{ 4 + count($ratingOptions) }}" class="empty-row text-center">No checklist chapters available.</td></tr>
+        @endforelse
+      </tbody>
+    </table>
+  @endif
 </div>

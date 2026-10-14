@@ -5,6 +5,7 @@ namespace App\Services\Pdf;
 use App\Models\Report;
 use App\Models\ReportGroup;
 use App\Models\ReportQuestion;
+use Database\Seeders\FormSeeder;
 use Illuminate\Support\Carbon;
 use InvalidArgumentException;
 
@@ -158,6 +159,9 @@ class ReportDocumentBuilder
         $medCount = 0;
         $lowCount = 0;
 
+        $ncrCount = 0;
+        $obsCount = 0;
+
         foreach ($findings as $f) {
             $risk = strtolower(trim((string) ($f->risk ?? $f->severity ?? '')));
             if ($risk === 'high') {
@@ -168,15 +172,23 @@ class ReportDocumentBuilder
                 $lowCount++;
             }
 
+            if ($f->finding_kind === 'non_conformity') {
+                $ncrCount++;
+            } else {
+                $obsCount++;
+            }
+
             $findingsData[] = [
                 'id' => $f->id,
                 'finding_no' => $f->finding_no,
+                'finding_kind' => $f->finding_kind ?? 'observation',
                 'chapter_label' => $f->chapter_label,
                 'viq_paragraph' => $f->viq_paragraph,
                 'description' => $f->description,
                 'risk' => ucfirst($risk ?: '-'),
                 'job_order_no' => $f->job_order_no ?: '-',
                 'target_date' => $f->target_date?->format('d F Y') ?: '-',
+                'issue_date' => $f->issue_date?->format('d F Y') ?: ($f->created_at?->format('d F Y') ?: '-'),
             ];
         }
 
@@ -308,6 +320,34 @@ class ReportDocumentBuilder
             'closeout_notes' => $summary['closeout_notes'] ?? null,
         ];
 
+        // 5c. Auditee evaluation (AUD-11, Task 7.6)
+        $auditEvaluationDataset = $datasets->firstWhere('dataset_key', 'audit_evaluation');
+        $evalRows = $auditEvaluationDataset?->rows ?? [];
+        $evalCriteria = $summary['evaluation_criteria'] ?? [];
+        if (empty($evalCriteria) && $report->form) {
+            $evalCriteria = $report->form->evaluationCriteria()->orderBy('sort_order')->get()->map(fn ($c) => [
+                'criterion_key' => $c->criterion_key,
+                'label' => $c->label,
+                'description' => $c->description,
+                'sort_order' => $c->sort_order,
+            ])->values()->all();
+        }
+        if (empty($evalCriteria)) {
+            $evalCriteria = FormSeeder::defaultEvaluationCriteria();
+        }
+
+        $auditEvaluationData = [
+            'criteria' => $evalCriteria,
+            'definitions' => FormSeeder::SCORE_DEFINITIONS,
+            'rows' => $evalRows,
+        ];
+
+        // 5d. Audit execution log & general comments (AUD-12, AUD-13, Task 7.7)
+        $auditExecutionDataset = $datasets->firstWhere('dataset_key', 'audit_execution_log');
+        $executionLogRows = $auditExecutionDataset?->rows ?? [];
+        $positiveComments = $summary['positive_comments'] ?? '';
+        $negativeComments = $summary['negative_comments'] ?? '';
+
         // 6. Summary ratings matrix
         $summarySchema = $report->form->summary_schema ?? [];
         $ratingOptions = $summarySchema['rating_options'] ?? [
@@ -393,6 +433,7 @@ class ReportDocumentBuilder
             ],
             'chapters' => $chapters,
             'summary' => [
+                'has_ratings_matrix' => (bool) ($summarySchema['has_ratings_matrix'] ?? false),
                 'rating_options' => $ratingOptions,
                 'ratings' => $ratingsRows,
                 'best_practices' => $report->summary_data['best_practices'] ?? $report->summary_data['best_practices_text'] ?? '',
@@ -400,6 +441,8 @@ class ReportDocumentBuilder
                     'high' => $highCount,
                     'medium' => $medCount,
                     'low' => $lowCount,
+                    'ncr' => $ncrCount,
+                    'observation' => $obsCount,
                     'total_findings' => count($findingsData),
                 ],
                 'text_fields' => $summarySchema['text_fields'] ?? [],
@@ -409,7 +452,17 @@ class ReportDocumentBuilder
             'photos' => $photosData,
             'photo_sections' => $photoSections,
             'additional_photos' => $additionalPhotos,
-            'audit' => $auditData,
+            'audit' => array_merge($auditData, [
+                'current_ncr_count' => $ncrCount,
+                'current_observation_count' => $obsCount,
+                'execution_log' => $executionLogRows,
+                'positive_comments' => $positiveComments,
+                'negative_comments' => $negativeComments,
+            ]),
+            'evaluation' => $auditEvaluationData,
+            'execution_log' => $executionLogRows,
+            'positive_comments' => $positiveComments,
+            'negative_comments' => $negativeComments,
         ];
     }
 

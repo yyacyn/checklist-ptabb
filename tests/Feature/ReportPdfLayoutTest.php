@@ -123,7 +123,9 @@ class ReportPdfLayoutTest extends TestCase
         $this->assertContains('audit_header', $sectionTypes);
         $this->assertContains('checklist_chapters', $sectionTypes);
         $this->assertContains('audit_summary', $sectionTypes);
-        $this->assertContains('comparison_blocks', $sectionTypes);
+        $this->assertContains('auditee_evaluation', $sectionTypes);
+        $this->assertContains('audit_execution_log', $sectionTypes);
+        $this->assertContains('audit_general_comments', $sectionTypes);
         $this->assertContains('circulation', $sectionTypes);
         $this->assertContains('signature_lines', $sectionTypes);
 
@@ -251,7 +253,8 @@ class ReportPdfLayoutTest extends TestCase
 
         $this->assertStringContainsString('VESSEL INTERNAL AUDIT CHECKLIST', $html);
         $this->assertStringContainsString('Audit Summary & NCRs', $html);
-        $this->assertStringContainsString('Comparison with Previous Reports', $html);
+        $this->assertStringContainsString('AUDIT EXECUTION', $html);
+        $this->assertStringContainsString('DISTRIBUTION LIST', $html);
     }
 
     /**

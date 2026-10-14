@@ -146,7 +146,9 @@ export interface FindingData {
     report_group_id?: number | null;
     report_question_id?: number | null;
     chapter_label?: string | null;
+    finding_no?: string | null;
     finding_kind: 'observation' | 'non_conformity';
+    issue_date?: string | null;
     risk?: 'high' | 'medium' | 'low' | null;
     severity?: string | null;
     description: string;
@@ -221,6 +223,7 @@ export interface ReportData {
         closeout_notes?: string;
         positive_comments?: string;
         negative_comments?: string;
+        evaluation_criteria?: EvaluationCriterionData[];
     }) | null;
     datasets?: ReportDatasetData[];
 }
@@ -239,6 +242,22 @@ export interface AuditPersonRow {
     name: string;
     rank: string;
     role: string; // 'Lead auditor' | 'Auditor' | 'Auditee'
+    sort_order?: number;
+}
+
+export interface EvaluationCriterionData {
+    criterion_key: string;
+    label: string;
+    description?: string | null;
+    sort_order?: number;
+}
+
+export interface AuditeeEvaluationRow {
+    name: string;
+    rank: string;
+    scores: Record<string, number>;
+    overall_status?: string;
+    comments?: string;
     sort_order?: number;
 }
 

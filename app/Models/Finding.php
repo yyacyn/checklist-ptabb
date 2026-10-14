@@ -16,6 +16,7 @@ use Illuminate\Database\Eloquent\Relations\HasMany;
  * @property int $report_id
  * @property int|null $report_group_id
  * @property int|null $report_question_id
+ * @property string|null $finding_no
  * @property string|null $chapter_label
  * @property string $finding_kind
  * @property string|null $risk
@@ -24,6 +25,7 @@ use Illuminate\Database\Eloquent\Relations\HasMany;
  * @property string|null $viq_paragraph
  * @property string|null $job_order_no
  * @property Carbon|null $target_date
+ * @property Carbon|null $issue_date
  * @property string $finding_status
  * @property int|null $owner_user_id
  * @property Carbon|null $action_submitted_at
@@ -39,6 +41,7 @@ use Illuminate\Database\Eloquent\Relations\HasMany;
     'report_id',
     'report_group_id',
     'report_question_id',
+    'finding_no',
     'chapter_label',
     'finding_kind',
     'risk',
@@ -47,6 +50,7 @@ use Illuminate\Database\Eloquent\Relations\HasMany;
     'viq_paragraph',
     'job_order_no',
     'target_date',
+    'issue_date',
     'finding_status',
     'owner_user_id',
     'action_submitted_at',
@@ -64,6 +68,7 @@ class Finding extends Model
     {
         return [
             'target_date' => 'date',
+            'issue_date' => 'date',
             'action_submitted_at' => 'datetime',
             'verified_at' => 'datetime',
             'reopened_count' => 'integer',
@@ -104,5 +109,20 @@ class Finding extends Model
     public function photos(): HasMany
     {
         return $this->hasMany(Photo::class);
+    }
+
+    /**
+     * Generate sequential finding number for an audit or inspection report (AUD-9).
+     * e.g., 'NC-01', 'NC-02', 'OBS-01', 'OBS-02'
+     */
+    public static function generateFindingNo(int $reportId, string $kind): string
+    {
+        $prefix = ($kind === 'non_conformity') ? 'NC' : 'OBS';
+        $count = static::query()
+            ->where('report_id', $reportId)
+            ->where('finding_kind', $kind)
+            ->count();
+
+        return sprintf('%s-%02d', $prefix, $count + 1);
     }
 }

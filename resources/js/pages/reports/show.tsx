@@ -44,9 +44,7 @@ import {
 } from '@/components/reports';
 import {
     AuditReportSection,
-    AuditDetailsPage,
-    AuditPeoplePage,
-    AuditPreviousPage,
+    AuditEvaluationPage,
 } from '@/components/reports/audit';
 import type {
     AnswerData,
@@ -937,6 +935,12 @@ export default function ReportDataEntry({
                             </div>
                         ) : isB008 && (activeChapterId === -100 || activeChapterId === 0 || activeChapterId === -101 || activeChapterId === -102 || activeChapterId === -103) ? (
                             <AuditReportSection
+                                report={report}
+                                isEditable={is_editable}
+                                onChapterSwitch={handleChapterSwitch}
+                            />
+                        ) : isB008 && activeChapterId === -104 ? (
+                            <AuditEvaluationPage
                                 report={report}
                                 isEditable={is_editable}
                                 onChapterSwitch={handleChapterSwitch}

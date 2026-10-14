@@ -164,6 +164,8 @@ class FindingController extends Controller
 
         $validated = $request->validate([
             'report_group_id' => ['nullable', 'exists:report_groups,id'],
+            'report_question_id' => ['nullable', 'exists:report_questions,id'],
+            'finding_no' => ['nullable', 'string', 'max:50'],
             'chapter_label' => ['nullable', 'string', 'max:255'],
             'finding_kind' => ['nullable', 'string', 'in:observation,non_conformity'],
             'risk' => ['nullable', 'string', 'in:high,medium,low'],
@@ -172,20 +174,29 @@ class FindingController extends Controller
             'viq_paragraph' => ['nullable', 'string', 'max:50'],
             'job_order_no' => ['nullable', 'string', 'max:50'],
             'target_date' => ['nullable', 'date'],
+            'issue_date' => ['nullable', 'date'],
         ]);
 
         $maxSortOrder = (int) $report->findings()->max('sort_order');
+        $kind = $validated['finding_kind'] ?? 'observation';
+        $findingNo = $validated['finding_no'] ?? null;
+        if (empty($findingNo)) {
+            $findingNo = Finding::generateFindingNo($report->id, $kind);
+        }
 
         $finding = $report->findings()->create([
             'report_group_id' => $validated['report_group_id'] ?? null,
+            'report_question_id' => $validated['report_question_id'] ?? null,
+            'finding_no' => $findingNo,
             'chapter_label' => $validated['chapter_label'] ?? null,
-            'finding_kind' => $validated['finding_kind'] ?? 'observation',
+            'finding_kind' => $kind,
             'risk' => $validated['risk'] ?? null,
             'severity' => $validated['severity'] ?? null,
             'description' => $validated['description'],
             'viq_paragraph' => $validated['viq_paragraph'] ?? null,
             'job_order_no' => $validated['job_order_no'] ?? null,
             'target_date' => $validated['target_date'] ?? null,
+            'issue_date' => $validated['issue_date'] ?? now()->toDateString(),
             'finding_status' => 'open',
             'sort_order' => $maxSortOrder + 1,
         ]);
@@ -220,6 +231,8 @@ class FindingController extends Controller
 
         $validated = $request->validate([
             'report_group_id' => ['nullable', 'exists:report_groups,id'],
+            'report_question_id' => ['nullable', 'exists:report_questions,id'],
+            'finding_no' => ['nullable', 'string', 'max:50'],
             'chapter_label' => ['nullable', 'string', 'max:255'],
             'finding_kind' => ['nullable', 'string', 'in:observation,non_conformity'],
             'risk' => ['nullable', 'string', 'in:high,medium,low'],
@@ -228,17 +241,22 @@ class FindingController extends Controller
             'viq_paragraph' => ['nullable', 'string', 'max:50'],
             'job_order_no' => ['nullable', 'string', 'max:50'],
             'target_date' => ['nullable', 'date'],
+            'issue_date' => ['nullable', 'date'],
             'sort_order' => ['nullable', 'integer'],
         ]);
 
         $before = $finding->only([
             'report_group_id',
+            'report_question_id',
+            'finding_no',
             'chapter_label',
+            'finding_kind',
             'risk',
             'description',
             'viq_paragraph',
             'job_order_no',
             'target_date',
+            'issue_date',
         ]);
 
         $finding->update($validated);

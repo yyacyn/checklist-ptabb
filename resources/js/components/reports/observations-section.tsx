@@ -259,11 +259,13 @@ export function ObservationsSection({
         [summaryTexts]
     );
 
-    // Findings Register Modal State (Task 4.2)
+    // Findings Register Modal State (Task 4.2 & Task 7.5)
     const [findingModalOpen, setFindingModalOpen] = useState(false);
     const [editingFinding, setEditingFinding] = useState<FindingData | null>(null);
     const [findingFormData, setFindingFormData] = useState<Partial<FindingData>>({
+        finding_no: '',
         finding_kind: isB008 ? 'non_conformity' : 'observation',
+        issue_date: new Date().toISOString().split('T')[0],
         risk: 'medium',
         description: '',
         viq_paragraph: '',
@@ -276,7 +278,9 @@ export function ObservationsSection({
     const handleOpenAddFinding = () => {
         setEditingFinding(null);
         setFindingFormData({
+            finding_no: '',
             finding_kind: isB008 ? 'non_conformity' : 'observation',
+            issue_date: new Date().toISOString().split('T')[0],
             risk: 'medium',
             description: '',
             viq_paragraph: '',
@@ -290,7 +294,13 @@ export function ObservationsSection({
     const handleOpenEditFinding = (finding: FindingData) => {
         setEditingFinding(finding);
         setFindingFormData({
+            finding_no: finding.finding_no || '',
             finding_kind: finding.finding_kind,
+            issue_date: finding.issue_date
+                ? finding.issue_date.split('T')[0]
+                : finding.created_at
+                ? finding.created_at.split('T')[0]
+                : '',
             risk: finding.risk || 'medium',
             description: finding.description,
             viq_paragraph: finding.viq_paragraph || '',
@@ -345,8 +355,8 @@ export function ObservationsSection({
 
             {/* Ratings Matrix (Form D-062, Task 4.1) */}
             {hasRatingsMatrix && (
-                <Card className="border-2 border-border/80 shadow-xs bg-card">
-                    <CardHeader className="pb-3 border-b bg-muted/20">
+                <Card className="border-2 border-border/80 shadow-xs bg-card overflow-hidden">
+                    <CardHeader className="p-4 pb-3 border-b bg-muted/20">
                         <div className="flex items-center justify-between">
                             <div className="flex items-center gap-2">
                                 <ShieldAlert className="size-4 text-primary" />
@@ -489,160 +499,189 @@ export function ObservationsSection({
             {/* Findings & Observations Register (Task 4.2) */}
             {hasFindingsRegister && (
                 <div className="space-y-4 pt-2">
-                    <div className="flex items-center justify-between border-b pb-3">
-                        <div className="space-y-0.5">
-                            <div className="flex items-center gap-2">
-                                <h3 className="text-base font-bold text-foreground">
-                                    {isB008
-                                        ? 'Non-Conformities & Observations Register'
-                                        : 'Observations Register'}
-                                </h3>
-                                <Badge variant="secondary" className="font-mono text-xs">
-                                    {findings.length} total
-                                </Badge>
-                            </div>
-                            <p className="text-xs text-muted-foreground">
-                                Formally documented findings requiring shipboard or shore-side corrective
-                                action.
-                            </p>
-                        </div>
+                    {(() => {
+                        const ncrCount = findings.filter((f) => f.finding_kind === 'non_conformity').length;
+                        const obsCount = findings.filter((f) => f.finding_kind === 'observation').length;
 
-                        {isEditable && (
-                            <Button
-                                size="sm"
-                                onClick={handleOpenAddFinding}
-                                className="flex items-center gap-1.5 h-8 text-xs font-semibold"
-                            >
-                                <Plus className="size-3.5" />
-                                <span>{isB008 ? 'Add NCR / Observation' : 'Add Observation'}</span>
-                            </Button>
-                        )}
-                    </div>
+                        return (
+                            <>
+                                <div className="flex items-center justify-between border-b pb-3">
+                                    <div className="space-y-0.5">
+                                        <div className="flex items-center gap-2">
+                                            <h3 className="text-base font-bold text-foreground">
+                                                {isB008
+                                                    ? 'Non-Conformities & Observations Register'
+                                                    : 'Observations Register'}
+                                            </h3>
+                                            <Badge variant="secondary" className="font-mono text-xs">
+                                                {findings.length} total
+                                            </Badge>
+                                            <Badge
+                                                variant="outline"
+                                                className="text-[11px] font-semibold text-rose-600 border-rose-300 dark:border-rose-900 bg-rose-50/50 dark:bg-rose-950/30"
+                                            >
+                                                {ncrCount} NC{ncrCount === 1 ? '' : 's'}
+                                            </Badge>
+                                            <Badge
+                                                variant="outline"
+                                                className="text-[11px] font-semibold text-amber-600 border-amber-300 dark:border-amber-900 bg-amber-50/50 dark:bg-amber-950/30"
+                                            >
+                                                {obsCount} OBS
+                                            </Badge>
+                                        </div>
+                                        <p className="text-xs text-muted-foreground">
+                                            Formally documented findings requiring shipboard or shore-side corrective
+                                            action.
+                                        </p>
+                                    </div>
 
-                    {findings.length === 0 ? (
-                        <Card className="border border-dashed p-8 text-center text-muted-foreground bg-muted/10 space-y-2">
-                            <FileCheck className="size-8 mx-auto text-muted-foreground/60" />
-                            <p className="text-sm font-medium">No findings recorded for this report.</p>
-                            <p className="text-xs max-w-sm mx-auto">
-                                All items verified in order, or findings have not yet been registered. Click
-                                "Add Observation" to record a formal deficiency.
-                            </p>
-                        </Card>
-                    ) : (
-                        <div className="space-y-3">
-                            {findings.map((f, index) => {
-                                return (
-                                    <Card
-                                        key={f.id}
-                                        className="border-2 border-border/80 shadow-xs hover:border-primary/40 transition-colors bg-card"
-                                    >
-                                        <CardContent className="p-4 space-y-3">
-                                            {/* Top Finding Header */}
-                                            <div className="flex items-start justify-between gap-3">
-                                                <div className="flex items-center gap-2 flex-wrap">
-                                                    <span className="font-bold text-xs font-mono text-muted-foreground">
-                                                        #{index + 1}
-                                                    </span>
-                                                    <Badge
-                                                        variant={
-                                                            f.finding_kind === 'non_conformity'
-                                                                ? 'destructive'
-                                                                : 'default'
-                                                        }
-                                                        className="text-[10px] uppercase font-bold"
-                                                    >
-                                                        {f.finding_kind === 'non_conformity'
-                                                            ? 'Non-Conformity'
-                                                            : 'Observation'}
-                                                    </Badge>
+                                    {isEditable && (
+                                        <Button
+                                            size="sm"
+                                            onClick={handleOpenAddFinding}
+                                            className="flex items-center gap-1.5 h-8 text-xs font-semibold"
+                                        >
+                                            <Plus className="size-3.5" />
+                                            <span>{isB008 ? 'Add NCR / Observation' : 'Add Observation'}</span>
+                                        </Button>
+                                    )}
+                                </div>
 
-                                                    {f.risk && (
-                                                        <Badge
-                                                            variant="outline"
-                                                            className={`text-[10px] font-semibold uppercase ${
-                                                                f.risk === 'high'
-                                                                    ? 'text-rose-600 border-rose-300 dark:border-rose-900 bg-rose-50/50 dark:bg-rose-950/30'
-                                                                    : f.risk === 'medium'
-                                                                    ? 'text-amber-600 border-amber-300 dark:border-amber-900 bg-amber-50/50 dark:bg-amber-950/30'
-                                                                    : 'text-emerald-600 border-emerald-300 dark:border-emerald-900 bg-emerald-50/50 dark:bg-emerald-950/30'
-                                                            }`}
-                                                        >
-                                                            {f.risk} Risk
-                                                        </Badge>
-                                                    )}
-
-                                                    {f.viq_paragraph && (
-                                                        <Badge
-                                                            variant="secondary"
-                                                            className="text-[10px] font-mono"
-                                                        >
-                                                            Ref: {f.viq_paragraph}
-                                                        </Badge>
-                                                    )}
-
-                                                    {f.job_order_no && (
-                                                        <Badge
-                                                            variant="outline"
-                                                            className="text-[10px] font-mono text-muted-foreground"
-                                                        >
-                                                            Job Order: {f.job_order_no}
-                                                        </Badge>
-                                                    )}
-                                                </div>
-
-                                                {/* Actions */}
-                                                {isEditable && (
-                                                    <div className="flex items-center gap-1.5 shrink-0">
-                                                        <Button
-                                                            size="sm"
-                                                            variant="ghost"
-                                                            onClick={() => handleOpenEditFinding(f)}
-                                                            className="h-7 w-7 p-0 text-muted-foreground hover:text-foreground"
-                                                            title="Edit finding details"
-                                                        >
-                                                            <Edit2 className="size-3.5" />
-                                                        </Button>
-                                                        <Button
-                                                            size="sm"
-                                                            variant="ghost"
-                                                            onClick={() => onDeleteFinding(f.id)}
-                                                            className="h-7 w-7 p-0 text-muted-foreground hover:text-destructive"
-                                                            title="Delete finding"
-                                                        >
-                                                            <Trash2 className="size-3.5" />
-                                                        </Button>
-                                                    </div>
-                                                )}
-                                            </div>
-
-                                            {/* Finding Description Text */}
-                                            <p className="text-xs text-foreground font-medium leading-relaxed whitespace-pre-line pl-1 border-l-2 border-primary/40">
-                                                {f.description}
-                                            </p>
-
-                                            {/* Target Date & Status Info */}
-                                            <div className="flex items-center gap-4 text-[11px] text-muted-foreground pt-1 flex-wrap">
-                                                {f.target_date && (
-                                                    <div>
-                                                        <span className="font-medium">Target Date:</span>{' '}
-                                                        <span className="font-mono text-foreground">
-                                                            {f.target_date.split('T')[0]}
-                                                        </span>
-                                                    </div>
-                                                )}
-                                                <div>
-                                                    <span className="font-medium">Status:</span>{' '}
-                                                    <span className="capitalize font-semibold text-foreground">
-                                                        {f.finding_status || 'Open'}
-                                                    </span>
-                                                </div>
-                                            </div>
-                                        </CardContent>
+                                {findings.length === 0 ? (
+                                    <Card className="border border-dashed p-8 text-center text-muted-foreground bg-muted/10 space-y-2">
+                                        <FileCheck className="size-8 mx-auto text-muted-foreground/60" />
+                                        <p className="text-sm font-medium">No findings recorded for this report.</p>
+                                        <p className="text-xs max-w-sm mx-auto">
+                                            All items verified in order, or findings have not yet been registered. Click
+                                            "Add Observation" to record a formal deficiency.
+                                        </p>
                                     </Card>
-                                );
-                            })}
-                        </div>
-                    )}
+                                ) : (
+                                    <div className="space-y-3">
+                                        {findings.map((f, index) => {
+                                            return (
+                                                <Card
+                                                    key={f.id}
+                                                    className="border-2 border-border/80 shadow-xs hover:border-primary/40 transition-colors bg-card"
+                                                >
+                                                    <CardContent className="p-4 space-y-3">
+                                                        {/* Top Finding Header */}
+                                                        <div className="flex items-start justify-between gap-3">
+                                                            <div className="flex items-center gap-2 flex-wrap">
+                                                                <span className="font-bold text-xs font-mono px-2 py-0.5 rounded bg-muted text-foreground border border-border">
+                                                                    {f.finding_no || `#${index + 1}`}
+                                                                </span>
+                                                                <Badge
+                                                                    variant={
+                                                                        f.finding_kind === 'non_conformity'
+                                                                            ? 'destructive'
+                                                                            : 'default'
+                                                                    }
+                                                                    className="text-[10px] uppercase font-bold"
+                                                                >
+                                                                    {f.finding_kind === 'non_conformity'
+                                                                        ? 'Non-Conformity'
+                                                                        : 'Observation'}
+                                                                </Badge>
+
+                                                                {f.risk && (
+                                                                    <Badge
+                                                                        variant="outline"
+                                                                        className={`text-[10px] font-semibold uppercase ${
+                                                                            f.risk === 'high'
+                                                                                ? 'text-rose-600 border-rose-300 dark:border-rose-900 bg-rose-50/50 dark:bg-rose-950/30'
+                                                                                : f.risk === 'medium'
+                                                                                ? 'text-amber-600 border-amber-300 dark:border-amber-900 bg-amber-50/50 dark:bg-amber-950/30'
+                                                                                : 'text-emerald-600 border-emerald-300 dark:border-emerald-900 bg-emerald-50/50 dark:bg-emerald-950/30'
+                                                                        }`}
+                                                                    >
+                                                                        {f.risk} Risk
+                                                                    </Badge>
+                                                                )}
+
+                                                                {f.viq_paragraph && (
+                                                                    <Badge
+                                                                        variant="secondary"
+                                                                        className="text-[10px] font-mono"
+                                                                    >
+                                                                        Ref: {f.viq_paragraph}
+                                                                    </Badge>
+                                                                )}
+
+                                                                {f.job_order_no && (
+                                                                    <Badge
+                                                                        variant="outline"
+                                                                        className="text-[10px] font-mono text-muted-foreground"
+                                                                    >
+                                                                        Job Order: {f.job_order_no}
+                                                                    </Badge>
+                                                                )}
+                                                            </div>
+
+                                                            {/* Actions */}
+                                                            {isEditable && (
+                                                                <div className="flex items-center gap-1.5 shrink-0">
+                                                                    <Button
+                                                                        size="sm"
+                                                                        variant="ghost"
+                                                                        onClick={() => handleOpenEditFinding(f)}
+                                                                        className="h-7 w-7 p-0 text-muted-foreground hover:text-foreground"
+                                                                        title="Edit finding details"
+                                                                    >
+                                                                        <Edit2 className="size-3.5" />
+                                                                    </Button>
+                                                                    <Button
+                                                                        size="sm"
+                                                                        variant="ghost"
+                                                                        onClick={() => onDeleteFinding(f.id)}
+                                                                        className="h-7 w-7 p-0 text-muted-foreground hover:text-destructive"
+                                                                        title="Delete finding"
+                                                                    >
+                                                                        <Trash2 className="size-3.5" />
+                                                                    </Button>
+                                                                </div>
+                                                            )}
+                                                        </div>
+
+                                                        {/* Finding Description Text */}
+                                                        <p className="text-xs text-foreground font-medium leading-relaxed whitespace-pre-line pl-1 border-l-2 border-primary/40">
+                                                            {f.description}
+                                                        </p>
+
+                                                        {/* Date Issued, Target Date & Status Info */}
+                                                        <div className="flex items-center gap-4 text-[11px] text-muted-foreground pt-1 flex-wrap">
+                                                            {f.issue_date && (
+                                                                <div>
+                                                                    <span className="font-medium">Date Issued:</span>{' '}
+                                                                    <span className="font-mono text-foreground">
+                                                                        {f.issue_date.split('T')[0]}
+                                                                    </span>
+                                                                </div>
+                                                            )}
+                                                            {f.target_date && (
+                                                                <div>
+                                                                    <span className="font-medium">Close Out Target Date:</span>{' '}
+                                                                    <span className="font-mono text-foreground">
+                                                                        {f.target_date.split('T')[0]}
+                                                                    </span>
+                                                                </div>
+                                                            )}
+                                                            <div>
+                                                                <span className="font-medium">Status:</span>{' '}
+                                                                <span className="capitalize font-semibold text-foreground">
+                                                                    {f.finding_status || 'Open'}
+                                                                </span>
+                                                            </div>
+                                                        </div>
+                                                    </CardContent>
+                                                </Card>
+                                            );
+                                        })}
+                                    </div>
+                                )}
+                            </>
+                        );
+                    })()}
                 </div>
             )}
 
@@ -693,6 +732,38 @@ export function ObservationsSection({
                                     <option value="medium">Medium Risk</option>
                                     <option value="high">High Risk</option>
                                 </select>
+                            </div>
+                        </div>
+
+                        <div className="grid grid-cols-2 gap-3">
+                            <div className="space-y-1">
+                                <Label className="text-xs">Finding ID / Number</Label>
+                                <Input
+                                    value={findingFormData.finding_no || ''}
+                                    onChange={(e) =>
+                                        setFindingFormData((prev) => ({
+                                            ...prev,
+                                            finding_no: e.target.value,
+                                        }))
+                                    }
+                                    placeholder={isB008 ? 'Auto (e.g. NC-01, OBS-01)' : 'Optional'}
+                                    className="h-8 text-xs font-mono"
+                                />
+                            </div>
+
+                            <div className="space-y-1">
+                                <Label className="text-xs">Date Issued</Label>
+                                <Input
+                                    type="date"
+                                    value={findingFormData.issue_date || ''}
+                                    onChange={(e) =>
+                                        setFindingFormData((prev) => ({
+                                            ...prev,
+                                            issue_date: e.target.value,
+                                        }))
+                                    }
+                                    className="h-8 text-xs"
+                                />
                             </div>
                         </div>
 

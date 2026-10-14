@@ -1,5 +1,5 @@
 import React from 'react';
-import { Calendar, History, UserCheck } from 'lucide-react';
+import { Calendar, ClipboardCheck, History, UserCheck } from 'lucide-react';
 
 export interface AuditPageNavProps {
     activeChapterId: number;
@@ -10,6 +10,7 @@ export function AuditPageNav({ activeChapterId, onChapterSwitch }: AuditPageNavP
     const isPage1 = activeChapterId === 0 || activeChapterId === -101;
     const isPage2 = activeChapterId === -102;
     const isPage3 = activeChapterId === -103;
+    const isPage4 = activeChapterId === -104;
 
     const pages = [
         {
@@ -32,6 +33,13 @@ export function AuditPageNav({ activeChapterId, onChapterSwitch }: AuditPageNavP
             subtitle: 'Prior NCs, Observations & Follow-up',
             icon: History,
             isActive: isPage3,
+        },
+        {
+            id: -104,
+            title: '4. Auditee Evaluation',
+            subtitle: 'Crew SMS & Safety Scoring (1-5)',
+            icon: ClipboardCheck,
+            isActive: isPage4,
         },
     ];
 

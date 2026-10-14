@@ -38,16 +38,37 @@ class FormSeeder extends Seeder
         ],
     ];
 
-    /** The seven B-008 auditee evaluation criteria, as configuration (ERD 14.4). */
-    private const CRITERIA = [
-        ['sms_knowledge', 'Awareness and knowledge of the SMS and company policies'],
-        ['lsa_ffe_security', 'Awareness of safety and use of LSA, FFE, security and emergency equipment'],
-        ['regulations', 'Awareness of international regulations'],
-        ['familiarisation', 'Familiarisation during service onboard'],
-        ['environmental', 'Awareness of topics related to protection of the environment'],
-        ['emergency_procedures', 'Familiarisation with vessel emergency procedures'],
-        ['safety_awareness', 'Awareness of personal and crew safety obligations'],
+    /** The seven B-008 auditee evaluation criteria, as configuration (ERD 14.4, AUD-11). */
+    public const CRITERIA = [
+        ['sms_knowledge', 'Evaluate the awareness/knowledge of auditee with the SMS and Company policies.'],
+        ['safety_emergency_equipment', 'Evaluate auditee awareness in safety and use of LSA/FFE/security/emergency eq.'],
+        ['international_regulations', 'Evaluate auditee awareness in the international regulations.'],
+        ['familiarisation', 'Evaluate auditee familiarization during his service onboard.'],
+        ['environmental_protection', 'Evaluate auditee awareness in topics related to protection of the environment.'],
+        ['emergency_procedures', 'Evaluate auditee familiarization with vessel emergency procedures.'],
+        ['continuous_improvement', 'Evaluate the support of auditee to the continuous improvement process.'],
     ];
+
+    /** Scoring definitions 1 to 5 (AUD-11). */
+    public const SCORE_DEFINITIONS = [
+        5 => '5 "excellent" means that the auditee’s conformance with SMS is outstanding and/or the rate of SMS implementation within the department is maintained at a level much higher than is usually expected.',
+        4 => '4 "above expectations" means that the auditee’s conformance with SMS is high and/or the rate of SMS implementation within the department is significantly better than what would normally scored as acceptable.',
+        3 => '3 "satisfactory" means that the auditee’s conformance with SMS is in line with normal expectation and/or the rate of SMS implementation within the department is satisfactory.',
+        2 => '2 "fair" means that the auditee’s conformance with SMS is below expectations and/or the rate of SMS implementation within the department is not satisfactory but with the proper training in certain areas the auditees can be in satisfactory level.',
+        1 => '1 "unsatisfactory" means that the auditee’s capacity is inadequate in the area(s) being audited and/or the rate of SMS implementation within the department is poor and the possibility for the persons to be sufficiently improved, even with additional training, the improvement is uncertain.',
+    ];
+
+    public static function defaultEvaluationCriteria(): array
+    {
+        return array_map(function ($index, $item) {
+            return [
+                'criterion_key' => $item[0],
+                'label' => $item[1],
+                'description' => null,
+                'sort_order' => $index + 1,
+            ];
+        }, array_keys(self::CRITERIA), self::CRITERIA);
+    }
 
     public function run(): void
     {
@@ -508,7 +529,9 @@ class FormSeeder extends Seeder
                     'chapter_no' => '18',
                     'title' => 'Chapter 18 - Audit Summary & NCRs',
                 ],
-                ['type' => 'comparison_blocks'],
+                ['type' => 'auditee_evaluation'],
+                ['type' => 'audit_execution_log'],
+                ['type' => 'audit_general_comments'],
                 ['type' => 'circulation'],
                 ['type' => 'signature_lines'],
             ],

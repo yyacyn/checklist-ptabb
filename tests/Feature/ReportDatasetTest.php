@@ -64,6 +64,7 @@ class ReportDatasetTest extends TestCase
     public function test_can_save_and_update_dataset_rows(): void
     {
         [$user, $report] = $this->createAuditReport();
+        $report->datasets()->where('dataset_key', 'audit_execution_log')->delete();
 
         $rows = [
             ['person_or_function' => 'Bridge Team', 'date' => '2026-10-14', 'start_time' => '09:00', 'end_time' => '11:00', 'topics' => 'Passage planning', 'sort_order' => 1],
@@ -111,6 +112,7 @@ class ReportDatasetTest extends TestCase
     public function test_dataset_idempotency_via_client_save_id(): void
     {
         [$user, $report] = $this->createAuditReport();
+        $report->datasets()->where('dataset_key', 'audit_execution_log')->delete();
 
         $clientSaveId = 'save-uuid-12345';
         $rows = [
