@@ -57,6 +57,21 @@ class ReportSnapshot
                 $this->copyGroup($report, $group, null, $vesselTypeIds, $iceClass, $questionCounter);
             }
 
+            if ($reportType === 'audit') {
+                $report->auditDetail()->create([
+                    'start_date' => $reportDate,
+                    'end_date' => $reportDate,
+                    'audit_type' => 'A',
+                ]);
+
+                foreach (['Bridge', 'Deck', 'Engine'] as $idx => $act) {
+                    $report->auditActivities()->create([
+                        'activity' => $act,
+                        'sort_order' => $idx + 1,
+                    ]);
+                }
+            }
+
             return $report;
         });
     }

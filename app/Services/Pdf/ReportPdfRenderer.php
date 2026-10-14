@@ -244,9 +244,9 @@ HTML;
         $title = $titles[$titleKey] ?? $titles['inspection_report'];
 
         $formCode = $this->escape($report->form->code ?? '');
-        $rawFormVersion = (string) ($report->form->form_version ?? '');
-        $formVersion = $this->escape(str_starts_with($rawFormVersion, 'v') ? $rawFormVersion : 'v'.$rawFormVersion);
-        $templateVersion = (int) ($report->template_version ?? 1);
+        $rawFormVersion = trim((string) ($report->form->form_version ?? ''));
+        $formVersion = $rawFormVersion !== '' ? $this->escape(str_starts_with($rawFormVersion, 'v') ? $rawFormVersion : 'v'.$rawFormVersion) : '';
+        $formVersionText = $formVersion !== '' ? " ({$formVersion})" : '';
         $reportRef = $this->escape($report->reference_number ?? '');
         $vesselName = $this->escape($report->vessel_name ?? '');
         $reportDate = $report->report_date?->format('d F Y') ?? now()->format('d F Y');
@@ -258,7 +258,7 @@ HTML;
     <h1 class="cover-title">{$title}</h1>
     <table class="cover-table">
       <tr><td class="cover-label">Report No.</td><td class="cover-value">{$reportRef}</td></tr>
-      <tr><td class="cover-label">Form</td><td class="cover-value">{$formCode} ({$formVersion}, template v{$templateVersion})</td></tr>
+      <tr><td class="cover-label">Form</td><td class="cover-value">{$formCode}{$formVersionText}</td></tr>
       <tr><td class="cover-label">Vessel</td><td class="cover-value">{$vesselName}</td></tr>
       <tr><td class="cover-label">Date</td><td class="cover-value">{$reportDate}</td></tr>
       <tr><td class="cover-label">Status</td><td class="cover-value">{$statusLabel}</td></tr>
@@ -1090,7 +1090,7 @@ HTML;
             $parts[] = match ($field) {
                 'form_code' => $this->escape($report->form->code ?? ''),
                 'form_version' => $this->escape((string) ($report->form->form_version ?? '')),
-                'template_version' => 'T'.((int) ($report->template_version ?? 1)),
+                'template_version' => '',
                 'report_number' => $this->escape($report->reference_number ?? ''),
                 'generation_date' => now()->format('Y-m-d H:i').' UTC',
                 default => '',

@@ -209,4 +209,45 @@ export interface ReportData {
     summary_participants?: string | null;
     summary_concept_understanding?: string | null;
     summary_data?: (Record<string, any> & { photo_section_comments?: Record<string, string> }) | null;
+    audit_detail?: AuditDetailData | null;
+    auditees?: AuditeeData[];
+    auditors?: AuditorData[];
+    audit_activities?: AuditActivityData[];
 }
+
+export interface AuditDetailData {
+    id?: number;
+    report_id?: number;
+    start_date?: string | null;
+    end_date?: string | null;
+    audit_type?: string | null;
+    audit_type_other?: string | null;
+    lead_auditor?: string | null;
+}
+
+export interface AuditeeData {
+    id?: number;
+    report_id?: number;
+    name: string;
+    rank: string;
+    user_id?: number | null;
+    sort_order?: number;
+}
+
+export interface AuditorData {
+    id?: number;
+    report_id?: number;
+    name: string;
+    rank: string;
+    is_lead: boolean;
+    user_id?: number | null;
+    sort_order?: number;
+}
+
+export interface AuditActivityData {
+    id?: number;
+    report_id?: number;
+    activity: string;
+    sort_order?: number;
+}
+

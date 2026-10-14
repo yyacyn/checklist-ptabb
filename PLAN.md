@@ -160,13 +160,13 @@ This is the phase users feel. Budget it properly.
 
 ## Phase 7 — Audit specifics (4 to 5 days)
 
-| # | Task | Ref |
-| --- | --- | --- |
-| 7.1 | Audit set-up: operations, activities, type, dates, auditees, auditors, lead auditor | AUD-2, AUD-3 |
-| 7.2 | Follow-up from the previous audit, with auto-pulled counts | AUD-4 |
-| 7.3 | Auditee evaluation blocks, minimum four, scores 1–5 with help text, visible to Corporate and authoring Vessel Account | AUD-11, §2 |
-| 7.4 | Execution log, general comments, distribution list on the PDF | AUD-12, AUD-13, AUD-15 |
-| 7.5 | Corporate review and "mark as reviewed" | AUD-16, RLS-6 |
+| # | Task | Ref | Status |
+| --- | --- | --- | --- |
+| 7.1 | Audit set-up: operations, activities, type, dates, auditees, auditors, lead auditor | AUD-2, AUD-3 | **done**: `audit_details`, `auditees`, `auditors`, `audit_activities` migrations & models, snapshot defaults, `PUT reports/{report}/audit-setup` endpoint, PDF `audit_header.blade.php`, interactive B-008 Chapter 1 UI in `general-info-section.tsx`, comprehensive test suite `AuditSetupTest` |
+| 7.2 | Follow-up from the previous audit, with auto-pulled counts | AUD-4 | Pending |
+| 7.3 | Auditee evaluation blocks, minimum four, scores 1–5 with help text, visible to Corporate and authoring Vessel Account | AUD-11, §2 | Pending |
+| 7.4 | Execution log, general comments, distribution list on the PDF | AUD-12, AUD-13, AUD-15 | Pending |
+| 7.5 | Corporate review and "mark as reviewed" | AUD-16, RLS-6 | Pending |
 
 ---
 

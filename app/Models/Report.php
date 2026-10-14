@@ -10,6 +10,7 @@ use Illuminate\Database\Eloquent\Factories\HasFactory;
 use Illuminate\Database\Eloquent\Model;
 use Illuminate\Database\Eloquent\Relations\BelongsTo;
 use Illuminate\Database\Eloquent\Relations\HasMany;
+use Illuminate\Database\Eloquent\Relations\HasOne;
 use Illuminate\Database\Eloquent\SoftDeletes;
 
 /**
@@ -201,5 +202,25 @@ class Report extends Model
     public function linkedPhotoReport(): BelongsTo
     {
         return $this->belongsTo(Report::class, 'linked_photo_report_id');
+    }
+
+    public function auditDetail(): HasOne
+    {
+        return $this->hasOne(AuditDetail::class);
+    }
+
+    public function auditees(): HasMany
+    {
+        return $this->hasMany(Auditee::class)->orderBy('sort_order')->orderBy('id');
+    }
+
+    public function auditors(): HasMany
+    {
+        return $this->hasMany(Auditor::class)->orderBy('sort_order')->orderBy('id');
+    }
+
+    public function auditActivities(): HasMany
+    {
+        return $this->hasMany(AuditActivity::class)->orderBy('sort_order')->orderBy('id');
     }
 }

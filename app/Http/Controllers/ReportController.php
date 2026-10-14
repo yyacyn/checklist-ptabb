@@ -293,6 +293,10 @@ class ReportController extends Controller
             'groups.subgroups.questions.photos' => fn ($q) => $q->with(['category:id,name,code', 'uploader:id,name'])->orderBy('sort_order'),
             'findings' => fn ($q) => $q->with(['photos' => fn ($pq) => $pq->with(['category:id,name,code', 'uploader:id,name'])->orderBy('sort_order')])->orderBy('sort_order')->orderBy('id'),
             'photos' => fn ($q) => $q->with(['category:id,name,code', 'uploader:id,name'])->orderBy('sort_order')->orderBy('item_no')->orderBy('id'),
+            'auditDetail',
+            'auditees',
+            'auditors',
+            'auditActivities',
         ]);
 
         $photoCategories = PhotoCategory::query()
@@ -637,6 +641,128 @@ class ReportController extends Controller
         return response()->json([
             'status' => 'saved',
             'report' => $report->fresh(),
+        ]);
+    }
+
+    /**
+     * Update audit set-up particulars for B-008 internal audits (AUD-2, AUD-3, Task 7.1).
+     */
+    public function updateAuditSetup(Request $request, Report $report): JsonResponse
+    {
+        Gate::authorize('update', $report);
+
+        $validated = $request->validate([
+            'report_date' => ['nullable', 'date'],
+            'port' => ['nullable', 'string', 'max:255'],
+            'master_name' => ['nullable', 'string', 'max:255'],
+            'chief_engineer_name' => ['nullable', 'string', 'max:255'],
+            'start_date' => ['nullable', 'date'],
+            'end_date' => ['nullable', 'date'],
+            'audit_type' => ['nullable', 'string', 'max:50'],
+            'audit_type_other' => ['nullable', 'string', 'max:255'],
+            'lead_auditor' => ['nullable', 'string', 'max:255'],
+            'operations' => ['nullable', 'array'],
+            'operations.*' => ['string', 'max:100'],
+            'activities' => ['nullable', 'array'],
+            'activities.*.activity' => ['required', 'string', 'max:255'],
+            'activities.*.sort_order' => ['nullable', 'integer'],
+            'auditees' => ['nullable', 'array'],
+            'auditees.*.name' => ['required', 'string', 'max:255'],
+            'auditees.*.rank' => ['required', 'string', 'max:255'],
+            'auditees.*.user_id' => ['nullable', 'exists:users,id'],
+            'auditees.*.sort_order' => ['nullable', 'integer'],
+            'auditors' => ['nullable', 'array'],
+            'auditors.*.name' => ['required', 'string', 'max:255'],
+            'auditors.*.rank' => ['required', 'string', 'max:255'],
+            'auditors.*.is_lead' => ['nullable', 'boolean'],
+            'auditors.*.user_id' => ['nullable', 'exists:users,id'],
+            'auditors.*.sort_order' => ['nullable', 'integer'],
+        ]);
+
+        DB::transaction(function () use ($report, $validated) {
+            // 0. Report header fields
+            $reportUpdates = [];
+            foreach (['report_date', 'port', 'master_name', 'chief_engineer_name'] as $field) {
+                if (array_key_exists($field, $validated)) {
+                    $reportUpdates[$field] = (is_null($validated[$field]) || trim((string) $validated[$field]) === '') ? null : $validated[$field];
+                }
+            }
+            if (array_key_exists('operations', $validated)) {
+                $reportUpdates['operations'] = $validated['operations'] ?? [];
+            }
+            if (! empty($reportUpdates)) {
+                $report->update($reportUpdates);
+            }
+
+            // 1. Audit Detail (dates, type, lead auditor)
+            $detailData = [
+                'start_date' => $validated['start_date'] ?? null,
+                'end_date' => $validated['end_date'] ?? null,
+                'audit_type' => $validated['audit_type'] ?? null,
+                'audit_type_other' => $validated['audit_type_other'] ?? null,
+                'lead_auditor' => $validated['lead_auditor'] ?? null,
+            ];
+
+            $report->auditDetail()->updateOrCreate(
+                ['report_id' => $report->id],
+                $detailData
+            );
+
+            // 2. Activities (AUD-3)
+            if (array_key_exists('activities', $validated)) {
+                $report->auditActivities()->delete();
+                foreach ($validated['activities'] as $idx => $act) {
+                    $report->auditActivities()->create([
+                        'activity' => $act['activity'],
+                        'sort_order' => $act['sort_order'] ?? ($idx + 1),
+                    ]);
+                }
+            }
+
+            // 4. Auditees (AUD-3)
+            if (array_key_exists('auditees', $validated)) {
+                $report->auditees()->delete();
+                foreach ($validated['auditees'] as $idx => $a) {
+                    $report->auditees()->create([
+                        'name' => $a['name'],
+                        'rank' => $a['rank'],
+                        'user_id' => $a['user_id'] ?? null,
+                        'sort_order' => $a['sort_order'] ?? ($idx + 1),
+                    ]);
+                }
+            }
+
+            // 5. Auditors (AUD-3)
+            if (array_key_exists('auditors', $validated)) {
+                $report->auditors()->delete();
+                foreach ($validated['auditors'] as $idx => $a) {
+                    $report->auditors()->create([
+                        'name' => $a['name'],
+                        'rank' => $a['rank'],
+                        'is_lead' => (bool) ($a['is_lead'] ?? false),
+                        'user_id' => $a['user_id'] ?? null,
+                        'sort_order' => $a['sort_order'] ?? ($idx + 1),
+                    ]);
+                }
+            }
+
+            $report->increment('current_version');
+        });
+
+        $report->load([
+            'auditDetail',
+            'auditees',
+            'auditors',
+            'auditActivities',
+        ]);
+
+        return response()->json([
+            'status' => 'saved',
+            'report' => $report,
+            'audit_detail' => $report->auditDetail,
+            'auditees' => $report->auditees,
+            'auditors' => $report->auditors,
+            'audit_activities' => $report->auditActivities,
         ]);
     }
 

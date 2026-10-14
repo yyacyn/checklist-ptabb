@@ -249,6 +249,44 @@ class ReportDocumentBuilder
             $additionalPhotos = $photosData;
         }
 
+        // 5b. Audit particulars normalization (B-008, Task 7.1)
+        $auditDetail = $report->auditDetail;
+        $auditees = $report->auditees ?? collect();
+        $auditors = $report->auditors ?? collect();
+        $auditActivities = $report->auditActivities ?? collect();
+
+        $auditTypeLabels = [
+            'A' => 'A - Internal',
+            'B' => 'B - Independent',
+            'C' => 'C - Unscheduled',
+            'D' => 'D - Other',
+        ];
+        $rawAuditType = $auditDetail?->audit_type;
+        $auditTypeLabel = $auditTypeLabels[$rawAuditType] ?? $rawAuditType ?? 'A - Internal';
+
+        $auditData = [
+            'start_date' => $auditDetail?->start_date?->format('d F Y'),
+            'end_date' => $auditDetail?->end_date?->format('d F Y'),
+            'start_date_raw' => $auditDetail?->start_date?->toDateString(),
+            'end_date_raw' => $auditDetail?->end_date?->toDateString(),
+            'audit_type' => $rawAuditType,
+            'audit_type_label' => $auditTypeLabel,
+            'audit_type_other' => $auditDetail?->audit_type_other,
+            'lead_auditor' => $auditDetail?->lead_auditor,
+            'activities' => $auditActivities->pluck('activity')->all(),
+            'auditees' => $auditees->map(fn ($a) => [
+                'id' => $a->id,
+                'name' => $a->name,
+                'rank' => $a->rank,
+            ])->all(),
+            'auditors' => $auditors->map(fn ($a) => [
+                'id' => $a->id,
+                'name' => $a->name,
+                'rank' => $a->rank,
+                'is_lead' => (bool) $a->is_lead,
+            ])->all(),
+        ];
+
         // 6. Summary ratings matrix
         $summarySchema = $report->form->summary_schema ?? [];
         $ratingOptions = $summarySchema['rating_options'] ?? [
@@ -350,6 +388,7 @@ class ReportDocumentBuilder
             'photos' => $photosData,
             'photo_sections' => $photoSections,
             'additional_photos' => $additionalPhotos,
+            'audit' => $auditData,
         ];
     }
 
