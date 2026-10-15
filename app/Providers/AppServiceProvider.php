@@ -31,6 +31,8 @@ class AppServiceProvider extends ServiceProvider
 
         Gate::policy(Report::class, ReportPolicy::class);
         Gate::define('manage-forms', fn (User $user) => $user->role === 'superadmin');
+        Gate::define('manage-users', fn (User $user) => $user->role === 'superadmin');
+        Gate::define('manage-vessel-types', fn (User $user) => $user->role === 'superadmin');
     }
 
     /**

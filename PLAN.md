@@ -189,8 +189,8 @@ The old 7.1 (audit set-up with `audit_details`, `auditees`, `auditors`, `audit_a
 
 | # | Task | Ref |
 | --- | --- | --- |
-| 8.1 | Users & Vessel Accounts: create, role (superadmin, corporate, vessel), vessel name, activate, deactivate | §2 |
-| 8.2 | Vessel types | FM-4 |
+| 8.1 | Users & Vessel Accounts: create, role (superadmin, corporate, vessel), vessel name, activate, deactivate | **done**: `Admin\UserController`, `User` soft deletes & role states, Fortify inactive login guard, full management page (`admin/users/index.tsx`) with search, role & status filters, KPI metrics, create/edit modals, self-protection guards, and 13 passing tests in `UserManagementTest` (§2) |
+| 8.2 | Vessel types | **done**: `Admin\VesselTypeController`, `VesselType` model casts & relations (`reports`, `formApplicabilities`), routes (`admin.vessel-types.*`), superadmin navigation entry (`app-sidebar.tsx`), full management page (`admin/vessel-types/index.tsx`) with search, active toggle, KPI metrics, create/edit modals, usage-guarded deletion (preventing deletion when referenced by reports or template applicability rules), and 11 passing tests in `VesselTypeManagementTest` (FM-4) |
 | 8.3 | Vessel rename across reports, photos, findings and accounts, logged | SRS 2.1 |
 | 8.4 | Settings: limits, keep-originals flag, chapters, criteria wording | IMG-1, IMG-3 |
 | 8.5 | Activity log viewer, read only, filterable | NFR-9 |

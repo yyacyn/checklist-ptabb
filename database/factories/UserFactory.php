@@ -64,4 +64,35 @@ class UserFactory extends Factory
         ]);
         /* @end-chisel-2fa */
     }
+
+    public function superadmin(): static
+    {
+        return $this->state(fn (array $attributes) => [
+            'role' => 'superadmin',
+            'vessel_name' => null,
+        ]);
+    }
+
+    public function corporate(): static
+    {
+        return $this->state(fn (array $attributes) => [
+            'role' => 'corporate',
+            'vessel_name' => null,
+        ]);
+    }
+
+    public function vessel(?string $vesselName = null): static
+    {
+        return $this->state(fn (array $attributes) => [
+            'role' => 'vessel',
+            'vessel_name' => $vesselName ?? 'MV Ocean Pride',
+        ]);
+    }
+
+    public function inactive(): static
+    {
+        return $this->state(fn (array $attributes) => [
+            'is_active' => false,
+        ]);
+    }
 }

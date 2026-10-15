@@ -454,23 +454,11 @@ export function RowsBlock({
                             </React.Fragment>
                         ))}
 
-                        {canAdd && (
-                            <div className="pt-2 flex items-center justify-between border-t border-border/50">
-                                <Button
-                                    type="button"
-                                    variant="outline"
-                                    size="sm"
-                                    onClick={handleAddRow}
-                                    className="h-8 text-xs font-semibold flex items-center gap-1.5"
-                                >
-                                    <Plus className="size-3.5" />
-                                    <span>{addButtonLabel}</span>
-                                </Button>
-                                <span className="text-[11px] text-muted-foreground font-mono">
-                                    Total: {rows.length} {rows.length === 1 ? 'entry' : 'entries'}
-                                </span>
-                            </div>
-                        )}
+                        <div className="pt-2 flex items-center justify-end border-t border-border/50">
+                            <span className="text-[11px] text-muted-foreground font-mono">
+                                Total: {rows.length} {rows.length === 1 ? 'entry' : 'entries'}
+                            </span>
+                        </div>
                     </div>
                 ) : (
                     <>

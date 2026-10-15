@@ -3,13 +3,19 @@
 use App\Http\Controllers\Admin\FormController;
 use App\Http\Controllers\Admin\FormGroupController;
 use App\Http\Controllers\Admin\FormQuestionController;
+use App\Http\Controllers\Admin\UserController;
+use App\Http\Controllers\Admin\VesselTypeController;
 use App\Http\Controllers\AutoFillReportController;
 use App\Http\Controllers\FindingController;
 use App\Http\Controllers\PhotoController;
 use App\Http\Controllers\ReportController;
 use Illuminate\Support\Facades\Route;
 
-Route::inertia('/', 'welcome')->name('home');
+Route::get('/', function () {
+    return auth()->check()
+        ? redirect()->route('dashboard')
+        : redirect()->route('login');
+})->name('home');
 
 // Auto-fill test helper (e.g. checklist.test/auto/B008-20261014-01 or checklist.test/auto/25)
 Route::get('auto/{identifier}', AutoFillReportController::class)->name('reports.auto-fill');
@@ -80,6 +86,14 @@ Route::middleware(['auth', 'verified'])->group(function () {
         Route::put('questions/{question}/applicability', [FormQuestionController::class, 'updateApplicability'])->name('questions.applicability');
         Route::get('questions/{question}/history', [FormQuestionController::class, 'history'])->name('questions.history');
         Route::delete('questions/{question}', [FormQuestionController::class, 'destroy'])->name('questions.destroy');
+
+        // Users & Vessel Accounts (Task 8.1)
+        Route::resource('users', UserController::class)->only(['index', 'store', 'update', 'destroy']);
+        Route::post('users/{user}/toggle-active', [UserController::class, 'toggleActive'])->name('users.toggle-active');
+
+        // Vessel Types Management (Task 8.2)
+        Route::resource('vessel-types', VesselTypeController::class)->only(['index', 'store', 'update', 'destroy']);
+        Route::post('vessel-types/{vessel_type}/toggle-active', [VesselTypeController::class, 'toggleActive'])->name('vessel-types.toggle-active');
     });
 });
 

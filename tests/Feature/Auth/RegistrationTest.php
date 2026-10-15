@@ -10,30 +10,19 @@ class RegistrationTest extends TestCase
 {
     use RefreshDatabase;
 
-    protected function setUp(): void
+    public function test_registration_is_disabled(): void
     {
-        parent::setUp();
+        $this->assertFalse(Features::enabled(Features::registration()));
 
-        $this->skipUnlessFortifyHas(Features::registration());
-    }
+        $response = $this->get('/register');
+        $response->assertNotFound();
 
-    public function test_registration_screen_can_be_rendered()
-    {
-        $response = $this->get(route('register'));
-
-        $response->assertOk();
-    }
-
-    public function test_new_users_can_register()
-    {
-        $response = $this->post(route('register.store'), [
+        $postResponse = $this->post('/register', [
             'name' => 'Test User',
             'email' => 'test@example.com',
             'password' => 'password',
             'password_confirmation' => 'password',
         ]);
-
-        $this->assertAuthenticated();
-        $response->assertRedirect(route('dashboard', absolute: false));
+        $postResponse->assertNotFound();
     }
 }

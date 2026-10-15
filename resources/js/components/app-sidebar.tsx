@@ -1,5 +1,5 @@
 import { Link, usePage } from '@inertiajs/react';
-import { BookOpen, Camera, ClipboardList, FolderGit2, LayoutGrid, ShieldAlert } from 'lucide-react';
+import { BookOpen, Camera, ClipboardList, FolderGit2, LayoutGrid, ShieldAlert, Users } from 'lucide-react';
 import AppLogo from '@/components/app-logo';
 import { NavFooter } from '@/components/nav-footer';
 import { NavMain } from '@/components/nav-main';
@@ -57,6 +57,11 @@ export function AppSidebar() {
                       href: '/admin/forms',
                       icon: BookOpen,
                   },
+                  {
+                      title: 'User Accounts',
+                      href: '/admin/users',
+                      icon: Users,
+                  },
               ]
             : []),
     ];
@@ -66,7 +71,11 @@ export function AppSidebar() {
             <SidebarHeader>
                 <SidebarMenu>
                     <SidebarMenuItem>
-                        <SidebarMenuButton size="lg" asChild>
+                        <SidebarMenuButton
+                            size="lg"
+                            className="group-data-[collapsible=icon]:size-8! group-data-[collapsible=icon]:p-0!"
+                            asChild
+                        >
                             <Link href={dashboard()} prefetch>
                                 <AppLogo />
                             </Link>
