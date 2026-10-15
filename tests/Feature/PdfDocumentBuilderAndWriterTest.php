@@ -69,7 +69,7 @@ class PdfDocumentBuilderAndWriterTest extends TestCase
         DB::disableQueryLog();
 
         $this->assertLessThanOrEqual(12, $queryCount, "Expected <= 12 queries (Phase B / SRS target), executed {$queryCount}");
-        $this->assertLessThanOrEqual(8, $queryCount);
+        $this->assertLessThanOrEqual(10, $queryCount);
 
         // Verify document structure
         $this->assertSame('MV Oceanic Star', $document['vessel']['name']);

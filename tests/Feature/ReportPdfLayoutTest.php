@@ -7,6 +7,7 @@ use App\Models\Report;
 use App\Models\User;
 use App\Models\VesselType;
 use App\Services\Pdf\ReportPdfRenderer;
+use App\Services\Pdf\Writers\MpdfWriter;
 use App\Services\ReportSnapshot;
 use Database\Seeders\FormSeeder;
 use Illuminate\Foundation\Testing\RefreshDatabase;
@@ -239,6 +240,44 @@ class ReportPdfLayoutTest extends TestCase
             $len = strlen($mpdf->pages[$p] ?? '');
             $this->assertGreaterThan(500, $len, "Page {$p} is empty (len {$len})");
         }
+    }
+
+    /**
+     * SRS REP-1e: The printed index at the front is generated from the document's
+     * real page numbers, matching actual chapter start pages in the generated PDF.
+     */
+    public function test_pdf_toc_page_numbers_match_actual_chapter_start_pages(): void
+    {
+        $report = $this->createInspectionReport(['status' => 'submitted']);
+        $renderer = new ReportPdfRenderer;
+
+        // Render PDF binary via renderer (uses MpdfWriter with dynamic TOC resolution)
+        $pdfBinary = $renderer->renderToPdf($report);
+        $this->assertNotEmpty($pdfBinary);
+
+        // Also inspect the HTML after MpdfWriter resolution
+        $html = $renderer->render($report);
+        $writer = new MpdfWriter;
+
+        // Verify that placeholders are present in initial HTML
+        $this->assertStringContainsString('<!--TOC_P:1-->', $html);
+        $this->assertStringContainsString('<!--TOC_P:2-->', $html);
+
+        // Use reflection to test resolveTocPages
+        $method = new \ReflectionMethod($writer, 'resolveTocPages');
+        $method->setAccessible(true);
+        $tempDir = storage_path('app/temp/mpdf');
+        $resolvedHtml = $method->invoke($writer, $html, [], $tempDir);
+
+        // All placeholders should be resolved (no <!--TOC_P: left)
+        $this->assertStringNotContainsString('<!--TOC_P:', $resolvedHtml);
+
+        // Chapter 1 must be on page 02 (cover is page 1)
+        $this->assertMatchesRegularExpression('/>General Information &(?:amp;)? Report Summary<\/a>\s*<\/td>\s*<td[^>]*>\s*<a[^>]*>02<\/a>/s', $resolvedHtml);
+
+        // Non-applicable chapters (e.g. Chapter 8 on cement carrier, Chapter 13 without ice notation) show N/A
+        $this->assertMatchesRegularExpression('/>Cargo &(?:amp;)? Ballast Systems<\/a>\s*<\/td>\s*<td[^>]*>\s*<a[^>]*>N\/A<\/a>/s', $resolvedHtml);
+        $this->assertMatchesRegularExpression('/>Ice Operations<\/a>\s*<\/td>\s*<td[^>]*>\s*<a[^>]*>N\/A<\/a>/s', $resolvedHtml);
     }
 
     /**

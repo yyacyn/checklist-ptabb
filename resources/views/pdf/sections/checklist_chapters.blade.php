@@ -72,6 +72,7 @@
   @endif
 
   <div class="chapter" id="chapter-{{ $chapter['no'] }}">
+    <tocentry content="toc_ch_{{ $chapter['no'] }}" />
     <h3 class="chapter-header">Chapter {{ $chapter['no'] }} - {{ $chapter['title'] }}</h3>
 
     <table class="checklist-table" width="100%">

@@ -4,7 +4,8 @@
     $findings = $doc['findings'] ?? [];
 @endphp
 
-<div class="section" style="margin-top: 14pt;">
+<div class="section" id="chapter-{{ $chapterNo }}" style="margin-top: 14pt;">
+  <tocentry content="toc_ch_{{ $chapterNo }}" />
   <h3 class="chapter-header">{{ $title }}</h3>
   <table class="findings-table">
     <thead>

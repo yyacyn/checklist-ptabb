@@ -9,7 +9,10 @@ use App\Http\Controllers\AutoFillReportController;
 use App\Http\Controllers\FindingController;
 use App\Http\Controllers\PhotoController;
 use App\Http\Controllers\ReportController;
+use App\Models\Finding;
+use App\Models\Report;
 use Illuminate\Support\Facades\Route;
+use Inertia\Inertia;
 
 Route::get('/', function () {
     return auth()->check()
@@ -21,7 +24,34 @@ Route::get('/', function () {
 Route::get('auto/{identifier}', AutoFillReportController::class)->name('reports.auto-fill');
 
 Route::middleware(['auth', 'verified'])->group(function () {
-    Route::inertia('dashboard', 'dashboard')->name('dashboard');
+    Route::get('dashboard', function () {
+        $user = auth()->user();
+
+        $reportsQuery = Report::query();
+        $findingsQuery = Finding::query();
+
+        if ($user && $user->role === 'vessel') {
+            $reportsQuery->where('vessel_name', $user->vessel_name);
+            $findingsQuery->whereHas('report', fn ($q) => $q->where('vessel_name', $user->vessel_name));
+        }
+
+        $recentReports = (clone $reportsQuery)
+            ->with('form')
+            ->latest('report_date')
+            ->latest('id')
+            ->limit(5)
+            ->get(['id', 'reference_number', 'vessel_name', 'form_id', 'status', 'report_date']);
+
+        return Inertia::render('dashboard', [
+            'stats' => [
+                'total_reports' => $reportsQuery->count(),
+                'draft_reports' => (clone $reportsQuery)->where('status', 'draft')->count(),
+                'submitted_reports' => (clone $reportsQuery)->where('status', 'submitted')->count(),
+                'open_findings' => (clone $findingsQuery)->where('finding_status', 'open')->count(),
+            ],
+            'recent_reports' => $recentReports,
+        ]);
+    })->name('dashboard');
 
     // Reports (Task 3.1, 3.2, 3.3, 3.6)
     Route::get('reports', [ReportController::class, 'index'])->name('reports.index');

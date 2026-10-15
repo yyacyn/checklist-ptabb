@@ -43,7 +43,8 @@
     $selectedOps = array_map('strtolower', $particulars['operations'] ?? []);
 @endphp
 
-<div class="section page-break-before">
+<div class="section page-break-before" id="chapter-1">
+  <tocentry content="toc_ch_1" />
   <h2 class="chapter-title">{{ $title }}</h2>
 
   {{-- 1. Vessel Particulars --}}
@@ -138,22 +139,24 @@
 
   {{-- 6. Document Index & Fill In Instructions (flows after Internal Circulation) --}}
   @php
+    $chaptersByNo = collect($doc['chapters'] ?? [])->keyBy(fn ($c) => (string) ($c['no'] ?? ''));
+
     $defaultIndex = [
-        ['no' => '1.', 'title' => 'General Information & Report Summary', 'page' => '01'],
-        ['no' => '2.', 'title' => 'Certification and Documentation', 'page' => '04'],
-        ['no' => '3.', 'title' => 'Crew Management', 'page' => '04'],
-        ['no' => '4.', 'title' => 'Navigation', 'page' => '05'],
-        ['no' => '5.', 'title' => 'Safety Management', 'page' => '07'],
-        ['no' => '6.', 'title' => 'Pollution Prevention', 'page' => '13'],
-        ['no' => '7.', 'title' => 'Structural Condition', 'page' => '15'],
-        ['no' => '8.', 'title' => 'Cargo & Ballast Systems', 'page' => '16'],
-        ['no' => '9.', 'title' => 'Mooring', 'page' => '22'],
-        ['no' => '10.', 'title' => 'Communications', 'page' => '25'],
-        ['no' => '11.', 'title' => 'Engine & Steering Compartments', 'page' => '26'],
-        ['no' => '12.', 'title' => 'General Appearance and Condition', 'page' => '34'],
-        ['no' => '13.', 'title' => 'Ice Operations', 'page' => '36'],
-        ['no' => '14.', 'title' => 'Best Practices', 'page' => '36'],
-        ['no' => '15.', 'title' => 'Summary of Observations', 'page' => '37'],
+        ['no' => '1.', 'title' => 'General Information & Report Summary', 'ch' => '1', 'anchor' => 'chapter-1', 'fallback_page' => '01'],
+        ['no' => '2.', 'title' => 'Certification and Documentation', 'ch' => '2', 'anchor' => 'chapter-2', 'fallback_page' => '04'],
+        ['no' => '3.', 'title' => 'Crew Management', 'ch' => '3', 'anchor' => 'chapter-3', 'fallback_page' => '04'],
+        ['no' => '4.', 'title' => 'Navigation', 'ch' => '4', 'anchor' => 'chapter-4', 'fallback_page' => '05'],
+        ['no' => '5.', 'title' => 'Safety Management', 'ch' => '5', 'anchor' => 'chapter-5', 'fallback_page' => '07'],
+        ['no' => '6.', 'title' => 'Pollution Prevention', 'ch' => '6', 'anchor' => 'chapter-6', 'fallback_page' => '13'],
+        ['no' => '7.', 'title' => 'Structural Condition', 'ch' => '7', 'anchor' => 'chapter-7', 'fallback_page' => '15'],
+        ['no' => '8.', 'title' => 'Cargo & Ballast Systems', 'ch' => '8', 'anchor' => 'chapter-8', 'fallback_page' => '16'],
+        ['no' => '9.', 'title' => 'Mooring', 'ch' => '9', 'anchor' => 'chapter-9', 'fallback_page' => '22'],
+        ['no' => '10.', 'title' => 'Communications', 'ch' => '10', 'anchor' => 'chapter-10', 'fallback_page' => '25'],
+        ['no' => '11.', 'title' => 'Engine & Steering Compartments', 'ch' => '11', 'anchor' => 'chapter-11', 'fallback_page' => '26'],
+        ['no' => '12.', 'title' => 'General Appearance and Condition', 'ch' => '12', 'anchor' => 'chapter-12', 'fallback_page' => '34'],
+        ['no' => '13.', 'title' => 'Ice Operations', 'ch' => '13', 'anchor' => 'chapter-13', 'fallback_page' => '36'],
+        ['no' => '14.', 'title' => 'Best Practices', 'ch' => '14', 'anchor' => 'chapter-14', 'fallback_page' => '36'],
+        ['no' => '15.', 'title' => 'Summary of Observations', 'ch' => '15', 'anchor' => 'chapter-15', 'fallback_page' => '37'],
     ];
 
     $instructionsText = $staticTexts['fill_in_instructions'] ?? "1. Read carefully and go through each chapter carefully.\n2. For items not seen enter on the comments section the Not Seen items.\n3. For items not available onboard enter on the comments section below the Not Applicable Items.\n4. For inspections of tanks, etc. please attach form D 024 to this report.\n5. In case of negative observations or job orders raised for notified deficiencies, relevant remarks must have cross-reference to the breached relevant numerical item on the Chapter the deficiency has been identified as applicable.\n6. Vessels should be inspected at least annually by both shore staff and vessel’s designated personnel, according to this form. During these inspections, the designated Officers (on behalf of the vessel) and the Company’s Superintendents (on behalf of the Company) may inspect as many fields included in this form as possible, depending on their expertise and the available time or the vessel’s operational status.\n7. The completion of all parts of this form may be affected during several such inspections.\n8. The Master (regarding the inspections carried out by ship Officers) and the Technical Manager (regarding the inspections carried out by shore staff) are responsible to ensure that all parts of this form are reviewed within a period of one year.";
@@ -164,10 +167,18 @@
     <table class="findings-table" style="width: 100%; border-collapse: collapse; margin-bottom: 12pt;">
       <tbody>
         @foreach($defaultIndex as $item)
+          @php
+            $isNotApplicable = $chaptersByNo->has($item['ch']) && isset($chaptersByNo[$item['ch']]['is_applicable']) && ! $chaptersByNo[$item['ch']]['is_applicable'];
+            $initialPage = $isNotApplicable ? 'N/A' : ($doc['toc_pages'][$item['ch']] ?? $item['fallback_page']);
+          @endphp
           <tr>
             <td style="width: 6%; text-align: center; font-weight: bold; padding: 2pt 4pt; font-size: 7.5pt;">{{ $item['no'] }}</td>
-            <td style="width: 86%; padding: 2pt 6pt; font-size: 7.5pt;">{{ $item['title'] }}</td>
-            <td style="width: 8%; text-align: center; padding: 2pt 4pt; font-size: 7.5pt;">{{ $item['page'] }}</td>
+            <td style="width: 86%; padding: 2pt 6pt; font-size: 7.5pt;">
+              <a href="#{{ $item['anchor'] }}" style="text-decoration: none; color: inherit;">{{ $item['title'] }}</a>
+            </td>
+            <td style="width: 8%; text-align: center; padding: 2pt 4pt; font-size: 7.5pt;">
+              <a href="#{{ $item['anchor'] }}" style="text-decoration: none; color: inherit;"><!--TOC_P:{{ $item['ch'] }}-->{{ $initialPage }}<!--/TOC_P--></a>
+            </td>
           </tr>
         @endforeach
       </tbody>
