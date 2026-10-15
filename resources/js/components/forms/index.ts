@@ -4,6 +4,7 @@ export { ChapterEditorCard } from './chapter-editor-card';
 export { FormChapterSidebar } from './form-chapter-sidebar';
 export { GroupModalDialog } from './group-modal-dialog';
 export { HistoryModalDialog } from './history-modal-dialog';
+export { InstructionsEditor } from './instructions-editor';
 export { PhotoSchemaEditor } from './photo-schema-editor';
 export { QuestionModalDialog } from './question-modal-dialog';
 export { QuestionRow } from './question-row';

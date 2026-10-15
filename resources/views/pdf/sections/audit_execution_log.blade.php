@@ -5,7 +5,7 @@
 <div class="section page-break-before">
   <h3 class="chapter-header">AUDIT EXECUTION</h3>
 
-  <table class="findings-table" style="width: 100%; margin-bottom: 12pt;">
+  <table class="findings-table" style="width: 100%; margin-bottom: 6pt;">
     <thead>
       <tr style="background-color: #f1f5f9;">
         <th style="width: 25%; text-align: left;">Person / Function</th>

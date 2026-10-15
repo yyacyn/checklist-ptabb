@@ -247,36 +247,7 @@ export function ObservationsSection({
     };
 
     const defaultTextFields: SummarySchemaTextField[] = isB008
-        ? [
-              {
-                  key: 'summary_safety_meetings',
-                  label: 'Safety Meetings & Drill Performance',
-                  placeholder: 'Review of safety committee meetings, drills carried out...',
-                  rows: 3,
-                  span: 'half' as const,
-              },
-              {
-                  key: 'summary_participants',
-                  label: 'Key Personnel Met & Audit Participants',
-                  placeholder: 'List of master, chief engineer, officers and crew involved...',
-                  rows: 3,
-                  span: 'half' as const,
-              },
-              {
-                  key: 'summary_concept_understanding',
-                  label: 'Understanding of Safety Management System Concepts',
-                  placeholder: 'Evaluation of crew familiarity with safety procedures and company policies...',
-                  rows: 3,
-                  span: 'full' as const,
-              },
-              {
-                  key: 'summary_training_needs',
-                  label: 'Identified Training Needs & Corrective Guidance',
-                  placeholder: 'Recommended shipboard and shore-based training requirements...',
-                  rows: 3,
-                  span: 'full' as const,
-              },
-          ]
+        ? []
         : [
               {
                   key: 'summary_comments_no',
@@ -289,7 +260,11 @@ export function ObservationsSection({
               },
           ];
 
-    const textFields = schema.text_fields && schema.text_fields.length > 0 ? schema.text_fields : defaultTextFields;
+    const textFields = isB008
+        ? []
+        : schema.text_fields && schema.text_fields.length > 0
+        ? schema.text_fields
+        : defaultTextFields;
 
     const [summaryTexts, setSummaryTexts] = useState<Record<string, string>>(() => {
         const initial: Record<string, string> = {};
@@ -549,59 +524,61 @@ export function ObservationsSection({
             )}
 
             {/* Dynamic Summary Textareas (Task 4.1) */}
-            <div className="grid grid-cols-1 md:grid-cols-2 gap-4">
-                {textFields.map((tf) => {
-                    const isFull = tf.span === 'full';
-                    const isSaving = textSaving[tf.key];
-                    const isSaved = textSaved[tf.key];
+            {textFields.length > 0 && (
+                <div className="grid grid-cols-1 md:grid-cols-2 gap-4">
+                    {textFields.map((tf) => {
+                        const isFull = tf.span === 'full';
+                        const isSaving = textSaving[tf.key];
+                        const isSaved = textSaved[tf.key];
 
-                    return (
-                        <Card
-                            key={tf.key}
-                            className={`border-2 border-border/80 shadow-xs bg-card ${
-                                isFull ? 'md:col-span-2' : ''
-                            }`}
-                        >
-                            <CardHeader className="pb-2">
-                                <div className="flex items-center justify-between">
-                                    <CardTitle className="text-sm font-semibold flex items-center gap-2">
-                                        <FileText className="size-4 text-primary" />
-                                        <span>{tf.label}</span>
-                                    </CardTitle>
-                                    <div className="text-xs">
-                                        {isSaving && (
-                                            <span className="text-amber-500 animate-pulse flex items-center gap-1 text-[11px]">
-                                                <Loader2 className="size-3 animate-spin" /> Saving...
-                                            </span>
-                                        )}
-                                        {isSaved && (
-                                            <span className="text-emerald-600 flex items-center gap-1 text-[11px]">
-                                                <Check className="size-3" /> Saved
-                                            </span>
-                                        )}
+                        return (
+                            <Card
+                                key={tf.key}
+                                className={`border-2 border-border/80 shadow-xs bg-card ${
+                                    isFull ? 'md:col-span-2' : ''
+                                }`}
+                            >
+                                <CardHeader className="pb-2">
+                                    <div className="flex items-center justify-between">
+                                        <CardTitle className="text-sm font-semibold flex items-center gap-2">
+                                            <FileText className="size-4 text-primary" />
+                                            <span>{tf.label}</span>
+                                        </CardTitle>
+                                        <div className="text-xs">
+                                            {isSaving && (
+                                                <span className="text-amber-500 animate-pulse flex items-center gap-1 text-[11px]">
+                                                    <Loader2 className="size-3 animate-spin" /> Saving...
+                                                </span>
+                                            )}
+                                            {isSaved && (
+                                                <span className="text-emerald-600 flex items-center gap-1 text-[11px]">
+                                                    <Check className="size-3" /> Saved
+                                                </span>
+                                            )}
+                                        </div>
                                     </div>
-                                </div>
-                                {tf.description && (
-                                    <CardDescription className="text-xs">
-                                        {tf.description}
-                                    </CardDescription>
-                                )}
-                            </CardHeader>
-                            <CardContent>
-                                <textarea
-                                    rows={tf.rows || 3}
-                                    value={summaryTexts[tf.key] || ''}
-                                    disabled={!isEditable}
-                                    onChange={(e) => handleTextChange(tf.key, e.target.value)}
-                                    onBlur={() => flushField(tf.key)}
-                                    placeholder={tf.placeholder}
-                                    className="w-full rounded-md border border-input bg-transparent px-3 py-2 text-sm shadow-xs placeholder:text-muted-foreground focus-visible:outline-none focus-visible:ring-1 focus-visible:ring-ring disabled:cursor-not-allowed disabled:opacity-50"
-                                />
-                            </CardContent>
-                        </Card>
-                    );
-                })}
-            </div>
+                                    {tf.description && (
+                                        <CardDescription className="text-xs">
+                                            {tf.description}
+                                        </CardDescription>
+                                    )}
+                                </CardHeader>
+                                <CardContent>
+                                    <textarea
+                                        rows={tf.rows || 3}
+                                        value={summaryTexts[tf.key] || ''}
+                                        disabled={!isEditable}
+                                        onChange={(e) => handleTextChange(tf.key, e.target.value)}
+                                        onBlur={() => flushField(tf.key)}
+                                        placeholder={tf.placeholder}
+                                        className="w-full rounded-md border border-input bg-transparent px-3 py-2 text-sm shadow-xs placeholder:text-muted-foreground focus-visible:outline-none focus-visible:ring-1 focus-visible:ring-ring disabled:cursor-not-allowed disabled:opacity-50"
+                                    />
+                                </CardContent>
+                            </Card>
+                        );
+                    })}
+                </div>
+            )}
 
             {/* Senior Officers Appraisal (Form D-062, INS-15) */}
             {isD062 && (

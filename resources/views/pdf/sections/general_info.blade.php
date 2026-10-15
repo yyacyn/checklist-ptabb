@@ -77,13 +77,35 @@
   </table>
 
   {{-- 3. PSC and Drydock --}}
-  <h4 class="subsection-title">Port State Control & Dry Dock History</h4>
-  <table class="particulars-table">
-    <tr><td class="field-label">Last PSC Inspection Port</td><td class="field-value">{{ $particulars['psc']['last_port'] ?: '-' }}</td></tr>
-    <tr><td class="field-label">Last PSC Inspection Date</td><td class="field-value">{{ $particulars['psc']['last_date'] ?: '-' }}</td></tr>
-    <tr><td class="field-label">Detained / Deficiencies</td><td class="field-value">{{ !empty($particulars['psc']['detained_or_deficiencies']) ? 'Yes' : 'No' }}</td></tr>
-    <tr><td class="field-label">Last Dry Dock Date</td><td class="field-value">{{ $particulars['drydock']['last_date'] ?: '-' }}</td></tr>
-    <tr><td class="field-label">Next Scheduled Dry Dock</td><td class="field-value">{{ $particulars['drydock']['next_date'] ?: '-' }}</td></tr>
+  <h4 class="subsection-title">Port State Control &amp; Dry Dock History</h4>
+  <table class="particulars-table" style="width: 100%;">
+    <tr>
+      <td style="width: 65%;">
+        <strong>Port of last PSC inspection:</strong> {{ $particulars['psc']['last_port'] ?: '—' }}
+        <div style="font-size: 7pt; font-style: italic; color: #555; margin-top: 2pt;">
+          If the vessel was detained or if deficiencies were identified check/verify close out.
+          @if(!empty($particulars['psc']['detained_or_deficiencies']))
+            <strong style="color: #b91c1c;">(Detained / Deficiencies: YES)</strong>
+          @endif
+        </div>
+      </td>
+      <td style="width: 35%;">
+        <strong>Date:</strong> {{ $particulars['psc']['last_date'] ?: '—' }}
+      </td>
+    </tr>
+    <tr>
+      <td>
+        <strong>Date of last Dry Dock:</strong> {{ $particulars['drydock']['last_date'] ?: '—' }}
+      </td>
+      <td>
+        <strong>Next Dry Dock:</strong> {{ $particulars['drydock']['next_date'] ?: '—' }}
+      </td>
+    </tr>
+    <tr>
+      <td colspan="2" style="font-size: 7.5pt; background-color: #fafafa; padding: 5pt 6pt; line-height: 1.35;">
+        <strong>Important Note: Discussion to be performed with the senior officers, prior commencement of the inspection, to discuss safety related aspects.</strong> (Lead by example, don't demotivate, inspire. Get and provide feedback, follow through on actions, communicate (ask questions/sincere conversation), hear from seafarers and what they say.
+      </td>
+    </tr>
   </table>
 
   {{-- 4. Open Items Table --}}
@@ -114,7 +136,52 @@
     </tbody>
   </table>
 
-  {{-- 6. Other Attendance-Related Activities (INS-13) --}}
+  {{-- 6. Document Index & Fill In Instructions (flows after Internal Circulation) --}}
+  @php
+    $defaultIndex = [
+        ['no' => '1.', 'title' => 'General Information & Report Summary', 'page' => '01'],
+        ['no' => '2.', 'title' => 'Certification and Documentation', 'page' => '04'],
+        ['no' => '3.', 'title' => 'Crew Management', 'page' => '04'],
+        ['no' => '4.', 'title' => 'Navigation', 'page' => '05'],
+        ['no' => '5.', 'title' => 'Safety Management', 'page' => '07'],
+        ['no' => '6.', 'title' => 'Pollution Prevention', 'page' => '13'],
+        ['no' => '7.', 'title' => 'Structural Condition', 'page' => '15'],
+        ['no' => '8.', 'title' => 'Cargo & Ballast Systems', 'page' => '16'],
+        ['no' => '9.', 'title' => 'Mooring', 'page' => '22'],
+        ['no' => '10.', 'title' => 'Communications', 'page' => '25'],
+        ['no' => '11.', 'title' => 'Engine & Steering Compartments', 'page' => '26'],
+        ['no' => '12.', 'title' => 'General Appearance and Condition', 'page' => '34'],
+        ['no' => '13.', 'title' => 'Ice Operations', 'page' => '36'],
+        ['no' => '14.', 'title' => 'Best Practices', 'page' => '36'],
+        ['no' => '15.', 'title' => 'Summary of Observations', 'page' => '37'],
+    ];
+
+    $instructionsText = $staticTexts['fill_in_instructions'] ?? "1. Read carefully and go through each chapter carefully.\n2. For items not seen enter on the comments section the Not Seen items.\n3. For items not available onboard enter on the comments section below the Not Applicable Items.\n4. For inspections of tanks, etc. please attach form D 024 to this report.\n5. In case of negative observations or job orders raised for notified deficiencies, relevant remarks must have cross-reference to the breached relevant numerical item on the Chapter the deficiency has been identified as applicable.\n6. Vessels should be inspected at least annually by both shore staff and vessel’s designated personnel, according to this form. During these inspections, the designated Officers (on behalf of the vessel) and the Company’s Superintendents (on behalf of the Company) may inspect as many fields included in this form as possible, depending on their expertise and the available time or the vessel’s operational status.\n7. The completion of all parts of this form may be affected during several such inspections.\n8. The Master (regarding the inspections carried out by ship Officers) and the Technical Manager (regarding the inspections carried out by shore staff) are responsible to ensure that all parts of this form are reviewed within a period of one year.";
+  @endphp
+
+  <div style="margin-top: 14pt;">
+    <div style="font-weight: bold; font-size: 10pt; margin-bottom: 5pt; text-transform: uppercase; letter-spacing: 0.5px;">INDEX</div>
+    <table class="findings-table" style="width: 100%; border-collapse: collapse; margin-bottom: 12pt;">
+      <tbody>
+        @foreach($defaultIndex as $item)
+          <tr>
+            <td style="width: 6%; text-align: center; font-weight: bold; padding: 2pt 4pt; font-size: 7.5pt;">{{ $item['no'] }}</td>
+            <td style="width: 86%; padding: 2pt 6pt; font-size: 7.5pt;">{{ $item['title'] }}</td>
+            <td style="width: 8%; text-align: center; padding: 2pt 4pt; font-size: 7.5pt;">{{ $item['page'] }}</td>
+          </tr>
+        @endforeach
+      </tbody>
+    </table>
+
+    @if(!empty($instructionsText))
+      <div class="static-text" style="font-size: 8pt; line-height: 1.35;">
+        <div style="font-weight: bold; margin-bottom: 4pt; font-size: 8.5pt;">FILL IN INSTRUCTIONS:</div>
+        <div style="color: #000;">{!! nl2br(e($instructionsText)) !!}</div>
+      </div>
+    @endif
+  </div>
+
+  {{-- 7. Other Attendance-Related Activities (INS-13) --}}
   @php
     $ch1 = collect($doc['chapters'] ?? [])->firstWhere('is_chapter_one', true);
     $attendanceSg = null;
@@ -126,7 +193,7 @@
   @endphp
 
   @if($attendanceSg && !empty($attendanceSg['questions']))
-    <div style="page-break-before: always; margin-top: 14pt;">
+    <div style="margin-top: 14pt;">
       <h3 class="chapter-header">Other Attendance-Related Activities</h3>
       <table class="findings-table" style="width: 100%; margin-top: 6pt;">
         <thead>
@@ -154,20 +221,12 @@
           @endforeach
         </tbody>
       </table>
-    </div>
-  @endif
 
-  {{-- 7. Static texts --}}
-  @if(!empty($staticTexts['fill_in_instructions']))
-    <div class="static-text" style="margin-top:12pt;padding:8pt;border:1pt solid #ddd;background-color:#f9f9f9;font-size:8pt;">
-      <h4 style="margin:0 0 4pt;font-size:8.5pt;">FILL IN INSTRUCTIONS</h4>
-      <div>{!! nl2br(e($staticTexts['fill_in_instructions'])) !!}</div>
-    </div>
-  @endif
-
-  @if(!empty($staticTexts['open_items_note']))
-    <div class="static-text" style="margin-top:10pt;font-size:8pt;color:#555;">
-      <div>{!! nl2br(e($staticTexts['open_items_note'])) !!}</div>
+      @if(!empty($staticTexts['open_items_note']))
+        <div class="static-text" style="margin-top:10pt;font-size:8pt;color:#555;">
+          <div>{!! nl2br(e($staticTexts['open_items_note'])) !!}</div>
+        </div>
+      @endif
     </div>
   @endif
 </div>

@@ -25,6 +25,7 @@ import {
     FormChapterSidebar,
     GroupModalDialog,
     HistoryModalDialog,
+    InstructionsEditor,
     PhotoSchemaEditor,
     QuestionModalDialog,
     StandalonePhotoEditor,
@@ -272,6 +273,72 @@ export default function FormShow({
                 },
                 onError: () => {
                     setIsSavingSummary(false);
+                },
+            }
+        );
+    };
+
+    // Layout Schema & Fill In Instructions State
+    const [layoutSchemaState, setLayoutSchemaState] = useState<LayoutSchema>(() => {
+        return (
+            form.layout_schema ?? {
+                sections: [
+                    {
+                        type: 'general_info',
+                        title: 'Chapter 1 - General Information',
+                        static_texts: {},
+                    },
+                ],
+            }
+        );
+    });
+    const [isSavingInstructions, setIsSavingInstructions] = useState(false);
+
+    const getGeneralInfoInstructions = (): string => {
+        const sections = layoutSchemaState.sections || [];
+        const genSection = sections.find((s) => s.type === 'general_info');
+        return genSection?.static_texts?.fill_in_instructions ?? '';
+    };
+
+    const handleSaveInstructions = (newInstructions: string) => {
+        setIsSavingInstructions(true);
+        const sections = [...(layoutSchemaState.sections || [])];
+        let genIndex = sections.findIndex((s) => s.type === 'general_info');
+
+        if (genIndex === -1) {
+            sections.unshift({
+                type: 'general_info',
+                title: 'Chapter 1 - General Information',
+                static_texts: { fill_in_instructions: newInstructions },
+            });
+        } else {
+            const currentGen = sections[genIndex];
+            sections[genIndex] = {
+                ...currentGen,
+                static_texts: {
+                    ...(currentGen.static_texts || {}),
+                    fill_in_instructions: newInstructions,
+                },
+            };
+        }
+
+        const updatedLayout: LayoutSchema = {
+            ...layoutSchemaState,
+            sections,
+        };
+
+        setLayoutSchemaState(updatedLayout);
+
+        router.put(
+            `/admin/forms/${form.id}/layout-schema`,
+            { layout_schema: updatedLayout as any },
+            {
+                preserveScroll: true,
+                onSuccess: () => {
+                    setIsSavingInstructions(false);
+                },
+                onError: () => {
+                    setIsSavingInstructions(false);
                 },
             }
         );
@@ -680,6 +747,18 @@ export default function FormShow({
                                     prevTab={prevTab}
                                     nextTab={nextTab}
                                     onSelectTab={handleSelectTab}
+                                    instructionsEditor={
+                                        (activeChapter.chapter_no === '1' ||
+                                            activeChapter.title.toLowerCase().includes('general information') ||
+                                            activeChapter.title.toLowerCase().includes('general - master') ||
+                                            activeChapter.sort_order === 1) ? (
+                                            <InstructionsEditor
+                                                initialInstructions={getGeneralInfoInstructions()}
+                                                onSave={handleSaveInstructions}
+                                                isSaving={isSavingInstructions}
+                                            />
+                                        ) : undefined
+                                    }
                                 />
                             ) : (
                                 <Card className="p-8 text-center border-dashed">

@@ -1,44 +1,86 @@
 @php
-    $title = $config['title'] ?? 'Appraisals of Senior Officers';
     $appraisals = $doc['senior_officers_appraisal'] ?? [];
+
+    $defaultRanks = ['Master', 'Chief Engineer', 'Chief Officer', 'Second Engineer'];
+    $rows = [];
+    if (!empty($appraisals) && is_array($appraisals)) {
+        $rows = $appraisals;
+    } else {
+        foreach ($defaultRanks as $r) {
+            $rows[] = ['rank' => $r, 'name' => '', 'comments' => '', 'appraised' => null];
+        }
+    }
 @endphp
 
-<div class="section page-break-before">
-  <h3 class="chapter-header">{{ $title }}</h3>
-  <div style="font-size: 8pt; font-style: italic; color: #475569; margin-top: -6pt; margin-bottom: 8pt;">
-    (To be briefly indicated along with Appraisal Report C1-013 &amp; 014)
-  </div>
+<div class="section" style="margin-top: 14pt;">
+  <h3 style="text-align: center; font-size: 11pt; font-weight: bold; margin-bottom: 8pt; text-transform: uppercase; letter-spacing: 0.5px;">
+    APPRAISAL OF SENIOR OFFICERS
+  </h3>
 
-  <table class="findings-table" style="width: 100%;">
+  <table class="findings-table" style="width: 100%; border-collapse: collapse; border: 1px solid #000;">
     <thead>
-      <tr style="background-color: #f1f5f9;">
-        <th style="width: 18%; text-align: left;">Rank</th>
-        <th style="width: 22%; text-align: left;">Name</th>
-        <th style="text-align: left;">Comments <span style="font-weight: normal; font-size: 7pt; color: #64748b;">(Familiarity with on-board systems and equipment verified)</span></th>
-        <th style="width: 16%; text-align: center;">Appraised<br><span style="font-size: 7pt;">Yes &nbsp;&nbsp;&nbsp; No</span></th>
+      <tr>
+        <th colspan="3" style="border: 1px solid #000; padding: 4pt 6pt; text-align: left; background-color: #f8fafc;">
+          <span style="font-weight: bold; font-size: 8.5pt; text-decoration: underline;">Appraisals of Senior Officers</span><br>
+          <span style="font-weight: normal; font-size: 7.5pt; font-style: italic; color: #334155;">(To be briefly indicated along with Appraisal Report C1-013 &amp; 014)</span>
+        </th>
+        <th colspan="2" style="border: 1px solid #000; padding: 4pt 6pt; text-align: center; vertical-align: middle; background-color: #f8fafc; font-weight: bold; font-size: 8.5pt;">
+          Appraised
+        </th>
+      </tr>
+      <tr>
+        <th style="width: 16%; border: 1px solid #000; padding: 4pt 6pt; text-align: left; background-color: #f1f5f9; font-size: 8pt;">
+          Rank
+        </th>
+        <th style="width: 20%; border: 1px solid #000; padding: 4pt 6pt; text-align: left; background-color: #f1f5f9; font-size: 8pt;">
+          Name
+        </th>
+        <th style="width: 48%; border: 1px solid #000; padding: 4pt 6pt; text-align: left; background-color: #f1f5f9; font-size: 8pt;">
+          Comments<br>
+          <span style="font-weight: normal; font-size: 6.8pt; color: #475569; line-height: 1.1;">
+            The familiarity of all officers with the on-board systems and equipment related to their area of care must be confirmed and duly verified. Any positive-negative comments to be entered
+          </span>
+        </th>
+        <th style="width: 8%; border: 1px solid #000; padding: 4pt 2pt; text-align: center; vertical-align: middle; background-color: #f1f5f9; font-size: 8pt;">
+          Yes
+        </th>
+        <th style="width: 8%; border: 1px solid #000; padding: 4pt 2pt; text-align: center; vertical-align: middle; background-color: #f1f5f9; font-size: 8pt;">
+          No
+        </th>
       </tr>
     </thead>
     <tbody>
-      @forelse($appraisals as $officer)
+      @foreach($rows as $officer)
         @php
-          $isAppraised = !empty($officer['appraised']) && $officer['appraised'] !== 'no' && $officer['appraised'] !== false;
+          $rawAppraised = $officer['appraised'] ?? null;
+          $hasAnswer = $rawAppraised !== null && $rawAppraised !== '';
+          $isYes = $hasAnswer && ($rawAppraised === true || $rawAppraised === 'yes' || $rawAppraised === 1 || $rawAppraised === '1');
+          $isNo = $hasAnswer && ($rawAppraised === false || $rawAppraised === 'no' || $rawAppraised === 0 || $rawAppraised === '0');
         @endphp
         <tr>
-          <td style="font-weight: bold; font-size: 8pt;">{{ $officer['rank'] ?? '—' }}</td>
-          <td style="font-size: 8pt;">{{ $officer['name'] ?? '—' }}</td>
-          <td style="font-size: 8pt;">{{ $officer['comments'] ?? '—' }}</td>
-          <td class="text-center" style="font-weight: bold; font-size: 9pt;">
-            <span style="display: inline-block; width: 45%;">{{ $isAppraised ? 'X' : '☐' }}</span>
-            <span style="display: inline-block; width: 45%; color: #94a3b8;">{{ !$isAppraised ? 'X' : '☐' }}</span>
+          <td style="border: 1px solid #000; padding: 6pt; font-weight: bold; font-size: 8pt; vertical-align: top;">
+            {{ $officer['rank'] ?? '—' }}
+          </td>
+          <td style="border: 1px solid #000; padding: 6pt; font-size: 8pt; vertical-align: top;">
+            {{ $officer['name'] ?? '' }}
+          </td>
+          <td style="border: 1px solid #000; padding: 6pt; font-size: 8pt; vertical-align: top;">
+            {{ $officer['comments'] ?? '' }}
+          </td>
+          <td style="border: 1px solid #000; padding: 6pt 2pt; text-align: center; vertical-align: middle; font-weight: bold; font-size: 10pt;">
+            {{ $isYes ? 'X' : '☐' }}
+          </td>
+          <td style="border: 1px solid #000; padding: 6pt 2pt; text-align: center; vertical-align: middle; font-weight: bold; font-size: 10pt;">
+            {{ $isNo ? 'X' : '☐' }}
           </td>
         </tr>
-      @empty
-        <tr><td colspan="4" class="empty-row text-center">No senior officers appraisals recorded.</td></tr>
-      @endforelse
+      @endforeach
+      <tr>
+        <td colspan="5" style="border: 1px solid #000; padding: 4pt 6pt; font-size: 7.5pt; font-style: italic; color: #334155; background-color: #ffffff;">
+          To be kept in Technical Dpt filling system.
+        </td>
+      </tr>
     </tbody>
   </table>
-
-  <div style="font-size: 7.5pt; font-style: italic; color: #64748b; margin-top: 6pt;">
-    To be kept in Technical Dpt filing system.
-  </div>
 </div>
+

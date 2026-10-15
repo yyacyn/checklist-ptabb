@@ -10,6 +10,7 @@ use App\Services\Pdf\ReportPdfRenderer;
 use App\Services\ReportSnapshot;
 use Database\Seeders\FormSeeder;
 use Illuminate\Foundation\Testing\RefreshDatabase;
+use Mpdf\Mpdf;
 use Tests\TestCase;
 
 /**
@@ -205,13 +206,39 @@ class ReportPdfLayoutTest extends TestCase
         $this->assertStringContainsString('Chapter 15 - Summary of Observations', $html);
         $this->assertStringContainsString('REPORT SUMMARY', $html);
         $this->assertStringContainsString('Appraisals of Senior Officers', $html);
-        $this->assertStringContainsString('Comparison with Previous Reports', $html);
+        $this->assertStringContainsString('Comparison of Current Report With Previous Reports', $html);
         $this->assertStringContainsString('Internal Circulation', $html);
-        $this->assertStringContainsString('Signatures', $html);
+        $this->assertStringContainsString('INDEX', $html);
+        $this->assertStringContainsString('FILL IN INSTRUCTIONS', $html);
+        $this->assertStringNotContainsString('Signatures', $html);
 
         // D-062 specific: footer fields and DRAFT watermark
         $this->assertStringContainsString('D062-', $html);
         $this->assertStringContainsString('DRAFT', $html);
+    }
+
+    public function test_pdf_generation_has_no_blank_pages_around_index(): void
+    {
+        $report = $this->createInspectionReport(['status' => 'submitted']);
+        $renderer = new ReportPdfRenderer;
+        $html = $renderer->render($report);
+
+        $mpdf = new Mpdf([
+            'mode' => 'utf-8',
+            'format' => 'A4',
+            'margin_left' => 12,
+            'margin_right' => 12,
+            'margin_top' => 15,
+            'margin_bottom' => 18,
+        ]);
+        $mpdf->autoPageBreak = true;
+        $mpdf->WriteHTML($html);
+
+        // Verify that none of the first 10 pages are empty/blank
+        for ($p = 1; $p <= min(10, $mpdf->page); $p++) {
+            $len = strlen($mpdf->pages[$p] ?? '');
+            $this->assertGreaterThan(500, $len, "Page {$p} is empty (len {$len})");
+        }
     }
 
     /**

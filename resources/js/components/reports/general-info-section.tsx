@@ -6,6 +6,7 @@ import {
     ChevronRight,
     FileCheck,
     Info,
+    ListOrdered,
     Loader2,
     Plus,
     Ship,
@@ -111,6 +112,12 @@ export function GeneralInfoSection({
 }: GeneralInfoSectionProps) {
     const [saveStatus, setSaveStatus] = useState<'idle' | 'saving' | 'saved' | 'error'>('idle');
     const debounceTimer = useRef<ReturnType<typeof setTimeout> | null>(null);
+
+    const fillInInstructions = (() => {
+        const sections = report.form?.layout_schema?.sections || [];
+        const genSection = sections.find((s) => s.type === 'general_info');
+        return genSection?.static_texts?.fill_in_instructions || '';
+    })();
 
     // ==========================================
     // D-062 Inspection State
@@ -1238,6 +1245,16 @@ export function GeneralInfoSection({
                                     />
                                 </div>
                             </div>
+
+                            {/* Important Note (Form D-062 line 38) */}
+                            <div className="rounded-lg border border-amber-300/80 bg-amber-50/70 dark:border-amber-900/60 dark:bg-amber-950/30 p-3 text-xs space-y-1 mt-3">
+                                <p className="font-bold text-amber-950 dark:text-amber-200">
+                                    Important Note: Discussion to be performed with the senior officers, prior commencement of the inspection, to discuss safety related aspects.
+                                </p>
+                                <p className="text-amber-900/90 dark:text-amber-300/80 text-[11px] leading-relaxed">
+                                    (Lead by example, don't demotivate, inspire. Get and provide feedback, follow through on actions, communicate (ask questions/sincere conversation), hear from seafarers and what they say.
+                                </p>
+                            </div>
                         </CardContent>
                     </Card>
 
@@ -1329,6 +1346,26 @@ export function GeneralInfoSection({
                                 </CardContent>
                             </Card>
                         )}
+
+                    {/* 6. Fill In Instructions (from Form layout_schema) */}
+                    {fillInInstructions && fillInInstructions.trim().length > 0 && (
+                        <Card className="border-border/70 bg-card/60">
+                            <CardHeader className="pb-2">
+                                <CardTitle className="text-sm font-semibold flex items-center gap-2">
+                                    <ListOrdered className="size-4 text-primary" />
+                                    <span>FILL IN INSTRUCTIONS</span>
+                                </CardTitle>
+                                <CardDescription className="text-xs">
+                                    Important surveyor instructions for completing this report form.
+                                </CardDescription>
+                            </CardHeader>
+                            <CardContent>
+                                <div className="rounded-md border bg-muted/20 p-3.5 text-xs leading-relaxed whitespace-pre-line text-foreground/90 font-sans">
+                                    {fillInInstructions}
+                                </div>
+                            </CardContent>
+                        </Card>
+                    )}
                 </>
             )}
 

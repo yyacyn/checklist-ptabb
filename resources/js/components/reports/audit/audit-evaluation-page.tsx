@@ -1,17 +1,19 @@
 import React, { useCallback, useEffect, useMemo, useRef, useState } from 'react';
 import {
     AlertCircle,
+    ArrowDown,
+    ArrowUp,
     Award,
+    Calendar,
     Check,
     ChevronLeft,
     ChevronRight,
     Clock,
-    FileSignature,
+    FileText,
     HelpCircle,
     Info,
     MessageSquare,
     Plus,
-    Share2,
     ShieldAlert,
     ThumbsDown,
     ThumbsUp,
@@ -136,30 +138,30 @@ export const EXECUTION_LOG_COLUMNS: ColumnConfig[] = [
         label: 'Person / Function',
         type: 'text',
         placeholder: 'e.g. Master & C/O or Opening Meeting',
-        width: 'min-w-[180px]',
+        width: 'w-48 sm:w-60',
     },
     {
         key: 'date',
         label: 'Date',
         type: 'date',
-        width: 'min-w-[140px]',
+        width: 'w-36',
     },
     {
         key: 'start_time',
         label: 'Start Time',
         type: 'time',
-        width: 'min-w-[110px]',
+        width: 'w-28',
     },
     {
         key: 'end_time',
         label: 'End Time',
         type: 'time',
-        width: 'min-w-[110px]',
+        width: 'w-28',
     },
     {
         key: 'topics',
         label: 'Scope / Topics Audited',
-        type: 'text',
+        type: 'textarea',
         placeholder: 'e.g. SMS Review, Bridge Procedures, Navigation Records',
     },
 ];
@@ -195,43 +197,39 @@ export function AuditEvaluationPage({
     const evalDataset = report.datasets?.find((d) => d.dataset_key === 'audit_evaluation');
     const initialRows: AuditeeEvaluationRow[] = useMemo(() => {
         const existingRows = (evalDataset?.rows || []) as AuditeeEvaluationRow[];
-        if (existingRows.length >= 4) {
+        if (existingRows.length > 0) {
             return existingRows;
         }
 
-        const res: AuditeeEvaluationRow[] = [...existingRows];
+        const res: AuditeeEvaluationRow[] = [];
 
-        // Seed from people list or report Master/C/E
-        if (res.length === 0) {
-            if (report.master_name) {
-                res.push({
-                    name: report.master_name,
-                    rank: 'Master',
-                    scores: {},
-                    overall_status: 'Satisfactory',
-                    sort_order: 1,
-                });
-            }
-            if (report.chief_engineer_name) {
-                res.push({
-                    name: report.chief_engineer_name,
-                    rank: 'Chief Engineer',
-                    scores: {},
-                    overall_status: 'Satisfactory',
-                    sort_order: 2,
-                });
-            }
-        }
-
-        const defaultRanks = ['Chief Officer', 'Second Engineer', 'Third Officer', 'Third Engineer'];
-        while (res.length < 4) {
-            const nextIdx = res.length;
+        // Seed from report Master/C/E
+        if (report.master_name) {
             res.push({
-                name: '',
-                rank: defaultRanks[nextIdx] || 'Officer/Crew',
+                name: report.master_name,
+                rank: 'Master',
                 scores: {},
                 overall_status: 'Satisfactory',
-                sort_order: nextIdx + 1,
+                sort_order: 1,
+            });
+        }
+        if (report.chief_engineer_name) {
+            res.push({
+                name: report.chief_engineer_name,
+                rank: 'Chief Engineer',
+                scores: {},
+                overall_status: 'Satisfactory',
+                sort_order: 2,
+            });
+        }
+
+        if (res.length === 0) {
+            res.push({
+                name: '',
+                rank: 'Master',
+                scores: {},
+                overall_status: 'Satisfactory',
+                sort_order: 1,
             });
         }
 
@@ -328,10 +326,14 @@ export function AuditEvaluationPage({
 
     // 5. Auditor general comments state & debounced autosave
     const [positiveComments, setPositiveComments] = useState<string>(
-        report.summary_data?.positive_comments ?? ''
+        report.summary_data?.positive_comments ??
+            (report.summary_data as Record<string, any> | undefined)?.summary_auditors_comments_positive ??
+            ''
     );
     const [negativeComments, setNegativeComments] = useState<string>(
-        report.summary_data?.negative_comments ?? ''
+        report.summary_data?.negative_comments ??
+            (report.summary_data as Record<string, any> | undefined)?.summary_auditors_comments_negative ??
+            ''
     );
     const [commentsSaveStatus, setCommentsSaveStatus] = useState<SaveStatus>('idle');
     const [commentsError, setCommentsError] = useState<string | undefined>(undefined);
@@ -392,24 +394,6 @@ export function AuditEvaluationPage({
         setNegativeComments(val);
         triggerCommentsSave(positiveComments, val);
     };
-
-    // 6. Signatures and distribution people overview
-    const allPeople = useMemo(() => {
-        const peopleDataset = report.datasets?.find((d) => d.dataset_key === 'audit_people');
-        return (peopleDataset?.rows || []) as AuditPersonRow[];
-    }, [report.datasets]);
-
-    const leadAuditors = useMemo(
-        () => allPeople.filter((p) => p.role?.toLowerCase() === 'lead auditor'),
-        [allPeople]
-    );
-    const otherAuditors = useMemo(
-        () => allPeople.filter((p) => ['auditor', 'audit team'].includes(p.role?.toLowerCase() || '')),
-        [allPeople]
-    );
-    const leadAuditorName = leadAuditors[0]?.name || report.inspected_by || 'To be specified';
-    const leadAuditorRank = leadAuditors[0]?.rank || 'Lead Auditor';
-    const masterName = report.master_name || report.chief_officer_name || 'Master / Chief Officer';
 
     // Row modifiers
     const handleUpdateRowField = (index: number, field: keyof AuditeeEvaluationRow, val: any) => {
@@ -590,7 +574,7 @@ export function AuditEvaluationPage({
                                             </Badge>
                                         )}
 
-                                        {isEditable && rows.length > 4 && (
+                                        {isEditable && rows.length > 1 && (
                                             <Button
                                                 type="button"
                                                 size="sm"
@@ -771,7 +755,7 @@ export function AuditEvaluationPage({
                 )}
 
                 <span className="text-xs text-muted-foreground font-mono">
-                    Total Evaluated: {rows.length} (at least 4 required)
+                    Total Evaluated: {rows.length}
                 </span>
             </div>
 
@@ -791,6 +775,158 @@ export function AuditEvaluationPage({
                     addButtonLabel="Add Execution Entry"
                     emptyMessage="No audit execution sessions logged yet. Click Add Execution Entry to record meetings and audit areas."
                     minRows={1}
+                    renderRow={({
+                        row,
+                        rowIndex,
+                        updateCell,
+                        removeRow,
+                        moveRowUp,
+                        moveRowDown,
+                        canMoveUp,
+                        canMoveDown,
+                        canRemove,
+                        isEditable: editable,
+                        handleBlur,
+                    }) => (
+                        <div className="p-3.5 sm:p-4 rounded-lg border border-border/80 bg-muted/15 hover:bg-muted/25 transition-colors shadow-2xs space-y-3">
+                            {/* Session Header Strip: Badge, Time summary pill, Up/Down reorder, Delete */}
+                            <div className="flex items-center justify-between gap-2 flex-wrap pb-2 border-b border-border/60">
+                                <div className="flex items-center gap-2">
+                                    <span className="flex items-center justify-center size-5 rounded-full bg-primary/10 text-primary text-[11px] font-bold font-mono">
+                                        {rowIndex + 1}
+                                    </span>
+                                    <span className="text-xs font-semibold text-foreground">
+                                        Session #{rowIndex + 1}
+                                    </span>
+                                    {row.start_time && row.end_time && (
+                                        <Badge variant="outline" className="text-[10px] font-mono py-0 px-1.5 h-5 bg-background">
+                                            {row.start_time} - {row.end_time}
+                                        </Badge>
+                                    )}
+                                </div>
+
+                                <div className="flex items-center gap-1">
+                                    <Button
+                                        type="button"
+                                        variant="ghost"
+                                        size="sm"
+                                        disabled={!editable || !canMoveUp}
+                                        onClick={moveRowUp}
+                                        className="h-7 w-7 p-0 text-muted-foreground hover:text-foreground disabled:opacity-20"
+                                        title="Move session up"
+                                    >
+                                        <ArrowUp className="size-3.5" />
+                                    </Button>
+                                    <Button
+                                        type="button"
+                                        variant="ghost"
+                                        size="sm"
+                                        disabled={!editable || !canMoveDown}
+                                        onClick={moveRowDown}
+                                        className="h-7 w-7 p-0 text-muted-foreground hover:text-foreground disabled:opacity-20"
+                                        title="Move session down"
+                                    >
+                                        <ArrowDown className="size-3.5" />
+                                    </Button>
+
+                                    {editable && (
+                                        <Button
+                                            type="button"
+                                            variant="ghost"
+                                            size="sm"
+                                            disabled={!canRemove}
+                                            onClick={removeRow}
+                                            className="h-7 px-2 text-rose-500 hover:text-rose-700 hover:bg-rose-50 dark:hover:bg-rose-950/40 text-xs ml-1 disabled:opacity-30"
+                                            title="Delete this session entry"
+                                        >
+                                            <Trash2 className="size-3.5 mr-1" />
+                                            <span>Delete</span>
+                                        </Button>
+                                    )}
+                                </div>
+                            </div>
+
+                            {/* Inputs Grid: Person/Function, Date, Start Time, End Time */}
+                            <div className="grid grid-cols-1 sm:grid-cols-2 lg:grid-cols-12 gap-3 items-end">
+                                <div className="sm:col-span-2 lg:col-span-5 space-y-1">
+                                    <label className="text-[11px] font-medium text-muted-foreground flex items-center gap-1.5">
+                                        <Users className="size-3 text-muted-foreground/80" />
+                                        <span>Person / Function / Meeting</span>
+                                    </label>
+                                    <Input
+                                        value={row.person_or_function || ''}
+                                        disabled={!editable}
+                                        placeholder="e.g. Master & C/O or Opening Meeting"
+                                        onChange={(e) => updateCell('person_or_function', e.target.value)}
+                                        onBlur={handleBlur}
+                                        className="h-8 text-xs bg-background"
+                                    />
+                                </div>
+
+                                <div className="lg:col-span-3 space-y-1">
+                                    <label className="text-[11px] font-medium text-muted-foreground flex items-center gap-1.5">
+                                        <Calendar className="size-3 text-muted-foreground/80" />
+                                        <span>Date</span>
+                                    </label>
+                                    <Input
+                                        type="date"
+                                        value={row.date || ''}
+                                        disabled={!editable}
+                                        onChange={(e) => updateCell('date', e.target.value, true)}
+                                        onBlur={handleBlur}
+                                        className="h-8 text-xs bg-background"
+                                    />
+                                </div>
+
+                                <div className="lg:col-span-2 space-y-1">
+                                    <label className="text-[11px] font-medium text-muted-foreground flex items-center gap-1.5">
+                                        <Clock className="size-3 text-muted-foreground/80" />
+                                        <span>Start Time</span>
+                                    </label>
+                                    <Input
+                                        type="time"
+                                        value={row.start_time || ''}
+                                        disabled={!editable}
+                                        onChange={(e) => updateCell('start_time', e.target.value, true)}
+                                        onBlur={handleBlur}
+                                        className="h-8 text-xs font-mono bg-background"
+                                    />
+                                </div>
+
+                                <div className="lg:col-span-2 space-y-1">
+                                    <label className="text-[11px] font-medium text-muted-foreground flex items-center gap-1.5">
+                                        <Clock className="size-3 text-muted-foreground/80" />
+                                        <span>End Time</span>
+                                    </label>
+                                    <Input
+                                        type="time"
+                                        value={row.end_time || ''}
+                                        disabled={!editable}
+                                        onChange={(e) => updateCell('end_time', e.target.value, true)}
+                                        onBlur={handleBlur}
+                                        className="h-8 text-xs font-mono bg-background"
+                                    />
+                                </div>
+                            </div>
+
+                            {/* Scope / Topics Audited (Full Width with Textarea) */}
+                            <div className="space-y-1 pt-0.5">
+                                <label className="text-[11px] font-medium text-muted-foreground flex items-center gap-1.5">
+                                    <FileText className="size-3 text-muted-foreground/80" />
+                                    <span>Scope / Topics Audited & Areas Verified</span>
+                                </label>
+                                <textarea
+                                    value={row.topics || ''}
+                                    disabled={!editable}
+                                    rows={2}
+                                    placeholder="e.g. SMS Review, Bridge Procedures, Navigation Records, ECDIS check, Passage Planning, Drills verification..."
+                                    onChange={(e) => updateCell('topics', e.target.value)}
+                                    onBlur={handleBlur}
+                                    className="w-full text-xs rounded-md border border-input bg-background p-2.5 focus-visible:outline-none focus-visible:ring-1 focus-visible:ring-ring disabled:cursor-not-allowed disabled:opacity-50 resize-y min-h-[58px] leading-relaxed"
+                                />
+                            </div>
+                        </div>
+                    )}
                 />
             </div>
 
@@ -852,119 +988,6 @@ export function AuditEvaluationPage({
                     </div>
                 </CardContent>
             </Card>
-
-            {/* Section 4: Signatures & Company Distribution Overview */}
-            <div className="grid grid-cols-1 md:grid-cols-2 gap-4">
-                {/* Printed Signatures Overview */}
-                <Card className="border border-border/80 shadow-xs bg-card overflow-hidden">
-                    <CardHeader className="bg-muted/20 border-b p-4 sm:p-5 pb-3">
-                        <div className="flex items-center justify-between">
-                            <CardTitle className="text-sm font-semibold flex items-center gap-2">
-                                <FileSignature className="size-4 text-primary" />
-                                <span>Printed Signatures Preview</span>
-                            </CardTitle>
-                            <Badge variant="outline" className="text-[11px]">
-                                PDF Sign-off
-                            </Badge>
-                        </div>
-                        <CardDescription className="text-xs">
-                            Names &amp; ranks populated from personnel register; signature lines left blank for manual on-board signing.
-                        </CardDescription>
-                    </CardHeader>
-                    <CardContent className="p-4 sm:p-5 space-y-3">
-                        <div className="p-3 rounded-md border bg-muted/10 space-y-1">
-                            <span className="text-[10px] font-bold uppercase tracking-wider text-muted-foreground block">
-                                Lead Auditor
-                            </span>
-                            <p className="text-xs font-semibold text-foreground">{leadAuditorName}</p>
-                            <p className="text-[11px] text-muted-foreground">{leadAuditorRank}</p>
-                            <div className="pt-2 border-t border-dashed mt-1.5 flex items-center justify-between text-[10px] text-muted-foreground/70 font-mono">
-                                <span>Signature: __________________</span>
-                                <span>Date: ____/____/______</span>
-                            </div>
-                        </div>
-
-                        <div className="p-3 rounded-md border bg-muted/10 space-y-1">
-                            <span className="text-[10px] font-bold uppercase tracking-wider text-muted-foreground block">
-                                Auditor(s)
-                            </span>
-                            {otherAuditors.length > 0 ? (
-                                otherAuditors.map((aud, i) => (
-                                    <div key={i} className="mb-1">
-                                        <p className="text-xs font-semibold text-foreground">{aud.name}</p>
-                                        <p className="text-[11px] text-muted-foreground">{aud.rank || 'Auditor'}</p>
-                                    </div>
-                                ))
-                            ) : (
-                                <div>
-                                    <p className="text-xs font-semibold text-foreground">Audit Team Member</p>
-                                    <p className="text-[11px] text-muted-foreground">Auditor</p>
-                                </div>
-                            )}
-                            <div className="pt-2 border-t border-dashed mt-1.5 flex items-center justify-between text-[10px] text-muted-foreground/70 font-mono">
-                                <span>Signature: __________________</span>
-                                <span>Date: ____/____/______</span>
-                            </div>
-                        </div>
-
-                        <div className="p-3 rounded-md border bg-muted/10 space-y-1">
-                            <span className="text-[10px] font-bold uppercase tracking-wider text-muted-foreground block">
-                                Master / Chief Officer
-                            </span>
-                            <p className="text-xs font-semibold text-foreground">{masterName}</p>
-                            <p className="text-[11px] text-muted-foreground">Vessel Command</p>
-                            <div className="pt-2 border-t border-dashed mt-1.5 flex items-center justify-between text-[10px] text-muted-foreground/70 font-mono">
-                                <span>Signature: __________________</span>
-                                <span>Date: ____/____/______</span>
-                            </div>
-                        </div>
-                    </CardContent>
-                </Card>
-
-                {/* Company Distribution List */}
-                <Card className="border border-border/80 shadow-xs bg-card overflow-hidden">
-                    <CardHeader className="bg-muted/20 border-b p-4 sm:p-5 pb-3">
-                        <div className="flex items-center justify-between">
-                            <CardTitle className="text-sm font-semibold flex items-center gap-2">
-                                <Share2 className="size-4 text-primary" />
-                                <span>Company Distribution List</span>
-                            </CardTitle>
-                            <Badge variant="secondary" className="text-[11px]">
-                                Form B-008
-                            </Badge>
-                        </div>
-                        <CardDescription className="text-xs">
-                            Standard company routing recipients printed in the final document table.
-                        </CardDescription>
-                    </CardHeader>
-                    <CardContent className="p-4 sm:p-5">
-                        <div className="space-y-2 text-xs">
-                            {[
-                                { title: 'Managing Director', dept: 'Executive' },
-                                { title: 'Technical Department', dept: 'Fleet Maintenance' },
-                                { title: 'DPA', dept: 'Designated Person Ashore' },
-                                { title: 'Crew Department', dept: 'Manning & Personnel' },
-                                { title: 'Marine, Ops, Assurance Dept', dept: 'Safety & Marine Operations' },
-                                { title: 'Master / Chief Engineer', dept: 'Shipboard Command' },
-                                { title: 'Other', dept: 'Designated Parties' },
-                            ].map((recipient, i) => (
-                                <div
-                                    key={i}
-                                    className="p-2 rounded border bg-muted/10 flex items-center justify-between gap-2"
-                                >
-                                    <div className="flex items-center gap-2">
-                                        <div className="size-1.5 rounded-full bg-primary/70 shrink-0" />
-                                        <span className="font-semibold text-foreground">{recipient.title}</span>
-                                    </div>
-                                    <span className="text-[11px] text-muted-foreground italic font-mono">
-                                        {recipient.dept}
-                                    </span>
-                                </div>
-                            ))}
-                        </div>
-                    </CardContent>
-                </Card>
-            </div>
 
             {/* Page Navigation Controls */}
             <div className="flex justify-between items-center pt-4 border-t">

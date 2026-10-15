@@ -345,8 +345,8 @@ class ReportDocumentBuilder
         // 5d. Audit execution log & general comments (AUD-12, AUD-13, Task 7.7)
         $auditExecutionDataset = $datasets->firstWhere('dataset_key', 'audit_execution_log');
         $executionLogRows = $auditExecutionDataset?->rows ?? [];
-        $positiveComments = $summary['positive_comments'] ?? '';
-        $negativeComments = $summary['negative_comments'] ?? '';
+        $positiveComments = $summary['positive_comments'] ?? $summary['summary_auditors_comments_positive'] ?? '';
+        $negativeComments = $summary['negative_comments'] ?? $summary['summary_auditors_comments_negative'] ?? '';
 
         // 5e. Senior Officers Appraisal (Form D-062, INS-15)
         $seniorOfficersAppraisal = $summary['senior_officers_appraisal'] ?? null;

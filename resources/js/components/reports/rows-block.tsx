@@ -23,6 +23,7 @@ import { csrfHeaders, enqueueSave, generateClientSaveId } from '@/lib/autosave-q
 
 export type ColumnInputType =
     | 'text'
+    | 'textarea'
     | 'date'
     | 'time'
     | 'number'
@@ -54,6 +55,20 @@ export interface ConflictInfo {
     serverRows: Array<Record<string, any>>;
 }
 
+export interface RowsBlockRowRenderProps {
+    row: Record<string, any>;
+    rowIndex: number;
+    updateCell: (colKey: string, val: any, immediate?: boolean) => void;
+    removeRow: () => void;
+    moveRowUp: () => void;
+    moveRowDown: () => void;
+    canMoveUp: boolean;
+    canMoveDown: boolean;
+    canRemove: boolean;
+    isEditable: boolean;
+    handleBlur: () => void;
+}
+
 export interface RowsBlockProps {
     reportId: number;
     datasetKey: string;
@@ -80,6 +95,7 @@ export interface RowsBlockProps {
         rowIndex: number,
         updateCell: (colKey: string, val: any) => void
     ) => React.ReactNode;
+    renderRow?: (props: RowsBlockRowRenderProps) => React.ReactNode;
 }
 
 export function RowsBlock({
@@ -104,6 +120,7 @@ export function RowsBlock({
     onConflict,
     className = '',
     extraRowContent,
+    renderRow,
 }: RowsBlockProps) {
     const targetEndpoint = endpoint || `/reports/${reportId}/datasets/${datasetKey}`;
 
@@ -417,6 +434,44 @@ export function RowsBlock({
                             </Button>
                         )}
                     </div>
+                ) : renderRow ? (
+                    <div className="space-y-3">
+                        {rows.map((row, rIdx) => (
+                            <React.Fragment key={rIdx}>
+                                {renderRow({
+                                    row,
+                                    rowIndex: rIdx,
+                                    updateCell: (colKey, val, immediate) => handleCellChange(rIdx, colKey, val, immediate),
+                                    removeRow: () => handleRemoveRow(rIdx),
+                                    moveRowUp: () => handleMoveRow(rIdx, 'up'),
+                                    moveRowDown: () => handleMoveRow(rIdx, 'down'),
+                                    canMoveUp: isEditable && rIdx > 0,
+                                    canMoveDown: isEditable && rIdx < rows.length - 1,
+                                    canRemove: isEditable && rows.length > minRows,
+                                    isEditable,
+                                    handleBlur,
+                                })}
+                            </React.Fragment>
+                        ))}
+
+                        {canAdd && (
+                            <div className="pt-2 flex items-center justify-between border-t border-border/50">
+                                <Button
+                                    type="button"
+                                    variant="outline"
+                                    size="sm"
+                                    onClick={handleAddRow}
+                                    className="h-8 text-xs font-semibold flex items-center gap-1.5"
+                                >
+                                    <Plus className="size-3.5" />
+                                    <span>{addButtonLabel}</span>
+                                </Button>
+                                <span className="text-[11px] text-muted-foreground font-mono">
+                                    Total: {rows.length} {rows.length === 1 ? 'entry' : 'entries'}
+                                </span>
+                            </div>
+                        )}
+                    </div>
                 ) : (
                     <>
                         {/* Desktop Table View (Hidden on mobile) */}
@@ -467,7 +522,7 @@ export function RowsBlock({
                                                     const isDisabled = !isEditable || (col.disabled ? col.disabled(row, rIdx) : false);
 
                                                     return (
-                                                        <td key={col.key} className="py-1.5 px-3">
+                                                        <td key={col.key} className={`py-1.5 px-3 ${col.width || ''}`}>
                                                             {col.type === 'text' && (
                                                                 <Input
                                                                     value={cellVal}
@@ -476,6 +531,18 @@ export function RowsBlock({
                                                                     onChange={(e) => handleCellChange(rIdx, col.key, e.target.value)}
                                                                     onBlur={handleBlur}
                                                                     className="h-7 text-xs"
+                                                                />
+                                                            )}
+
+                                                            {col.type === 'textarea' && (
+                                                                <textarea
+                                                                    value={cellVal}
+                                                                    disabled={isDisabled}
+                                                                    placeholder={col.placeholder}
+                                                                    rows={2}
+                                                                    onChange={(e) => handleCellChange(rIdx, col.key, e.target.value)}
+                                                                    onBlur={handleBlur}
+                                                                    className="w-full text-xs rounded-md border border-input bg-background p-1.5 focus-visible:outline-none focus-visible:ring-1 focus-visible:ring-ring disabled:cursor-not-allowed disabled:opacity-50 resize-y"
                                                                 />
                                                             )}
 
@@ -643,6 +710,17 @@ export function RowsBlock({
                                                             onChange={(e) => handleCellChange(rIdx, col.key, e.target.value)}
                                                             onBlur={handleBlur}
                                                             className="h-7 text-xs"
+                                                        />
+                                                    )}
+                                                    {col.type === 'textarea' && (
+                                                        <textarea
+                                                            value={cellVal}
+                                                            disabled={isDisabled}
+                                                            placeholder={col.placeholder}
+                                                            rows={2}
+                                                            onChange={(e) => handleCellChange(rIdx, col.key, e.target.value)}
+                                                            onBlur={handleBlur}
+                                                            className="w-full text-xs rounded-md border border-input bg-background p-1.5 focus-visible:outline-none focus-visible:ring-1 focus-visible:ring-ring disabled:cursor-not-allowed disabled:opacity-50 resize-y"
                                                         />
                                                     )}
                                                     {col.type === 'date' && (

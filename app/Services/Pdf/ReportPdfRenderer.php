@@ -102,6 +102,19 @@ HTML;
             );
         }
 
+        // Form B-008 document layout normalization: signature_lines must precede circulation (AUD-14, AUD-15)
+        if (($form?->code ?? '') === 'B-008' && ! empty($schema['sections'])) {
+            $types = array_column($schema['sections'], 'type');
+            $sigIdx = array_search('signature_lines', $types, true);
+            $circIdx = array_search('circulation', $types, true);
+            if ($sigIdx !== false && $circIdx !== false && $circIdx < $sigIdx) {
+                $sigSection = $schema['sections'][$sigIdx];
+                unset($schema['sections'][$sigIdx]);
+                array_splice($schema['sections'], $circIdx, 0, [$sigSection]);
+                $schema['sections'] = array_values($schema['sections']);
+            }
+        }
+
         return $schema;
     }
 
@@ -169,8 +182,8 @@ HTML;
                 ['type' => 'auditee_evaluation'],
                 ['type' => 'audit_execution_log'],
                 ['type' => 'audit_general_comments'],
-                ['type' => 'circulation'],
                 ['type' => 'signature_lines'],
+                ['type' => 'circulation'],
             ],
             'footer' => [
                 'fields' => ['form_code', 'form_version', 'template_version', 'report_number', 'generation_date', 'page_number'],
@@ -207,6 +220,11 @@ HTML;
 
         // 1c. Form D-062 already has internal circulation in Chapter 1; suppress duplicate circulation section
         if ($type === 'circulation' && ($doc['meta']['form_code'] ?? '') === 'D-062') {
+            return '';
+        }
+
+        // 1d. Suppress signature lines for Form D-062 (senior officers appraisal replaces sign-off lines)
+        if ($type === 'signature_lines' && ($doc['meta']['form_code'] ?? '') === 'D-062') {
             return '';
         }
 
@@ -824,20 +842,26 @@ HTML;
      */
     protected function renderPscDrydock(Report $report): string
     {
-        $fields = [
-            'Port of Last PSC Inspection' => $report->psc_last_port ?? '',
-            'Date of Last PSC Inspection' => $report->psc_last_date?->format('d F Y') ?? '',
-            'Detained or Deficiencies Found' => $report->psc_detained_or_deficiencies ? 'Yes' : 'No',
-            'Date of Last Dry Dock' => $report->drydock_last_date?->format('d F Y') ?? '',
-            'Date of Next Dry Dock' => $report->drydock_next_date?->format('d F Y') ?? '',
-        ];
+        $pscPort = $this->escape($report->psc_last_port ?? '—');
+        $pscDate = $report->psc_last_date?->format('d F Y') ?? '—';
+        $ddLast = $report->drydock_last_date?->format('d F Y') ?? '—';
+        $ddNext = $report->drydock_next_date?->format('d F Y') ?? '—';
+        $detained = $report->psc_detained_or_deficiencies ? ' <strong style="color:#b91c1c;">(Detained / Deficiencies: YES)</strong>' : '';
 
-        $rows = '';
-        foreach ($fields as $label => $value) {
-            $rows .= "<tr><td class=\"field-label\">{$label}</td><td class=\"field-value\">{$this->escape((string) $value)}</td></tr>";
-        }
-
-        return "<h4 class=\"subsection-title\">PSC Inspection and Dry Dock Dates</h4><table class=\"particulars-table\">{$rows}</table>";
+        return '<h4 class="subsection-title">Port State Control &amp; Dry Dock History</h4>'
+            .'<table class="particulars-table" style="width: 100%;">'
+            .'<tr>'
+            .'<td style="width: 65%;"><strong>Port of last PSC inspection:</strong> '.$pscPort.'<div style="font-size: 7pt; font-style: italic; color: #555; margin-top: 2pt;">If the vessel was detained or if deficiencies were identified check/verify close out.'.$detained.'</div></td>'
+            .'<td style="width: 35%;"><strong>Date:</strong> '.$pscDate.'</td>'
+            .'</tr>'
+            .'<tr>'
+            .'<td><strong>Date of last Dry Dock:</strong> '.$ddLast.'</td>'
+            .'<td><strong>Next Dry Dock:</strong> '.$ddNext.'</td>'
+            .'</tr>'
+            .'<tr>'
+            .'<td colspan="2" style="font-size: 7.5pt; background-color: #fafafa; padding: 5pt 6pt; line-height: 1.35;"><strong>Important Note: Discussion to be performed with the senior officers, prior commencement of the inspection, to discuss safety related aspects.</strong> (Lead by example, don\'t demotivate, inspire. Get and provide feedback, follow through on actions, communicate (ask questions/sincere conversation), hear from seafarers and what they say.</td>'
+            .'</tr>'
+            .'</table>';
     }
 
     /**

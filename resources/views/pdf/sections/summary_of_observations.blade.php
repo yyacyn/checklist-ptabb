@@ -4,7 +4,7 @@
     $findings = $doc['findings'] ?? [];
 @endphp
 
-<div class="section page-break-before">
+<div class="section" style="margin-top: 14pt;">
   <h3 class="chapter-header">{{ $title }}</h3>
   <table class="findings-table">
     <thead>

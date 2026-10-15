@@ -65,6 +65,7 @@ export interface ChapterEditorCardProps {
     prevTab: { id: number | 'summary' | 'photo'; title: string } | null;
     nextTab: { id: number | 'summary' | 'photo'; title: string } | null;
     onSelectTab: (tabId: number | 'summary' | 'photo') => void;
+    instructionsEditor?: React.ReactNode;
 }
 
 export function ChapterEditorCard({
@@ -97,6 +98,7 @@ export function ChapterEditorCard({
     prevTab,
     nextTab,
     onSelectTab,
+    instructionsEditor,
 }: ChapterEditorCardProps) {
     const getAllGroupQuestionIds = (group: FormGroupData): number[] => {
         let ids: number[] = (group.questions || []).map((q) => q.id);
@@ -434,6 +436,13 @@ export function ChapterEditorCard({
                                     </section>
                                 );
                             })}
+                            {instructionsEditor}
+                        </div>
+                    )}
+
+                    {!chapter.subgroups?.length && instructionsEditor && (
+                        <div>
+                            {instructionsEditor}
                         </div>
                     )}
 

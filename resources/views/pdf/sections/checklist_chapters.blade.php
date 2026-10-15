@@ -109,8 +109,10 @@
                 @if(!empty($q['extra_value']) && in_array($q['answer'], ['yes', 'no', 'ns', 'na'], true))
                   <div class="extra-value">{{ $q['extra_value'] }}</div>
                 @endif
-                @if(!empty($q['note']) && !$hasRemarksCol)
-                  <div class="q-note"><strong>Note:</strong> {{ $q['note'] }}</div>
+                @if(!$hasRemarksCol && !empty($q['note']))
+                  <div class="item-note" style="margin-top: 2pt; font-size: 7.5pt; color: #475569; font-style: italic;">
+                    <strong>Note:</strong> {!! nl2br(e($q['note'])) !!}
+                  </div>
                 @endif
               </td>
               @foreach($colMap as $key => $lbl)

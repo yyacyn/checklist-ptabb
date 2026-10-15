@@ -55,7 +55,6 @@ class AutoFillReportService
                 }
 
                 $answerVal = 'yes';
-                $note = null;
                 $extraValue = null;
 
                 if ($q->input_type === 'text') {
@@ -64,10 +63,8 @@ class AutoFillReportService
                     // Spread realistic variation across questions
                     if ($index % 17 === 0) {
                         $answerVal = 'no';
-                        $note = 'Deficiency identified during inspection. Rectification scheduled before departure.';
                     } elseif ($index % 23 === 0) {
                         $answerVal = ($report->form?->code === 'B-008') ? 'ns' : 'na';
-                        $note = ($answerVal === 'ns') ? 'Not sighted during current audit period.' : 'Not applicable to current vessel configuration.';
                     }
                 }
 
@@ -78,12 +75,25 @@ class AutoFillReportService
                     ],
                     [
                         'answer' => $answerVal,
-                        'note' => $note,
+                        'note' => null,
                         'extra_value' => $extraValue,
                         'answered_by' => $userId,
                         'answered_at' => now(),
                     ]
                 );
+            }
+
+            // 2b. Chapter-Level Comments / Remarks
+            $report->loadMissing('groups');
+            foreach ($report->groups->whereNull('parent_id') as $chapterGroup) {
+                if ($chapterGroup->chapter_no === '1' || strtolower($chapterGroup->title) === 'general information') {
+                    continue;
+                }
+                if (empty($chapterGroup->comments)) {
+                    $chapterGroup->update([
+                        'comments' => 'All inspected items verified in satisfactory order and in accordance with company safety management standards.',
+                    ]);
+                }
             }
 
             // 3. Form-Specific Filling

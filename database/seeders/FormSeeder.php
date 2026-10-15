@@ -222,22 +222,7 @@ class FormSeeder extends Seeder
             'enabled' => true,
             'title' => 'Audit Summary & NCRs',
             'has_ratings_matrix' => false,
-            'text_fields' => [
-                [
-                    'key' => 'summary_auditors_comments_positive',
-                    'label' => "1. Auditors' General Comments (Positive / Commendable Areas)",
-                    'placeholder' => 'Record positive observations, exemplary safety practices, and commendable crew performance...',
-                    'rows' => 3,
-                    'span' => 'full',
-                ],
-                [
-                    'key' => 'summary_auditors_comments_negative',
-                    'label' => '2. Areas for Improvement / Deficiencies',
-                    'placeholder' => 'Key concerns, systemic issues, or overall follow-up recommendations noted during the audit...',
-                    'rows' => 3,
-                    'span' => 'full',
-                ],
-            ],
+            'text_fields' => [],
             'has_findings_register' => true,
         ];
 
@@ -467,7 +452,7 @@ class FormSeeder extends Seeder
                     'title' => 'Chapter 1 - General Information',
                     'components' => ['vessel_particulars', 'operations_grid', 'psc_drydock', 'voyage_info', 'open_items_table', 'internal_circulation'],
                     'static_texts' => [
-                        'fill_in_instructions' => 'This report form is to be completed by the corporate surveyor. All findings must be clearly described and referenced to the appropriate chapter.',
+                        'fill_in_instructions' => "1. Read carefully and go through each chapter carefully.\n2. For items not seen enter on the comments section the Not Seen items.\n3. For items not available onboard enter on the comments section below the Not Applicable Items.\n4. For inspections of tanks, etc. please attach form D 024 to this report.\n5. In case of negative observations or job orders raised for notified deficiencies, relevant remarks must have cross-reference to the breached relevant numerical item on the Chapter the deficiency has been identified as applicable.\n6. Vessels should be inspected at least annually by both shore staff and vessel’s designated personnel, according to this form. During these inspections, the designated Officers (on behalf of the vessel) and the Company’s Superintendents (on behalf of the Company) may inspect as many fields included in this form as possible, depending on their expertise and the available time or the vessel’s operational status.\n7. The completion of all parts of this form may be affected during several such inspections.\n8. The Master (regarding the inspections carried out by ship Officers) and the Technical Manager (regarding the inspections carried out by shore staff) are responsible to ensure that all parts of this form are reviewed within a period of one year.",
                         'add_remove_lines' => 'Add or remove lines respectively',
                     ],
                 ],
@@ -527,8 +512,8 @@ class FormSeeder extends Seeder
                 ['type' => 'auditee_evaluation'],
                 ['type' => 'audit_execution_log'],
                 ['type' => 'audit_general_comments'],
-                ['type' => 'circulation'],
                 ['type' => 'signature_lines'],
+                ['type' => 'circulation'],
             ],
             'footer' => [
                 'fields' => ['form_code', 'form_version', 'template_version', 'report_number', 'generation_date', 'page_number'],
