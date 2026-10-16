@@ -8,18 +8,6 @@
 <div class="section" style="margin-top: 14pt;">
   <div style="page-break-inside: avoid;">
     <h3 class="chapter-header">AUDITEE EVALUATION</h3>
-
-    {{-- Scoring Definitions Guide (AUD-11) --}}
-    <div style="background-color: #f8fafc; border: 1pt solid #cbd5e1; padding: 6pt 8pt; margin-bottom: 12pt; font-size: 7.5pt; line-height: 1.35;">
-      <div style="font-weight: bold; margin-bottom: 3pt; text-transform: uppercase; color: #1e293b;">
-        SMS CONFORMANCE SCORING DEFINITIONS (1 TO 5):
-      </div>
-      <div style="margin-bottom: 2pt;"><strong>5 “Excellent”:</strong> Conformance with SMS is outstanding and maintained at a level much higher than usually expected.</div>
-      <div style="margin-bottom: 2pt;"><strong>4 “Above Expectations”:</strong> Conformance with SMS is high and significantly better than normally scored as acceptable.</div>
-      <div style="margin-bottom: 2pt;"><strong>3 “Satisfactory”:</strong> Conformance with SMS is in line with normal expectation and satisfactory.</div>
-      <div style="margin-bottom: 2pt;"><strong>2 “Fair”:</strong> Conformance is below expectations; with proper training in certain areas can be at satisfactory level.</div>
-      <div><strong>1 “Unsatisfactory”:</strong> Capacity is inadequate in the audited areas and improvement is uncertain even with additional training.</div>
-    </div>
   </div>
 
   @forelse($rows as $idx => $auditee)

@@ -62,14 +62,33 @@
 <div class="section page-break-before">
   <h2 class="chapter-title">{{ $title }}</h2>
 
-  {{-- 1. Vessel Particulars --}}
-  <table class="particulars-table">
-    @foreach($fields as $label => $val)
-      <tr>
-        <td class="field-label">{{ $label }}</td>
-        <td class="field-value">{{ $val }}</td>
-      </tr>
-    @endforeach
+  {{-- 1. Vessel Particulars & Operations Grid (Side-by-Side) --}}
+  <table style="width: 100%; border-collapse: collapse; border: none; margin-bottom: 8pt;">
+    <tr>
+      <td style="width: 53%; vertical-align: top; padding-right: 6pt; border: none;">
+        <table class="particulars-table" style="width: 100%; border-collapse: collapse;">
+          @foreach($fields as $label => $val)
+            <tr>
+              <td class="field-label" style="width: 42%;">{{ $label }}</td>
+              <td class="field-value" style="width: 58%;">{{ $val }}</td>
+            </tr>
+          @endforeach
+        </table>
+      </td>
+
+      <td style="width: 47%; vertical-align: top; padding-left: 6pt; border: none;">
+        <h4 class="subsection-title" style="margin: 0 0 4pt 0; font-size: 8.5pt;">Operation at Time of Audit</h4>
+        <table class="ops-table" style="width: 100%; border-collapse: collapse; margin-bottom: 0;">
+          @foreach($allOps as $key => $opLabel)
+            @php $isChecked = in_array($key, $selectedOps, true); @endphp
+            <tr>
+              <td style="padding: 2pt 5pt; font-size: 7.5pt;">{{ $opLabel }}</td>
+              <td class="text-center" style="width: 25px; padding: 2pt 4pt; font-size: 8pt;">{{ $isChecked ? '☒' : '☐' }}</td>
+            </tr>
+          @endforeach
+        </table>
+      </td>
+    </tr>
   </table>
 
   {{-- 2. Audit Details (AUD-3) --}}
@@ -148,18 +167,6 @@
         </table>
       </td>
     </tr>
-  </table>
-
-  {{-- 4. Operations Grid (AUD-2) --}}
-  <h4 class="subsection-title">Operation at Time of Audit</h4>
-  <table class="ops-table">
-    @foreach($allOps as $key => $opLabel)
-      @php $isChecked = in_array($key, $selectedOps, true); @endphp
-      <tr>
-        <td>{{ $opLabel }}</td>
-        <td class="text-center">{{ $isChecked ? '☒' : '☐' }}</td>
-      </tr>
-    @endforeach
   </table>
 
   {{-- 5. Followup Block (AUD-4) --}}
