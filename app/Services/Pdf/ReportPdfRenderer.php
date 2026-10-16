@@ -509,7 +509,7 @@ HTML;
         $text = $this->formatMultiline($report->summary_data['best_practices'] ?? $report->summary_data['best_practices_text'] ?? '');
 
         return <<<HTML
-<div class="section page-break-before">
+<div class="section" style="margin-top: 14pt;">
   <h3 class="chapter-header">{$title}</h3>
   <div class="best-practices">{$text}</div>
 </div>
@@ -536,7 +536,7 @@ HTML;
         }
 
         return <<<HTML
-<div class="section page-break-before">
+<div class="section" style="margin-top: 14pt;">
   <h3 class="chapter-header">{$title}</h3>
   <table class="findings-table">
     <thead>
@@ -575,7 +575,7 @@ HTML;
         $textFieldsHtml = $this->renderSummaryTextFields($report);
 
         return <<<HTML
-<div class="section page-break-before">
+<div class="section" style="margin-top: 14pt;">
   <h3 class="chapter-header">{$heading}</h3>
   <div class="summary-notice" style="font-size:8pt;color:#666;margin-bottom:10pt;">
     (Printed after Chapter 15; shown in Chapter 1 of form {$formCode} {$formVersion})
@@ -645,13 +645,13 @@ HTML;
         $html = '';
 
         // Comparison with last 3 reports of the same vessel
-        $html .= '<div class="section page-break-before">';
+        $html .= '<div class="section" style="margin-top: 12pt; page-break-inside: avoid;">';
         $html .= '<h3 class="chapter-header">Comparison with Previous Reports</h3>';
         $html .= '<div class="comparison-block">Historical inspection comparison will be compiled once previous reports are completed.</div>';
         $html .= '</div>';
 
         // Comparison with last 3 reports by the same inspector
-        $html .= '<div class="section page-break-before">';
+        $html .= '<div class="section" style="margin-top: 12pt; page-break-inside: avoid;">';
         $html .= '<h3 class="chapter-header">Comparison with Previous Reports by Same Inspector</h3>';
         $html .= '<div class="comparison-block">Historical inspector comparison will be compiled once previous reports are completed.</div>';
         $html .= '</div>';
@@ -664,7 +664,7 @@ HTML;
      */
     protected function renderCirculationSection(Report $report, array $config): string
     {
-        return '<div class="section page-break-before"><h3 class="chapter-header">Internal Circulation</h3>'
+        return '<div class="section" style="margin-top: 12pt; page-break-inside: avoid;"><h3 class="chapter-header">Internal Circulation</h3>'
             .'<table class="circulation-table"><tr><th>Role</th><th>Date Sent</th><th>Reviewed By</th><th>Date Reviewed</th></tr>'
             .'<tr><td colspan="4" class="empty-row">Not yet circulated.</td></tr>'
             .'</table></div>';
@@ -708,7 +708,7 @@ HTML;
         $ratingsHtml = $this->renderRatingsMatrix($report);
 
         return <<<HTML
-<div class="section page-break-before">
+<div class="section" style="margin-top: 14pt;">
   <h3 class="chapter-header">{$title}</h3>
   <table class="findings-table">
     <thead>
@@ -749,7 +749,7 @@ HTML;
                 'Superintendent',
             ];
 
-        $html = '<div class="section page-break-before"><h3 class="chapter-header">Signatures</h3>';
+        $html = '<div class="section" style="margin-top: 8pt; page-break-inside: avoid;"><h3 class="chapter-header">Signatures</h3>';
         $html .= '<div class="signature-lines">';
         foreach ($lines as $role) {
             $html .= "<div class=\"signature-line\"><span class=\"sig-label\">{$role}:</span> _________________________________ <span class=\"sig-date\">Date: ____/____/______</span></div>";
@@ -1193,13 +1193,14 @@ tr { page-break-inside: avoid; }
 .cover-table { margin: 20px auto; border-collapse: collapse; }
 .cover-label { text-align: left; padding: 4px 12px 4px 0; font-weight: bold; }
 .cover-value { text-align: left; padding: 4px 0; }
-.section { padding: 16px 20px; }
+.section { padding: 0; }
 .page-break-before { page-break-before: always; }
 .page-break-after { page-break-after: always; }
-.chapter { page-break-before: always; margin-bottom: 16pt; }
-.chapter-title { font-size: 13pt; font-weight: bold; margin-bottom: 10pt; border-bottom: 1.5pt solid #000; padding-bottom: 4pt; }
-.chapter-header { font-size: 11pt; font-weight: bold; margin-bottom: 8pt; border-bottom: 1pt solid #ccc; padding-bottom: 3pt; }
-.subsection-title { font-size: 9.5pt; font-weight: bold; margin: 14pt 0 6pt; }
+h1, h2, h3, h4, h5, h6, .chapter-title, .chapter-header, .subsection-title { page-break-after: avoid; }
+.chapter-title { font-size: 13pt; font-weight: bold; margin-bottom: 10pt; border-bottom: 1.5pt solid #000; padding-bottom: 4pt; page-break-after: avoid; }
+.chapter { margin-bottom: 16pt; }
+.chapter-header { font-size: 11pt; font-weight: bold; margin-bottom: 8pt; border-bottom: 1pt solid #ccc; padding-bottom: 3pt; page-break-after: avoid; }
+.subsection-title { font-size: 9.5pt; font-weight: bold; margin: 14pt 0 6pt; page-break-after: avoid; }
 .checklist-table { width: 100%; border-collapse: collapse; margin-bottom: 8pt; table-layout: fixed; }
 .checklist-table th, .checklist-table td { border: 1pt solid #000; padding: 3pt 4pt; font-size: 8pt; vertical-align: top; }
 .checklist-table th { background-color: #eee; font-weight: bold; }

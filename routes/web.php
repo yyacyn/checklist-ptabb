@@ -4,6 +4,7 @@ use App\Http\Controllers\Admin\FormController;
 use App\Http\Controllers\Admin\FormGroupController;
 use App\Http\Controllers\Admin\FormQuestionController;
 use App\Http\Controllers\Admin\UserController;
+use App\Http\Controllers\Admin\VesselRenameController;
 use App\Http\Controllers\Admin\VesselTypeController;
 use App\Http\Controllers\AutoFillReportController;
 use App\Http\Controllers\FindingController;
@@ -124,6 +125,10 @@ Route::middleware(['auth', 'verified'])->group(function () {
         // Vessel Types Management (Task 8.2)
         Route::resource('vessel-types', VesselTypeController::class)->only(['index', 'store', 'update', 'destroy']);
         Route::post('vessel-types/{vessel_type}/toggle-active', [VesselTypeController::class, 'toggleActive'])->name('vessel-types.toggle-active');
+
+        // Vessel Bulk Rename (Task 8.3, SRS §2.1)
+        Route::get('vessels/impact', [VesselRenameController::class, 'impact'])->name('vessels.impact');
+        Route::post('vessels/rename', [VesselRenameController::class, 'store'])->name('vessels.rename');
     });
 });
 

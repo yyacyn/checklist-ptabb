@@ -27,17 +27,31 @@ class FormController extends Controller
                 'questions' => fn ($q) => $q->whereNull('form_questions.archived_at'),
             ])
             ->get()
-            ->map(fn (Form $form) => [
-                'id' => $form->id,
-                'code' => $form->code,
-                'form_type' => $form->form_type ?? 'standard',
-                'name' => $form->name,
-                'form_version' => $form->form_version,
-                'template_version' => $form->template_version,
-                'answer_set' => $form->answer_set,
-                'groups_count' => $form->groups_count,
-                'questions_count' => $form->questions_count,
-            ]);
+            ->map(function (Form $form) {
+                $isPhoto = ($form->form_type ?? 'standard') === 'photo';
+
+                $photoItems = $form->photo_schema['items'] ?? [];
+                $photoFieldsCount = is_array($photoItems) ? count($photoItems) : 0;
+
+                $layoutSections = $form->layout_schema['sections'] ?? [];
+                $sectionsCount = is_array($layoutSections) && count($layoutSections) > 0
+                    ? count($layoutSections)
+                    : (! empty($form->photo_schema['enabled']) ? 1 : 0);
+
+                return [
+                    'id' => $form->id,
+                    'code' => $form->code,
+                    'form_type' => $form->form_type ?? 'standard',
+                    'name' => $form->name,
+                    'form_version' => $form->form_version,
+                    'template_version' => $form->template_version,
+                    'answer_set' => $form->answer_set,
+                    'groups_count' => $isPhoto ? ($form->groups_count > 0 ? $form->groups_count : $sectionsCount) : $form->groups_count,
+                    'questions_count' => $isPhoto ? ($form->questions_count > 0 ? $form->questions_count : $photoFieldsCount) : $form->questions_count,
+                    'photo_schema' => $form->photo_schema,
+                    'layout_schema' => $form->layout_schema,
+                ];
+            });
 
         return Inertia::render('forms/index', [
             'forms' => $forms,

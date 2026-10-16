@@ -2,6 +2,7 @@
 
 namespace App\Services;
 
+use App\Models\Photo;
 use App\Models\Report;
 use App\Models\User;
 use Illuminate\Support\Collection;
@@ -64,7 +65,13 @@ class VesselName
             ->distinct()
             ->pluck('vessel_name');
 
-        return $reportNames->concat($userNames)
+        $photoNames = Photo::query()
+            ->whereNotNull('vessel_name')
+            ->where('vessel_name', '!=', '')
+            ->distinct()
+            ->pluck('vessel_name');
+
+        return $reportNames->concat($userNames)->concat($photoNames)
             ->map(fn (string $name) => static::normalize($name))
             ->filter()
             ->unique(fn (string $name) => mb_strtoupper($name))

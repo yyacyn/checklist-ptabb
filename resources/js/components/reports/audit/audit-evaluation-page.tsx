@@ -6,6 +6,7 @@ import {
     Award,
     Calendar,
     Check,
+    ChevronDown,
     ChevronLeft,
     ChevronRight,
     Clock,
@@ -24,6 +25,14 @@ import {
 import { Badge } from '@/components/ui/badge';
 import { Button } from '@/components/ui/button';
 import { Card, CardContent, CardDescription, CardHeader, CardTitle } from '@/components/ui/card';
+import {
+    DropdownMenu,
+    DropdownMenuContent,
+    DropdownMenuItem,
+    DropdownMenuLabel,
+    DropdownMenuSeparator,
+    DropdownMenuTrigger,
+} from '@/components/ui/dropdown-menu';
 import { Input } from '@/components/ui/input';
 import { RowsBlock, type ColumnConfig } from '@/components/reports/rows-block';
 import { SaveStatusIndicator, SaveStatus } from '@/components/reports/save-status-indicator';
@@ -591,9 +600,9 @@ export function AuditEvaluationPage({
                                 </div>
 
                                 {/* Auditee Particulars Row */}
-                                <div className="grid grid-cols-1 sm:grid-cols-3 gap-3 pt-3">
-                                    {/* Name Input & Quick Select */}
-                                    <div className="space-y-1">
+                                <div className="grid grid-cols-1 sm:grid-cols-12 gap-3 pt-3">
+                                    {/* Name Input & Quick Select (Takes 6 of 12 cols) */}
+                                    <div className="sm:col-span-6 space-y-1">
                                         <label className="text-[11px] font-medium text-muted-foreground block">
                                             Auditee Name <span className="text-rose-500">*</span>
                                         </label>
@@ -603,34 +612,43 @@ export function AuditEvaluationPage({
                                                 disabled={!isEditable}
                                                 onChange={(e) => handleUpdateRowField(index, 'name', e.target.value)}
                                                 placeholder="e.g. Capt. John Smith"
-                                                className="h-8 text-xs"
+                                                className="h-8 text-xs flex-1 min-w-0"
                                             />
                                             {isEditable && peopleAuditees.length > 0 && (
-                                                <select
-                                                    aria-label="Pick from Crew List"
-                                                    onChange={(e) => {
-                                                        const picked = peopleAuditees.find((p) => p.name === e.target.value);
-                                                        if (picked) handleSelectPerson(index, picked);
-                                                    }}
-                                                    value=""
-                                                    className="h-8 text-[11px] rounded border border-input bg-background px-1.5 text-muted-foreground hover:text-foreground shrink-0"
-                                                    title="Fill from Auditees in People list"
-                                                >
-                                                    <option value="" disabled>
-                                                        Crew...
-                                                    </option>
-                                                    {peopleAuditees.map((p, pIdx) => (
-                                                        <option key={pIdx} value={p.name}>
-                                                            {p.name} ({p.rank})
-                                                        </option>
-                                                    ))}
-                                                </select>
+                                                <DropdownMenu>
+                                                    <DropdownMenuTrigger asChild>
+                                                        <Button
+                                                            type="button"
+                                                            variant="outline"
+                                                            size="sm"
+                                                            className="size-8 p-0 shrink-0 text-muted-foreground hover:text-foreground"
+                                                            title="Pick from crew list"
+                                                        >
+                                                            <Users className="size-3.5" />
+                                                            <span className="sr-only">Pick crew member</span>
+                                                        </Button>
+                                                    </DropdownMenuTrigger>
+                                                    <DropdownMenuContent align="end" className="w-56 max-h-60 overflow-y-auto">
+                                                        <DropdownMenuLabel className="text-xs">Select Crew Member</DropdownMenuLabel>
+                                                        <DropdownMenuSeparator />
+                                                        {peopleAuditees.map((p, pIdx) => (
+                                                            <DropdownMenuItem
+                                                                key={pIdx}
+                                                                onClick={() => handleSelectPerson(index, p)}
+                                                                className="cursor-pointer text-xs flex flex-col items-start gap-0.5"
+                                                            >
+                                                                <span className="font-medium text-foreground">{p.name}</span>
+                                                                <span className="text-[10px] text-muted-foreground">{p.rank}</span>
+                                                            </DropdownMenuItem>
+                                                        ))}
+                                                    </DropdownMenuContent>
+                                                </DropdownMenu>
                                             )}
                                         </div>
                                     </div>
 
-                                    {/* Rank Input with quick datalist */}
-                                    <div className="space-y-1">
+                                    {/* Rank / Position Input (Takes 3 of 12 cols - smaller) */}
+                                    <div className="sm:col-span-3 space-y-1">
                                         <label className="text-[11px] font-medium text-muted-foreground block">
                                             Rank / Position
                                         </label>
@@ -639,7 +657,7 @@ export function AuditEvaluationPage({
                                             disabled={!isEditable}
                                             list={`ranks-list-${index}`}
                                             onChange={(e) => handleUpdateRowField(index, 'rank', e.target.value)}
-                                            placeholder="e.g. Master, Chief Officer"
+                                            placeholder="e.g. Master"
                                             className="h-8 text-xs"
                                         />
                                         <datalist id={`ranks-list-${index}`}>
@@ -649,8 +667,8 @@ export function AuditEvaluationPage({
                                         </datalist>
                                     </div>
 
-                                    {/* Overall Status */}
-                                    <div className="space-y-1">
+                                    {/* Overall Status (Takes 3 of 12 cols) */}
+                                    <div className="sm:col-span-3 space-y-1">
                                         <label className="text-[11px] font-medium text-muted-foreground block">
                                             Overall Status
                                         </label>

@@ -1,4 +1,4 @@
-<div class="section" style="margin-top: 14pt;">
+<div class="section" style="margin-top: 14pt; page-break-inside: avoid;">
   <table class="findings-table" style="width: 100%; border-collapse: collapse; border: 1px solid #000;">
     <tbody>
       <tr>

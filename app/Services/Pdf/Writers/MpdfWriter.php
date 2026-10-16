@@ -91,9 +91,11 @@ class MpdfWriter implements PdfWriter
             'default_font' => 'dejavusans',
             'autoScriptToLang' => false,
             'autoLangToFont' => false,
+            'use_kwt' => true,
         ]);
 
         $mpdf->autoPageBreak = true;
+        $mpdf->use_kwt = true;
 
         return $mpdf;
     }

@@ -12,8 +12,8 @@
     }
 @endphp
 
-<div class="section" style="margin-top: 14pt;">
-  <h3 style="text-align: center; font-size: 11pt; font-weight: bold; margin-bottom: 8pt; text-transform: uppercase; letter-spacing: 0.5px;">
+<div class="section" style="margin-top: 14pt; page-break-inside: avoid;">
+  <h3 class="chapter-header" style="text-align: center; font-size: 11pt; font-weight: bold; margin-bottom: 8pt; text-transform: uppercase; letter-spacing: 0.5px; page-break-after: avoid;">
     APPRAISAL OF SENIOR OFFICERS
   </h3>
 

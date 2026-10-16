@@ -15,20 +15,22 @@
     $obsCount = $doc['audit']['current_observation_count'] ?? $doc['summary']['counts']['observation'] ?? 0;
 @endphp
 
-<div class="section page-break-before">
-  <h3 class="chapter-header">{!! $title !!}</h3>
+<div class="section" id="chapter-{{ $chapterNo }}" style="margin-top: 14pt;">
+  <div style="page-break-inside: avoid;">
+    <h3 class="chapter-header">{!! $title !!}</h3>
 
-  {{-- Audit Results Counts (Form B-008, AUD-9) --}}
-  <table class="particulars-table" style="width: 50%; margin-bottom: 12pt;">
-    <tr>
-      <td class="field-label" style="width: 70%;">Number of Non-Conformities:</td>
-      <td class="field-value" style="font-weight: bold; width: 30%;">{{ $ncrCount }}</td>
-    </tr>
-    <tr>
-      <td class="field-label" style="width: 70%;">Number of Observations:</td>
-      <td class="field-value" style="font-weight: bold; width: 30%;">{{ $obsCount }}</td>
-    </tr>
-  </table>
+    {{-- Audit Results Counts (Form B-008, AUD-9) --}}
+    <table class="particulars-table" style="width: 50%; margin-bottom: 12pt;">
+      <tr>
+        <td class="field-label" style="width: 70%;">Number of Non-Conformities:</td>
+        <td class="field-value" style="font-weight: bold; width: 30%;">{{ $ncrCount }}</td>
+      </tr>
+      <tr>
+        <td class="field-label" style="width: 70%;">Number of Observations:</td>
+        <td class="field-value" style="font-weight: bold; width: 30%;">{{ $obsCount }}</td>
+      </tr>
+    </table>
+  </div>
 
   {{-- List of Non-Conformities and Observations (AUD-9, AUD-10) --}}
   <h4 class="subsection-title" style="margin-top: 10pt; margin-bottom: 4pt;">LIST OF NON-CONFORMITIES AND OBSERVATIONS</h4>

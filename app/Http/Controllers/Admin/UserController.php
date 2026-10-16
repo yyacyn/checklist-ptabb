@@ -3,6 +3,8 @@
 namespace App\Http\Controllers\Admin;
 
 use App\Http\Controllers\Controller;
+use App\Models\Photo;
+use App\Models\Report;
 use App\Models\User;
 use App\Models\VesselType;
 use App\Services\VesselName;
@@ -87,6 +89,36 @@ class UserController extends Controller
             'in_use' => VesselType::whereHas('reports')->orWhereHas('formApplicabilities')->count(),
         ];
 
+        $userVesselCounts = User::query()
+            ->whereNotNull('vessel_name')
+            ->selectRaw('LOWER(vessel_name) as name_key, count(*) as count')
+            ->groupBy('name_key')
+            ->pluck('count', 'name_key');
+
+        $reportVesselCounts = Report::query()
+            ->whereNotNull('vessel_name')
+            ->selectRaw('LOWER(vessel_name) as name_key, count(*) as count')
+            ->groupBy('name_key')
+            ->pluck('count', 'name_key');
+
+        $photoVesselCounts = Photo::query()
+            ->whereNotNull('vessel_name')
+            ->selectRaw('LOWER(vessel_name) as name_key, count(*) as count')
+            ->groupBy('name_key')
+            ->pluck('count', 'name_key');
+
+        $vesselsSummary = VesselName::knownNames()->map(function ($name) use ($userVesselCounts, $reportVesselCounts, $photoVesselCounts) {
+            $key = mb_strtolower($name);
+
+            return [
+                'name' => $name,
+                'users_count' => (int) ($userVesselCounts[$key] ?? 0),
+                'reports_count' => (int) ($reportVesselCounts[$key] ?? 0),
+                'photos_count' => (int) ($photoVesselCounts[$key] ?? 0),
+                'total_records' => (int) (($userVesselCounts[$key] ?? 0) + ($reportVesselCounts[$key] ?? 0) + ($photoVesselCounts[$key] ?? 0)),
+            ];
+        })->values()->all();
+
         return Inertia::render('admin/users/index', [
             'users' => $users,
             'filters' => [
@@ -96,6 +128,7 @@ class UserController extends Controller
             ],
             'stats' => $stats,
             'known_vessels' => VesselName::knownNames()->values()->all(),
+            'vessels_summary' => $vesselsSummary,
             'vessel_types' => $vesselTypes,
             'vessel_type_stats' => $vesselTypeStats,
             'active_tab' => $request->input('tab') === 'vessel-types' ? 'vessel-types' : 'users',

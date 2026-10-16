@@ -163,25 +163,27 @@
   </table>
 
   {{-- 5. Followup Block (AUD-4) --}}
-  <h4 class="subsection-title">Follow-up from Previous Audit</h4>
-  <table class="particulars-table" style="margin-bottom: 6pt;">
-    <tr>
-      <td class="field-label">Previous Audit Date</td>
-      <td class="field-value">{{ !empty($audit['previous_audit_date']) ? \Carbon\Carbon::parse($audit['previous_audit_date'])->format('d F Y') : '—' }}</td>
-    </tr>
-    <tr>
-      <td class="field-label">Previous Non-Conformities (NCs)</td>
-      <td class="field-value">{{ $audit['previous_ncr_count'] ?? 0 }}</td>
-    </tr>
-    <tr>
-      <td class="field-label">Previous Observations</td>
-      <td class="field-value">{{ $audit['previous_observation_count'] ?? 0 }}</td>
-    </tr>
-    @if(!empty($audit['closeout_notes']))
+  <div style="page-break-inside: avoid;">
+    <h4 class="subsection-title">Follow-up from Previous Audit</h4>
+    <table class="particulars-table" style="margin-bottom: 6pt;">
       <tr>
-        <td class="field-label">Close-out Verification Notes</td>
-        <td class="field-value">{{ $audit['closeout_notes'] }}</td>
+        <td class="field-label">Previous Audit Date</td>
+        <td class="field-value">{{ !empty($audit['previous_audit_date']) ? \Carbon\Carbon::parse($audit['previous_audit_date'])->format('d F Y') : '—' }}</td>
       </tr>
-    @endif
-  </table>
+      <tr>
+        <td class="field-label">Previous Non-Conformities (NCs)</td>
+        <td class="field-value">{{ $audit['previous_ncr_count'] ?? 0 }}</td>
+      </tr>
+      <tr>
+        <td class="field-label">Previous Observations</td>
+        <td class="field-value">{{ $audit['previous_observation_count'] ?? 0 }}</td>
+      </tr>
+      @if(!empty($audit['closeout_notes']))
+        <tr>
+          <td class="field-label">Close-out Verification Notes</td>
+          <td class="field-value">{{ $audit['closeout_notes'] }}</td>
+        </tr>
+      @endif
+    </table>
+  </div>
 </div>

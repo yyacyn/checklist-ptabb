@@ -221,23 +221,6 @@ export default function Dashboard({ stats, recent_reports = [] }: DashboardProps
                             </div>
                         </Link>
 
-                        <Link
-                            href="/photos"
-                            className="group flex flex-col justify-between rounded-xl border bg-card p-4 transition-all hover:border-primary/50 hover:shadow-xs"
-                        >
-                            <div className="flex items-start justify-between">
-                                <div className="rounded-lg bg-purple-500/10 p-2.5 text-purple-600 dark:text-purple-400">
-                                    <Camera className="size-5" />
-                                </div>
-                                <ArrowRight className="size-4 text-muted-foreground transition-transform group-hover:translate-x-0.5 group-hover:text-foreground" />
-                            </div>
-                            <div className="mt-3">
-                                <div className="font-semibold text-sm text-foreground">Photo Records</div>
-                                <p className="text-xs text-muted-foreground mt-0.5">
-                                    Browse photographic evidence organized by chapter and category.
-                                </p>
-                            </div>
-                        </Link>
 
                         {(user?.role === 'superadmin' || user?.role === 'corporate') && (
                             <Link

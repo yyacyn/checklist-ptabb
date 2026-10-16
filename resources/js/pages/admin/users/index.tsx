@@ -19,6 +19,7 @@ import {
 } from 'lucide-react';
 import React, { useState } from 'react';
 import Heading from '@/components/heading';
+import { RenameVesselDialog, type VesselSummaryItem } from './rename-vessel-dialog';
 import { Badge } from '@/components/ui/badge';
 import { Button } from '@/components/ui/button';
 import { Card, CardContent, CardHeader, CardTitle } from '@/components/ui/card';
@@ -106,6 +107,7 @@ interface Props {
     };
     stats: Stats;
     known_vessels: string[];
+    vessels_summary?: VesselSummaryItem[];
     vessel_types?: VesselTypeItem[];
     vessel_type_stats?: VesselTypeStats;
     active_tab?: 'users' | 'vessel-types';
@@ -116,6 +118,7 @@ export default function UsersIndex({
     filters,
     stats,
     known_vessels,
+    vessels_summary = [],
     vessel_types = [],
     vessel_type_stats,
     active_tab = 'users',
@@ -127,6 +130,15 @@ export default function UsersIndex({
     const [search, setSearch] = useState(filters.search || '');
     const [role, setRole] = useState(filters.role || 'all');
     const [status, setStatus] = useState(filters.status || 'all');
+
+    // Rename Vessel modal state
+    const [renameVesselModalOpen, setRenameVesselModalOpen] = useState(false);
+    const [selectedVesselToRename, setSelectedVesselToRename] = useState<string | null>(null);
+
+    const handleOpenRenameVessel = (vesselName?: string) => {
+        setSelectedVesselToRename(vesselName || null);
+        setRenameVesselModalOpen(true);
+    };
 
     // Tab state
     const [currentTab, setCurrentTab] = useState<'users' | 'vessel-types'>(
@@ -368,10 +380,20 @@ export default function UsersIndex({
 
                     <div className="flex items-center gap-2">
                         {currentTab === 'users' ? (
-                            <Button onClick={handleOpenCreate} className="flex items-center gap-1.5 self-start shadow-xs">
-                                <Plus className="size-4" />
-                                <span>Add User</span>
-                            </Button>
+                            <>
+                                <Button
+                                    variant="outline"
+                                    onClick={() => handleOpenRenameVessel()}
+                                    className="flex items-center gap-1.5 self-start shadow-xs"
+                                >
+                                    <Anchor className="size-4 text-amber-600 dark:text-amber-400" />
+                                    <span>Rename Vessel</span>
+                                </Button>
+                                <Button onClick={handleOpenCreate} className="flex items-center gap-1.5 self-start shadow-xs">
+                                    <Plus className="size-4" />
+                                    <span>Add User</span>
+                                </Button>
+                            </>
                         ) : (
                             <Button onClick={handleOpenCreateVt} className="flex items-center gap-1.5 self-start shadow-xs">
                                 <Plus className="size-4" />
@@ -630,9 +652,21 @@ export default function UsersIndex({
 
                                                 <td className="px-4 py-3">
                                                     {user.role === 'vessel' ? (
-                                                        <span className="font-medium text-foreground">
-                                                            {user.vessel_name || '—'}
-                                                        </span>
+                                                        <div className="flex items-center gap-1.5">
+                                                            <span className="font-medium text-foreground">
+                                                                {user.vessel_name || '—'}
+                                                            </span>
+                                                            {user.vessel_name && (
+                                                                <button
+                                                                    type="button"
+                                                                    onClick={() => handleOpenRenameVessel(user.vessel_name || undefined)}
+                                                                    className="text-muted-foreground hover:text-amber-600 dark:hover:text-amber-400 transition-colors p-0.5 rounded"
+                                                                    title="Rename this vessel fleetwide"
+                                                                >
+                                                                    <RotateCcw className="size-3" />
+                                                                </button>
+                                                            )}
+                                                        </div>
                                                     ) : (
                                                         <span className="text-xs text-muted-foreground">
                                                             All Fleet
@@ -1308,6 +1342,15 @@ export default function UsersIndex({
                     </DialogFooter>
                 </DialogContent>
             </Dialog>
+
+            {/* Rename Vessel Fleetwide Modal (Task 8.3, SRS §2.1) */}
+            <RenameVesselDialog
+                open={renameVesselModalOpen}
+                onOpenChange={setRenameVesselModalOpen}
+                knownVessels={known_vessels}
+                vesselsSummary={vessels_summary}
+                initialVessel={selectedVesselToRename}
+            />
         </>
     );
 }

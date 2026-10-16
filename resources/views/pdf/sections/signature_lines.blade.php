@@ -61,7 +61,7 @@
     </table>
   </div>
 @else
-  <div class="section page-break-before">
+  <div class="section" style="margin-top: 8pt; page-break-inside: avoid;">
     <h3 class="chapter-header">Signatures</h3>
     <div class="signature-lines">
       @foreach($defaultRoles as $role)

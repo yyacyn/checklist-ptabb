@@ -20,6 +20,8 @@ interface FormSummary {
     answer_set: string;
     groups_count: number;
     questions_count: number;
+    photo_schema?: { items?: unknown[]; enabled?: boolean } | null;
+    layout_schema?: { sections?: unknown[] } | null;
 }
 
 interface Props {
@@ -84,6 +86,12 @@ export default function FormsIndex({ forms }: Props) {
                 <div className="grid gap-6 md:grid-cols-2">
                     {forms.map((form) => {
                         const isPhoto = form.form_type === 'photo';
+                        const sectionsCount = isPhoto
+                            ? (form.groups_count || form.layout_schema?.sections?.length || (form.photo_schema ? 1 : 0))
+                            : form.groups_count;
+                        const fieldsCount = isPhoto
+                            ? (form.questions_count || form.photo_schema?.items?.length || 0)
+                            : form.questions_count;
 
                         return (
                             <Card key={form.id} className="flex flex-col justify-between">
@@ -115,11 +123,11 @@ export default function FormsIndex({ forms }: Props) {
                                 <CardContent>
                                     <div className="grid grid-cols-2 gap-4 rounded-lg bg-muted/40 p-4 text-center">
                                         <div>
-                                            <p className="text-2xl font-bold text-foreground">{form.groups_count}</p>
+                                            <p className="text-2xl font-bold text-foreground">{sectionsCount}</p>
                                             <p className="text-xs text-muted-foreground uppercase tracking-wider">{isPhoto ? 'Sections' : 'Chapters'}</p>
                                         </div>
                                         <div>
-                                            <p className="text-2xl font-bold text-foreground">{form.questions_count}</p>
+                                            <p className="text-2xl font-bold text-foreground">{fieldsCount}</p>
                                             <p className="text-xs text-muted-foreground uppercase tracking-wider">{isPhoto ? 'Fields' : 'Questions'}</p>
                                         </div>
                                     </div>

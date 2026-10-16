@@ -2,7 +2,7 @@
     $executionRows = $doc['execution_log'] ?? $doc['audit']['execution_log'] ?? [];
 @endphp
 
-<div class="section page-break-before">
+<div class="section" style="margin-top: 14pt; page-break-inside: avoid;">
   <h3 class="chapter-header">AUDIT EXECUTION</h3>
 
   <table class="findings-table" style="width: 100%; margin-bottom: 6pt;">

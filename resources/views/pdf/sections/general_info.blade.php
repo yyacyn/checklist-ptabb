@@ -47,34 +47,41 @@
   <tocentry content="toc_ch_1" />
   <h2 class="chapter-title">{{ $title }}</h2>
 
-  {{-- 1. Vessel Particulars --}}
-  <table class="particulars-table">
-    @foreach($fields as $label => $val)
-      <tr>
-        <td class="field-label">{{ $label }}</td>
-        <td class="field-value">{{ $val }}</td>
-      </tr>
-    @endforeach
-  </table>
+  {{-- 1. Vessel Particulars & Operations Grid (Side-by-Side) --}}
+  <table style="width: 100%; border-collapse: collapse; border: none; margin-bottom: 10pt;">
+    <tr>
+      <td style="width: 53%; vertical-align: top; padding-right: 6pt; border: none;">
+        <table class="particulars-table" style="width: 100%; border-collapse: collapse;">
+          @foreach($fields as $label => $val)
+            <tr>
+              <td class="field-label" style="width: 42%;">{{ $label }}</td>
+              <td class="field-value" style="width: 58%;">{{ $val }}</td>
+            </tr>
+          @endforeach
+        </table>
 
-  @if(!empty($particulars['voyage']['sailing_with_vessel']))
-    <h4 class="subsection-title">Voyage Details (Inspector Sailing with Vessel)</h4>
-    <table class="particulars-table">
-      <tr><td class="field-label">Sailing From</td><td class="field-value">{{ $particulars['voyage']['from'] ?: '-' }}</td></tr>
-      <tr><td class="field-label">Sailing To</td><td class="field-value">{{ $particulars['voyage']['to'] ?: '-' }}</td></tr>
-    </table>
-  @endif
+        @if(!empty($particulars['voyage']['sailing_with_vessel']))
+          <h4 class="subsection-title" style="margin-top: 8pt; margin-bottom: 4pt;">Voyage Details (Inspector Sailing with Vessel)</h4>
+          <table class="particulars-table" style="width: 100%; border-collapse: collapse;">
+            <tr><td class="field-label" style="width: 42%;">Sailing From</td><td class="field-value" style="width: 58%;">{{ $particulars['voyage']['from'] ?: '-' }}</td></tr>
+            <tr><td class="field-label" style="width: 42%;">Sailing To</td><td class="field-value" style="width: 58%;">{{ $particulars['voyage']['to'] ?: '-' }}</td></tr>
+          </table>
+        @endif
+      </td>
 
-  {{-- 2. Operations Grid --}}
-  <h4 class="subsection-title">Operations at Time of Inspection</h4>
-  <table class="ops-table">
-    @foreach($allOps as $key => $opLabel)
-      @php $isChecked = in_array($key, $selectedOps, true); @endphp
-      <tr>
-        <td>{{ $opLabel }}</td>
-        <td class="text-center">{{ $isChecked ? '☒' : '☐' }}</td>
-      </tr>
-    @endforeach
+      <td style="width: 47%; vertical-align: top; padding-left: 6pt; border: none;">
+        <h4 class="subsection-title" style="margin: 0 0 4pt 0; font-size: 8.5pt;">Operations at Time of Inspection</h4>
+        <table class="ops-table" style="width: 100%; border-collapse: collapse; margin-bottom: 0;">
+          @foreach($allOps as $key => $opLabel)
+            @php $isChecked = in_array($key, $selectedOps, true); @endphp
+            <tr>
+              <td style="padding: 2pt 5pt; font-size: 7.5pt;">{{ $opLabel }}</td>
+              <td class="text-center" style="width: 25px; padding: 2pt 4pt; font-size: 8pt;">{{ $isChecked ? '☒' : '☐' }}</td>
+            </tr>
+          @endforeach
+        </table>
+      </td>
+    </tr>
   </table>
 
   {{-- 3. PSC and Drydock --}}
@@ -126,18 +133,7 @@
     </tbody>
   </table>
 
-  {{-- 5. Internal Circulation --}}
-  <h4 class="subsection-title">Internal Circulation</h4>
-  <table class="circulation-table">
-    <thead>
-      <tr><th>Role</th><th>Date Sent</th><th>Reviewed By</th><th>Date Reviewed</th></tr>
-    </thead>
-    <tbody>
-      <tr><td colspan="4" class="empty-row text-center">Not yet circulated.</td></tr>
-    </tbody>
-  </table>
-
-  {{-- 6. Document Index & Fill In Instructions (flows after Internal Circulation) --}}
+  {{-- 5. Document Index, Internal Circulation & Fill In Instructions --}}
   @php
     $chaptersByNo = collect($doc['chapters'] ?? [])->keyBy(fn ($c) => (string) ($c['no'] ?? ''));
 
@@ -184,8 +180,44 @@
       </tbody>
     </table>
 
+    {{-- Internal Circulation (D-062 official format) --}}
+    <div style="margin-top: 14pt; margin-bottom: 12pt; page-break-inside: avoid;">
+      <div style="font-weight: bold; font-size: 10pt; margin-bottom: 4pt; text-transform: uppercase; letter-spacing: 0.5px; border-bottom: 1.5pt solid #000; padding-bottom: 2pt;">Internal Circulation</div>
+      <table style="width: 100%; border-collapse: collapse; margin-top: 4pt; border: 1pt solid #cbd5e1;">
+        <thead>
+          <tr style="background-color: #ffffff;">
+            <th style="width: 34%; text-align: left; padding: 3pt 6pt; font-size: 8pt; font-weight: bold; border: 1pt solid #cbd5e1;">Copy sent to:</th>
+            <th style="width: 15%; text-align: left; padding: 3pt 6pt; font-size: 8pt; font-weight: normal; font-style: italic; border: 1pt solid #cbd5e1;">Date</th>
+            <th style="width: 34%; text-align: left; padding: 3pt 6pt; font-size: 8pt; font-weight: bold; border: 1pt solid #cbd5e1;">Reviewed by:</th>
+            <th style="width: 17%; text-align: left; padding: 3pt 6pt; font-size: 8pt; font-weight: normal; font-style: italic; border: 1pt solid #cbd5e1;">Name/ Signature</th>
+          </tr>
+        </thead>
+        <tbody>
+          @php
+            $circulationRoles = [
+                ['copy' => 'Chief Operating Officer-<br>Technical Manager', 'reviewed' => 'Chief Operating Officer &ndash;<br>Technical Manager'],
+                ['copy' => 'Deputy Technical Manager', 'reviewed' => 'Deputy Technical Manager'],
+                ['copy' => 'Vetting/Assurance Manager', 'reviewed' => 'Vetting/Assurance Manager'],
+                ['copy' => 'Operations Manager', 'reviewed' => 'Operations Manager'],
+                ['copy' => 'HSQE Manager - DPA', 'reviewed' => 'HSQE Manager - DPA'],
+                ['copy' => 'Technical Supt.', 'reviewed' => 'Technical Supt.'],
+                ['copy' => 'Assurance Supt.', 'reviewed' => 'Assurance Supt.'],
+            ];
+          @endphp
+          @foreach($circulationRoles as $role)
+            <tr>
+              <td style="width: 34%; padding: 2.5pt 6pt; font-size: 7.5pt; border: 1pt solid #cbd5e1; vertical-align: middle;">{!! $role['copy'] !!}</td>
+              <td style="width: 15%; padding: 2.5pt 4pt; font-size: 7.5pt; border: 1pt solid #cbd5e1; border-bottom: 0.75pt dotted #94a3b8; vertical-align: bottom;">&nbsp;</td>
+              <td style="width: 34%; padding: 2.5pt 6pt; font-size: 7.5pt; border: 1pt solid #cbd5e1; vertical-align: middle;">{!! $role['reviewed'] !!}</td>
+              <td style="width: 17%; padding: 2.5pt 4pt; font-size: 7.5pt; border: 1pt solid #cbd5e1; border-bottom: 0.75pt dotted #94a3b8; vertical-align: bottom;">&nbsp;</td>
+            </tr>
+          @endforeach
+        </tbody>
+      </table>
+    </div>
+
     @if(!empty($instructionsText))
-      <div class="static-text" style="font-size: 8pt; line-height: 1.35;">
+      <div class="static-text" style="font-size: 8pt; line-height: 1.35; page-break-inside: avoid;">
         <div style="font-weight: bold; margin-bottom: 4pt; font-size: 8.5pt;">FILL IN INSTRUCTIONS:</div>
         <div style="color: #000;">{!! nl2br(e($instructionsText)) !!}</div>
       </div>
@@ -204,7 +236,7 @@
   @endphp
 
   @if($attendanceSg && !empty($attendanceSg['questions']))
-    <div style="margin-top: 14pt;">
+    <div style="margin-top: 14pt; page-break-inside: avoid;">
       <h3 class="chapter-header">Other Attendance-Related Activities</h3>
       <table class="findings-table" style="width: 100%; margin-top: 6pt;">
         <thead>

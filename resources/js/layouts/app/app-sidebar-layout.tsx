@@ -1,4 +1,5 @@
 import { AppContent } from '@/components/app-content';
+import { AppMobileNav } from '@/components/app-mobile-nav';
 import { AppShell } from '@/components/app-shell';
 import { AppSidebar } from '@/components/app-sidebar';
 import { AppSidebarHeader } from '@/components/app-sidebar-header';
@@ -11,10 +12,11 @@ export default function AppSidebarLayout({
     return (
         <AppShell variant="sidebar">
             <AppSidebar />
-            <AppContent variant="sidebar" className="min-w-0 overflow-x-clip">
-                {breadcrumbs.length > 0 && <AppSidebarHeader breadcrumbs={breadcrumbs} />}
+            <AppContent variant="sidebar" className="min-w-0 overflow-x-clip pb-20 md:pb-0">
+                <AppSidebarHeader breadcrumbs={breadcrumbs} />
                 {children}
             </AppContent>
+            <AppMobileNav />
         </AppShell>
     );
 }

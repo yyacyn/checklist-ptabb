@@ -14,17 +14,19 @@
     $summaryData = $doc['summary']['summary_data'] ?? [];
 @endphp
 
-<div class="section page-break-before">
-  <h3 class="chapter-header">{{ $heading }}</h3>
-  <div class="summary-notice" style="font-size:8pt;color:#666;margin-bottom:10pt;">
-    (Printed after Chapter 15; shown in Chapter 1 of form {{ $formCode }} {{ $formVersion }})
-  </div>
+<div class="section" style="margin-top: 14pt;">
+  <div style="page-break-inside: avoid;">
+    <h3 class="chapter-header">{{ $heading }}</h3>
+    <div class="summary-notice" style="font-size:8pt;color:#666;margin-bottom:10pt;">
+      (Printed after Chapter 15; shown in Chapter 1 of form {{ $formCode }} {{ $formVersion }})
+    </div>
 
-  {{-- Counts summary --}}
-  <div class="counts-summary">
-    <div class="chapter-counts">Total Chapters: {{ count($ratings) }}</div>
-    <div class="observation-counts">
-      Observations: {{ $counts['total_findings'] }} (High: {{ $counts['high'] }}, Medium: {{ $counts['medium'] }}, Low: {{ $counts['low'] }})
+    {{-- Counts summary --}}
+    <div class="counts-summary">
+      <div class="chapter-counts">Total Chapters: {{ count($ratings) }}</div>
+      <div class="observation-counts">
+        Observations: {{ $counts['total_findings'] }} (High: {{ $counts['high'] }}, Medium: {{ $counts['medium'] }}, Low: {{ $counts['low'] }})
+      </div>
     </div>
   </div>
 
