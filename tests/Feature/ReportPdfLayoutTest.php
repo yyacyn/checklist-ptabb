@@ -575,4 +575,24 @@ class ReportPdfLayoutTest extends TestCase
 
         return null;
     }
+
+    public function test_date_extra_value_replaces_question_dots_in_pdf(): void
+    {
+        $report = $this->createInspectionReport();
+        $question = $report->questions()->where('question_text', 'like', '%Last unannounced drug%')->first();
+
+        if ($question) {
+            $question->answer()->create([
+                'report_id' => $report->id,
+                'answer' => 'yes',
+                'extra_value' => '2026-10-16',
+            ]);
+
+            $renderer = new ReportPdfRenderer;
+            $html = $renderer->render($report);
+
+            $this->assertStringContainsString('16 October 2026', $html);
+            $this->assertStringNotContainsString('2026-10-16</div>', $html);
+        }
+    }
 }

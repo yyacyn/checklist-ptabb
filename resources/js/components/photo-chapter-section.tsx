@@ -52,19 +52,27 @@ export interface PhotoRecord {
     created_at?: string;
 }
 
+export function normalizeStorageUrl(url?: string | null): string {
+    if (!url) return '';
+    if (url.includes('/storage/')) {
+        return '/storage/' + url.split('/storage/')[1];
+    }
+    return url.startsWith('http') || url.startsWith('/') ? url : `/storage/${url}`;
+}
+
 export function getPhotoThumbnailSrc(photo: PhotoRecord): string {
-    if (photo.thumbnail_url) return photo.thumbnail_url;
-    if (photo.file_url) return photo.file_url;
-    if (photo.thumbnail_path) return `/storage/${photo.thumbnail_path}`;
-    if (photo.file_path) return `/storage/${photo.file_path}`;
+    if (photo.thumbnail_url) return normalizeStorageUrl(photo.thumbnail_url);
+    if (photo.thumbnail_path) return normalizeStorageUrl(photo.thumbnail_path);
+    if (photo.file_url) return normalizeStorageUrl(photo.file_url);
+    if (photo.file_path) return normalizeStorageUrl(photo.file_path);
     return '';
 }
 
 export function getPhotoFullSrc(photo: PhotoRecord): string {
-    if (photo.file_url) return photo.file_url;
-    if (photo.thumbnail_url) return photo.thumbnail_url;
-    if (photo.file_path) return `/storage/${photo.file_path}`;
-    if (photo.thumbnail_path) return `/storage/${photo.thumbnail_path}`;
+    if (photo.file_url) return normalizeStorageUrl(photo.file_url);
+    if (photo.file_path) return normalizeStorageUrl(photo.file_path);
+    if (photo.thumbnail_url) return normalizeStorageUrl(photo.thumbnail_url);
+    if (photo.thumbnail_path) return normalizeStorageUrl(photo.thumbnail_path);
     return '';
 }
 
@@ -480,6 +488,12 @@ export function PhotoChapterSection({
                                                             className="h-28 w-28 sm:h-32 sm:w-32 object-cover rounded-lg group-hover:scale-[1.02] transition-transform duration-200 cursor-pointer"
                                                             onClick={() => setPreviewPhoto(photo)}
                                                             title={photo.title || slot.title}
+                                                            onError={(e) => {
+                                                                const full = getPhotoFullSrc(photo);
+                                                                if (full && !e.currentTarget.src.endsWith(full)) {
+                                                                    e.currentTarget.src = full;
+                                                                }
+                                                            }}
                                                         />
                                                         <div className="absolute inset-0 bg-black/50 opacity-0 group-hover:opacity-100 transition-opacity flex items-center justify-center gap-2 p-1">
                                                             <Button
@@ -701,6 +715,12 @@ export function PhotoChapterSection({
                                                 className="h-28 w-28 sm:h-32 sm:w-32 object-cover rounded-lg group-hover:scale-[1.02] transition-transform duration-200 cursor-pointer"
                                                 onClick={() => setPreviewPhoto(photo)}
                                                 title={photo.title || `Photo #${photo.item_no}`}
+                                                onError={(e) => {
+                                                    const full = getPhotoFullSrc(photo);
+                                                    if (full && !e.currentTarget.src.endsWith(full)) {
+                                                        e.currentTarget.src = full;
+                                                    }
+                                                }}
                                             />
                                             <div className="absolute inset-0 bg-black/50 opacity-0 group-hover:opacity-100 transition-opacity flex items-center justify-center gap-2 p-1">
                                                 <Button
@@ -765,6 +785,12 @@ export function PhotoChapterSection({
                         src={getPhotoFullSrc(previewPhoto)}
                         alt={previewPhoto.title || `Photo #${previewPhoto.item_no}`}
                         className="max-h-[80vh] max-w-[90vw] object-contain rounded-lg shadow-2xl"
+                        onError={(e) => {
+                            const thumb = getPhotoThumbnailSrc(previewPhoto);
+                            if (thumb && !e.currentTarget.src.endsWith(thumb)) {
+                                e.currentTarget.src = thumb;
+                            }
+                        }}
                     />
                     <div className="mt-4 text-center text-white space-y-1 max-w-lg">
                         <div className="font-semibold text-base">

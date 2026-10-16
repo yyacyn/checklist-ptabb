@@ -95,13 +95,13 @@ class Photo extends Model
             return null;
         }
 
-        return asset('storage/'.$this->file_path);
+        return '/storage/'.ltrim($this->file_path, '/');
     }
 
     public function getThumbnailUrlAttribute(): ?string
     {
         if ($this->thumbnail_path) {
-            return asset('storage/'.$this->thumbnail_path);
+            return '/storage/'.ltrim($this->thumbnail_path, '/');
         }
 
         return $this->file_url;

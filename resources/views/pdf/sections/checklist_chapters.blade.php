@@ -103,12 +103,18 @@
             <tr>
               <td class="no-col text-center" width="{{ $noWidth }}%">{{ $q['display_no'] }}</td>
               <td class="q-col" width="{{ $itemWidth }}%">
-                {{ $stripNumber($q['question_text']) }}
+                @if(!empty($q['formatted_text']))
+                  {!! $q['formatted_text'] !!}
+                @else
+                  {{ $stripNumber($q['question_text']) }}
+                @endif
                 @if(!empty($q['guidance']))
                   <div class="guidance">{{ $q['guidance'] }}</div>
                 @endif
-                @if(!empty($q['extra_value']) && in_array($q['answer'], ['yes', 'no', 'ns', 'na'], true))
-                  <div class="extra-value">{{ $q['extra_value'] }}</div>
+                @if(!empty($q['extra_html']))
+                  {!! $q['extra_html'] !!}
+                @elseif(empty($q['formatted_text']) && !empty($q['extra_value']) && in_array($q['answer'], ['yes', 'no', 'ns', 'na'], true))
+                  <div class="extra-value">{{ \App\Services\Pdf\ReportDocumentBuilder::formatExtraDate($q['extra_value']) ?: $q['extra_value'] }}</div>
                 @endif
                 @if(!$hasRemarksCol && !empty($q['note']))
                   <div class="item-note" style="margin-top: 2pt; font-size: 7.5pt; color: #475569; font-style: italic;">

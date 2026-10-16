@@ -55,9 +55,9 @@ export default function Dashboard({ stats, recent_reports = [] }: DashboardProps
 
     return (
         <>
-            <Head title="Dashboard - Fleet Operations" />
+            <Head title="Dashboard" />
 
-            <div className="flex h-full flex-1 flex-col gap-6 p-6 max-w-7xl mx-auto w-full">
+            <div className="flex h-full flex-1 flex-col gap-6 p-6 max-w-full mx-auto w-full">
                 {/* Header Section */}
                 <div className="flex flex-col justify-between gap-4 md:flex-row md:items-center">
                     <div>
@@ -65,15 +65,15 @@ export default function Dashboard({ stats, recent_reports = [] }: DashboardProps
                             <Badge variant="outline" className="text-xs font-semibold gap-1">
                                 {user?.role === 'vessel' ? (
                                     <>
-                                        <Ship className="size-3" /> Vessel Account
+                                        <Ship className="size-3" /> Vessel
                                     </>
                                 ) : user?.role === 'superadmin' ? (
                                     <>
-                                        <Shield className="size-3" /> System Administration
+                                        <Shield className="size-3" /> Admin
                                     </>
                                 ) : (
                                     <>
-                                        <Users className="size-3" /> Corporate Fleet
+                                        <Users className="size-3" /> Corporate
                                     </>
                                 )}
                             </Badge>

@@ -473,18 +473,16 @@ HTML;
     protected function renderQuestionRow(Report $report, ReportQuestion $question, int $questionNumber, array $answerColumns): string
     {
         $num = $questionNumber;
-        $text = $this->escape($question->question_text);
-        $guidance = $question->guidance ? $this->escape($question->guidance) : '';
-        $note = $this->formatMultiline($question->answer?->note ?? '');
-        $extraValue = $this->escape($question->answer?->extra_value ?? '');
+        $cleanText = preg_replace('/^\s*(\d+(\.\d+)*)[\.\)]\s*/u', '', (string) $question->question_text);
+        $rendered = ReportDocumentBuilder::formatQuestionWithExtra($cleanText, $question->answer?->extra_value, $question->answer?->answer);
 
         $cells = '<td class="no-col">'.$num.'</td>';
-        $cells .= '<td class="q-col">'.$text;
+        $cells .= '<td class="q-col">'.$rendered['text'];
         if ($guidance) {
             $cells .= '<div class="guidance">'.$guidance.'</div>';
         }
-        if ($extraValue && in_array($question->answer?->answer, ['yes', 'no', 'ns', 'na'], true)) {
-            $cells .= '<div class="extra-value">'.$extraValue.'</div>';
+        if (! empty($rendered['extra_html'])) {
+            $cells .= $rendered['extra_html'];
         }
         $cells .= '</td>';
 
@@ -1212,7 +1210,7 @@ h1, h2, h3, h4, h5, h6, .chapter-title, .chapter-header, .subsection-title { pag
 tr.subgroup-row { page-break-inside: avoid; page-break-after: avoid; }
 .subgroup-header { font-weight: bold; background-color: #f1f5f9; padding: 4pt 6pt; border: 1pt solid #000; font-size: 8.5pt; }
 .guidance { font-size: 7.5pt; color: #555; margin-top: 2pt; font-style: italic; }
-.extra-value { font-size: 7.5pt; color: #111; margin-top: 2pt; font-family: monospace; }
+.extra-value { font-size: 7.5pt; color: #1e293b; margin-top: 2pt; line-height: 1.3; }
 .q-note { font-size: 7.5pt; color: #333; margin-top: 3pt; padding: 2pt 4pt; background-color: #f8f8f8; border-left: 2pt solid #666; }
 .na-reason { font-size: 7.5pt; color: #c00; font-weight: normal; margin-left: 6pt; }
 .chapter-comments { margin-top: 6pt; padding: 5pt 7pt; border: 1pt solid #bbb; background-color: #fafafa; font-size: 8pt; page-break-inside: avoid; }

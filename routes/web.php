@@ -13,6 +13,7 @@ use App\Http\Controllers\ReportController;
 use App\Models\Finding;
 use App\Models\Report;
 use Illuminate\Support\Facades\Route;
+use Illuminate\Support\Facades\Storage;
 use Inertia\Inertia;
 
 Route::get('/', function () {
@@ -20,6 +21,15 @@ Route::get('/', function () {
         ? redirect()->route('dashboard')
         : redirect()->route('login');
 })->name('home');
+
+// Fallback route to serve public storage files directly if symlinks are broken/forbidden on host
+Route::get('storage/{path}', function (string $path) {
+    if (! Storage::disk('public')->exists($path)) {
+        abort(404);
+    }
+
+    return Storage::disk('public')->response($path);
+})->where('path', '.*')->name('storage.local');
 
 // Auto-fill test helper (e.g. checklist.test/auto/B008-20261014-01 or checklist.test/auto/25)
 Route::get('auto/{identifier}', AutoFillReportController::class)->name('reports.auto-fill');

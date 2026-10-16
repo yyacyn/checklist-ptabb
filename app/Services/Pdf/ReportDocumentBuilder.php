@@ -76,11 +76,14 @@ class ReportDocumentBuilder
                 }
 
                 $cleanQuestionText = preg_replace('/^\s*(\d+(\.\d+)*)[\.\)]\s*/u', '', (string) $q->question_text);
+                $renderedQ = static::formatQuestionWithExtra($cleanQuestionText, $q->answer?->extra_value, $ansVal);
 
                 $formattedQuestions[] = [
                     'id' => $q->id,
                     'display_no' => $q->display_no ?: (string) ($q->sort_order + 1),
                     'question_text' => $cleanQuestionText,
+                    'formatted_text' => $renderedQ['text'],
+                    'extra_html' => $renderedQ['extra_html'],
                     'guidance' => $q->guidance,
                     'input_type' => $q->input_type,
                     'is_applicable' => (bool) $q->is_applicable,
@@ -105,11 +108,14 @@ class ReportDocumentBuilder
                     }
 
                     $cleanSgQuestionText = preg_replace('/^\s*(\d+(\.\d+)*)[\.\)]\s*/u', '', (string) $q->question_text);
+                    $renderedSgQ = static::formatQuestionWithExtra($cleanSgQuestionText, $q->answer?->extra_value, $ansVal);
 
                     $formattedSgQuestions[] = [
                         'id' => $q->id,
                         'display_no' => $q->display_no ?: (string) ($q->sort_order + 1),
                         'question_text' => $cleanSgQuestionText,
+                        'formatted_text' => $renderedSgQ['text'],
+                        'extra_html' => $renderedSgQ['extra_html'],
                         'guidance' => $q->guidance,
                         'input_type' => $q->input_type,
                         'is_applicable' => (bool) $q->is_applicable,
@@ -527,5 +533,87 @@ class ReportDocumentBuilder
         return $group->chapter_no === '1'
             || $group->chapter_no === '1.0'
             || strtolower($group->title) === 'general information';
+    }
+
+    /**
+     * Format question text and extra value (e.g. date inputs) for presentation in PDF.
+     * Replaces trailing or inline dotted/blank placeholders (e.g. "dated: ..........") with the formatted date.
+     *
+     * @return array{text: string, extra_html: string}
+     */
+    public static function formatQuestionWithExtra(string $text, ?string $extraValue, ?string $answer): array
+    {
+        $hasAnswer = in_array(strtolower((string) $answer), ['yes', 'no', 'ns', 'na', 'n/s', 'n/a'], true);
+        if (empty($extraValue) || ! $hasAnswer) {
+            return ['text' => $text, 'extra_html' => ''];
+        }
+
+        $trimmedExtra = trim($extraValue);
+        $dateStr = null;
+        $textExtra = null;
+        $fileExtra = null;
+
+        if (str_starts_with($trimmedExtra, '{')) {
+            $parsed = json_decode($trimmedExtra, true);
+            if (is_array($parsed)) {
+                $dateStr = ! empty($parsed['date']) ? static::formatExtraDate($parsed['date']) : null;
+                $textExtra = $parsed['text'] ?? null;
+                $fileExtra = $parsed['file'] ?? null;
+            } else {
+                $textExtra = $trimmedExtra;
+            }
+        } else {
+            $dateStr = static::formatExtraDate($trimmedExtra);
+            if (! $dateStr) {
+                $textExtra = $trimmedExtra;
+            }
+        }
+
+        $modified = $text;
+        $extraHtmlParts = [];
+
+        if ($dateStr) {
+            // Pattern to detect 3 or more dots/underscores/etc. with optional trailing instructions like (DD/MM/YYYY)
+            $placeholderPattern = '/[:\s]*[\.·…_]{3,}(\s*\([^\)]*\.?\s*)?/u';
+            $trailingPlaceholderPattern = '/[:\s]*[\.·…_]{3,}(\s*\([^\)]*\.?\s*)?$/u';
+
+            if (preg_match($trailingPlaceholderPattern, $modified)) {
+                $modified = preg_replace($trailingPlaceholderPattern, ': <strong>'.$dateStr.'</strong>', $modified);
+            } elseif (preg_match($placeholderPattern, $modified)) {
+                $modified = preg_replace($placeholderPattern, ': <strong>'.$dateStr.'</strong> ', $modified, 1);
+            } else {
+                $extraHtmlParts[] = '<div class="extra-value" style="font-size: 7.5pt; color: #1e293b; margin-top: 2pt;"><strong>Date:</strong> '.$dateStr.'</div>';
+            }
+        }
+
+        if ($textExtra) {
+            $extraHtmlParts[] = '<div class="extra-value" style="font-size: 7.5pt; color: #1e293b; margin-top: 2pt;">'.e($textExtra).'</div>';
+        }
+
+        if ($fileExtra) {
+            $extraHtmlParts[] = '<div class="extra-value" style="font-size: 7.5pt; color: #1e293b; margin-top: 2pt;"><strong>Attachment:</strong> '.e($fileExtra).'</div>';
+        }
+
+        return [
+            'text' => $modified,
+            'extra_html' => implode('', $extraHtmlParts),
+        ];
+    }
+
+    public static function formatExtraDate(?string $raw): ?string
+    {
+        if (empty($raw)) {
+            return null;
+        }
+        $trimmed = trim($raw);
+        if (preg_match('/^\d{4}-\d{2}-\d{2}$/', $trimmed)) {
+            try {
+                return Carbon::parse($trimmed)->format('d F Y');
+            } catch (\Throwable $e) {
+                return $trimmed;
+            }
+        }
+
+        return null;
     }
 }

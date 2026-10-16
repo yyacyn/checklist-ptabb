@@ -30,26 +30,5 @@
         </tr>
       </tbody>
     </table>
-
-    {{-- Form B-008 Scoring Guide (AUD-11 / Image 1) --}}
-    <div style="margin-top: 10pt; font-size: 8pt;">
-      <div style="font-weight: bold; margin-bottom: 3pt; font-size: 8.5pt;">SCORING &mdash; SMS CONFORMANCE SCORING DEFINITIONS (1 TO 5)</div>
-      <p style="margin: 0 0 4pt 0; font-size: 8pt;">The granted scores should reflect the following:</p>
-      <div style="margin-bottom: 3pt; font-size: 7.5pt; line-height: 1.35;">
-        • <strong>5 “excellent”</strong> means that the auditee’s conformance with SMS is outstanding and/or the rate of SMS implementation within the department is maintained at a level much higher than is usually expected.
-      </div>
-      <div style="margin-bottom: 3pt; font-size: 7.5pt; line-height: 1.35;">
-        • <strong>4 “above expectations”</strong> means that the auditee’s conformance with SMS is high and/or the rate of SMS implementation within the department is significantly better than what would normally scored as acceptable.
-      </div>
-      <div style="margin-bottom: 3pt; font-size: 7.5pt; line-height: 1.35;">
-        • <strong>3 “satisfactory”</strong> means that the auditee’s conformance with SMS is in line with normal expectation and/or the rate of SMS implementation within the department is satisfactory.
-      </div>
-      <div style="margin-bottom: 3pt; font-size: 7.5pt; line-height: 1.35;">
-        • <strong>2 “fair”</strong> means that the auditee’s conformance with SMS is below expectations and/or the rate of SMS implementation within the department is not satisfactory but with the proper training in certain areas the auditees can be in satisfactory level.
-      </div>
-      <div style="margin-bottom: 3pt; font-size: 7.5pt; line-height: 1.35;">
-        • <strong>1 “unsatisfactory”</strong> means that the auditee’s capacity is inadequate in the area(s) being audited and/or the rate of SMS implementation within the department is poor and the possibility for the persons to be sufficiently improved, even with additional training, the improvement is uncertain.
-      </div>
-    </div>
   </div>
 @endif

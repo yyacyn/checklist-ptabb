@@ -253,7 +253,8 @@
               $ans = strtolower(trim((string)($q['answer'] ?? '')));
               $isYes = in_array($ans, ['yes', 'y'], true);
               $isNo = in_array($ans, ['no', 'n'], true);
-              $details = $q['note'] ?: ($q['extra_value'] ?: '—');
+              $extraValFormatted = \App\Services\Pdf\ReportDocumentBuilder::formatExtraDate($q['extra_value']) ?: $q['extra_value'];
+              $details = $q['note'] ?: ($extraValFormatted ?: '—');
             @endphp
             <tr>
               <td style="font-size: 8pt;">{{ $q['question_text'] }}</td>
